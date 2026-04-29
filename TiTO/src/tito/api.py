@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from .config import Settings
-from .db import count_jobs, enqueue_job, get_connection
+from .db import count_jobs, enqueue_job, get_connection, register_worker, update_worker_heartbeat, get_workers, count_workers
 
 
 def create_app(settings: Settings | None = None) -> Flask:
@@ -14,7 +14,12 @@ def create_app(settings: Settings | None = None) -> Flask:
 
     @app.get("/metrics")
     def metrics():
-        return jsonify({"queue_length": count_jobs(connection, settings.queue_table), "active_workers": 0})
+        workers = get_workers(connection)
+        return jsonify({
+            "queue_length": count_jobs(connection, settings.queue_table),
+            "active_workers": len(workers),
+            "workers": workers
+        })
 
     @app.get("/jobs")
     def list_jobs():
@@ -30,5 +35,29 @@ def create_app(settings: Settings | None = None) -> Flask:
 
         enqueue_job(connection, payload, settings.queue_table)
         return jsonify({"status": "queued", "jobId": payload.get("metadata", {}).get("jobId")}), 201
+
+    @app.post("/workers/register")
+    def register_worker_endpoint():
+        data = request.get_json(silent=True)
+        if not data or 'worker_id' not in data:
+            return jsonify({"error": "Invalid payload"}), 400
+        worker_id = data['worker_id']
+        ip = request.remote_addr or "unknown"
+        cpu_usage = data.get('cpu_usage', 0.0)
+        ram_usage = data.get('ram_usage', 0.0)
+        register_worker(connection, worker_id, ip, cpu_usage, ram_usage)
+        return jsonify({"status": "registered"})
+
+    @app.post("/workers/heartbeat")
+    def heartbeat_endpoint():
+        data = request.get_json(silent=True)
+        if not data or 'worker_id' not in data:
+            return jsonify({"error": "Invalid payload"}), 400
+        worker_id = data['worker_id']
+        cpu_usage = data.get('cpu_usage', 0.0)
+        ram_usage = data.get('ram_usage', 0.0)
+        active_jobs = data.get('active_jobs', 0)
+        update_worker_heartbeat(connection, worker_id, cpu_usage, ram_usage, active_jobs)
+        return jsonify({"status": "updated"})
 
     return app

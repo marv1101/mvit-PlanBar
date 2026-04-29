@@ -67,7 +67,7 @@ def _seed_example_job(connection, queue_table: str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="TiTO minimal runnable worker and API")
     parser.add_argument("--mode", choices=["api", "worker", "seed"], default="api")
-    parser.add_argument("--port", type=int, default=5000)
+    parser.add_argument("--port", type=int, default=5001)
     args = parser.parse_args()
 
     settings = Settings.from_env()

@@ -45,6 +45,19 @@ def _initialize_sqlite(connection: sqlite3.Connection) -> None:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS workers (
+            worker_id TEXT PRIMARY KEY,
+            ip TEXT NOT NULL,
+            registered_at TEXT NOT NULL,
+            last_heartbeat TEXT NOT NULL,
+            cpu_usage REAL,
+            ram_usage REAL,
+            active_jobs INTEGER DEFAULT 0
+        )
+        """
+    )
     connection.commit()
 
 
@@ -96,5 +109,34 @@ def store_result(connection: sqlite3.Connection, job_id: str, result: dict) -> N
 
 def count_jobs(connection: sqlite3.Connection, queue_table: str) -> int:
     cursor = connection.execute(f"SELECT COUNT(1) AS count FROM {queue_table}")
+    row = cursor.fetchone()
+    return int(row["count"])
+
+
+def register_worker(connection: sqlite3.Connection, worker_id: str, ip: str, cpu_usage: float, ram_usage: float) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    connection.execute(
+        "INSERT OR REPLACE INTO workers (worker_id, ip, registered_at, last_heartbeat, cpu_usage, ram_usage, active_jobs) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (worker_id, ip, now, now, cpu_usage, ram_usage, 0),
+    )
+    connection.commit()
+
+
+def update_worker_heartbeat(connection: sqlite3.Connection, worker_id: str, cpu_usage: float, ram_usage: float, active_jobs: int) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    connection.execute(
+        "UPDATE workers SET last_heartbeat = ?, cpu_usage = ?, ram_usage = ?, active_jobs = ? WHERE worker_id = ?",
+        (now, cpu_usage, ram_usage, active_jobs, worker_id),
+    )
+    connection.commit()
+
+
+def get_workers(connection: sqlite3.Connection) -> list[dict]:
+    cursor = connection.execute("SELECT * FROM workers ORDER BY registered_at DESC")
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def count_workers(connection: sqlite3.Connection) -> int:
+    cursor = connection.execute("SELECT COUNT(1) AS count FROM workers")
     row = cursor.fetchone()
     return int(row["count"])

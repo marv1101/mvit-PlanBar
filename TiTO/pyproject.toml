@@ -6,15 +6,16 @@ build-backend = "setuptools.build_meta"
 name = "tito"
 version = "0.1.0"
 description = "TiTO - Queue-basierter Optimizer für Schichtplanung mit OR-Tools"
-authors = ["MVIT"]
+authors = [{name = "MVIT"}]
 readme = "README.md"
 requires-python = ">=3.11"
 
-[project.dependencies]
-flask = "^3.0"
-psycopg2-binary = "^2.9"
-jsonschema = "^4.0"
-python-dotenv = "^1.0"
+dependencies = [
+    "flask>=3.0",
+    "psycopg2-binary>=2.9",
+    "jsonschema>=4.0",
+    "python-dotenv>=1.0"
+]
 
 [project.optional-dependencies]
 testing = ["pytest", "pytest-cov"]
