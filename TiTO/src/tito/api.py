@@ -33,8 +33,9 @@ def create_app(settings: Settings | None = None) -> Flask:
         if not payload:
             return jsonify({"error": "Invalid JSON payload"}), 400
 
-        enqueue_job(connection, payload, settings.queue_table)
-        return jsonify({"status": "queued", "jobId": payload.get("metadata", {}).get("jobId")}), 201
+        job_id = enqueue_job(connection, payload, settings.queue_table)
+        print(f"Enqueued job with ID: {job_id}")
+        return jsonify({"status": "queued", "jobId": job_id}), 201
 
     @app.post("/workers/register")
     def register_worker_endpoint():

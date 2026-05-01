@@ -40,11 +40,16 @@ def run_worker(settings: Settings) -> None:
         
         active_jobs += 1
         try:
-            mark_job_processing(connection, job["metadata"]["jobId"])
+            # Verwende die echte INTEGER job_id aus der DB
+            db_job_id = job.pop("_db_job_id")
+            mark_job_processing(connection, db_job_id)
+
+            print(f"Processing job ID: {db_job_id}")
+
             validate_job_payload(job)
             model = build_model(job)
             result = solve_model(model, settings.timeout_seconds)
-            store_result(connection, job["metadata"]["jobId"], result)
+            store_result(connection, db_job_id, result)
         except Exception as exc:
             print(f"Job failed: {exc}")
         active_jobs -= 1

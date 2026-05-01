@@ -1,6 +1,6 @@
 from typing import Any
 from datetime import datetime, timedelta
-from ortools.sat.python.cp_model import CpModel, CpSolver, LinearExpr
+from ortools.sat.python.cp_model import CpModel, CpSolver, CpSolverStatus, LinearExpr
 
 
 def build_model(payload: dict) -> dict:
@@ -90,37 +90,71 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         if requirement_assignments:
             cp_model.add(LinearExpr.sum(requirement_assignments) >= 1)
     
-    # Constraint 2: Alle Tage der Datumsrange müssen besetzt sein
-    start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
-    end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
-    current_date = start_date_obj
+    # Constraint 2: Fairness - Schichten gleichmäßig auf alle Workers verteilen
+    # Berechne min/max Schichten pro Worker (Zielbereich)
+    total_shifts = len(requirements)
+    num_workers = len(employees)
     
-    while current_date <= end_date_obj:
-        date_str = current_date.strftime("%Y-%m-%d")
+    if num_workers > 0 and total_shifts > 0:
+        avg_shifts = total_shifts / num_workers
+        min_shifts = int(avg_shifts)
+        max_shifts = int(avg_shifts) + 1
         
-        # Finde alle Requirements für diesen Tag
-        reqs_for_day = [
-            req_idx for req_idx, req in enumerate(requirements)
-            if req.get("date") == date_str
-        ]
-        
-        # Mindestens ein Employee muss an diesem Tag zugewiesen sein
-        if reqs_for_day:
-            day_assignments = [
+        for emp_idx in range(num_workers):
+            emp_shift_count = LinearExpr.sum([
                 assignments[(emp_idx, req_idx)]
-                for req_idx in reqs_for_day
-                for emp_idx in range(len(employees))
-            ]
-            if day_assignments:
-                cp_model.add(LinearExpr.sum(day_assignments) >= 1)
+                for req_idx in range(len(requirements))
+            ])
+            # Worker sollte zwischen min_shifts und max_shifts Schichten haben
+            cp_model.add(emp_shift_count >= min_shifts)
+            cp_model.add(emp_shift_count <= max_shifts)
+    
+    # Constraint 3: Mindest-Ruhezeit zwischen Schichten (Hard Constraint)
+    # Zwischen zwei Schichten eines Mitarbeiters müssen mindestens min_rest_hours liegen
+    if min_rest_hours > 0 and len(requirements) > 1:
+        min_rest_minutes = min_rest_hours * 60
         
-        current_date += timedelta(days=1)
+        for emp_idx in range(num_workers):
+            # Für jedes Paar von Requirements prüfen, ob die Ruhezeit verletzt würde
+            for req_i in range(len(requirements)):
+                for req_j in range(req_i + 1, len(requirements)):
+                    req_i_data = requirements[req_i]
+                    req_j_data = requirements[req_j]
+                    
+                    date_i = req_i_data.get("date")
+                    date_j = req_j_data.get("date")
+                    shift_id_i = req_i_data.get("shiftId")
+                    shift_id_j = req_j_data.get("shiftId")
+                    
+                    shift_i = shift_templates.get(shift_id_i, {})
+                    shift_j = shift_templates.get(shift_id_j, {})
+                    
+                    # Berechne Start- und Endzeiten in Minuten für beide Schichten
+                    start_i = _time_to_minutes(shift_i.get("startTime", "00:00"))
+                    end_i = _time_to_minutes(shift_i.get("endTime", "00:00"))
+                    start_j = _time_to_minutes(shift_j.get("startTime", "00:00"))
+                    end_j = _time_to_minutes(shift_j.get("endTime", "00:00"))
+                    
+                    # Berechne Ruhezeit zwischen den Schichten
+                    # Fall 1: req_i endet vor req_j
+                    rest_ij = _date_to_days(date_i, date_j) * 24 * 60 + (start_j - end_i)
+                    # Fall 2: req_j endet vor req_i
+                    rest_ji = _date_to_days(date_j, date_i) * 24 * 60 + (start_i - end_j)
+                    
+                    # Wenn eine der Ruhezeiten kleiner als min_rest_minutes ist,
+                    # können nicht beide Requirements diesem Mitarbeiter zugewiesen werden
+                    if rest_ij < min_rest_minutes and rest_ji < min_rest_minutes:
+                        # Beide Kombinationen würden die Ruhezeit verletzen
+                        cp_model.add(
+                            assignments[(emp_idx, req_i)] + assignments[(emp_idx, req_j)] <= 1
+                        )
+                    elif rest_ij < min_rest_minutes:
+                        # Nur wenn req_i vor req_j liegt, gibt es eine Verletzung
+                        cp_model.add(
+                            assignments[(emp_idx, req_i)] + assignments[(emp_idx, req_j)] <= 1
+                        )
     
-    # Constraint 3: Maximale aufeinanderfolgende Arbeitstage
-    # TODO: Implementiere Constraint für max_consecutive_days
-    # Derzeit nicht implementiert, um Speicherfehler zu vermeiden
-    
-    # Constraint 4: Wünsche als weiche Constraints
+    # Constraint 3: Wünsche als weiche Constraints
     wish_penalty_vars = []
     for wish in wishes:
         wish_type = wish.get("type", "")
@@ -213,18 +247,18 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     )
     
     # Bestimme Status
-    if status == 1:  # OPTIMAL
+    if status == CpSolverStatus.OPTIMAL:  # OPTIMAL
         solver_status = "SUCCESS"
         is_optimal = True
         info = "Optimale Lösung gefunden."
-    elif status == 2:  # FEASIBLE
+    elif status == CpSolverStatus.FEASIBLE:  # FEASIBLE
         solver_status = "FEASIBLE"
         is_optimal = False
         info = "Zulässige Lösung gefunden, aber nicht optimal."
-    elif status == 4:  # TIMEOUT
-        solver_status = "TIMEOUT"
+    elif status == CpSolverStatus.MODEL_INVALID:  # MODEL_INVALID
+        solver_status = "MODEL_INVALID"
         is_optimal = False
-        info = f"Timeout nach {timeout_seconds}s. Beste gefundene Lösung wird zurückgegeben."
+        info = f"MODEL_INVALID: {solver.ResponseStats()}"
     else:  # INFEASIBLE oder NO_SOLUTION_FOUND
         solver_status = "INFEASIBLE"
         is_optimal = False
@@ -236,10 +270,20 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         emp_id = assignment["employeeId"]
         shift_id = assignment["shiftId"]
         shift = shift_templates.get(shift_id, {})
+        
+        # Finde Employee für individuelle Pause
+        emp = next((e for e in employees if e["id"] == emp_id), {})
+        employee_break = emp.get("breakMinutes")
+        
         start_min = _time_to_minutes(shift.get("startTime", "00:00"))
         end_min = _time_to_minutes(shift.get("endTime", "00:00"))
         shift_hours = (end_min - start_min) / 60.0
-        employee_utilization[emp_id] = employee_utilization.get(emp_id, 0.0) + shift_hours
+        
+        # Berechne effektive Arbeitszeit (minus Pause)
+        break_hours = (employee_break or 0) / 60.0
+        effective_hours = shift_hours - break_hours
+        
+        employee_utilization[emp_id] = employee_utilization.get(emp_id, 0.0) + effective_hours
     
     return {
         "metadata": {

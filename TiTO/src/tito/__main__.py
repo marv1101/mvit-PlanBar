@@ -57,6 +57,7 @@ def _seed_example_job(connection, queue_table: str) -> str:
                 },
                 "skills": ["Apotheker"],
                 "forbiddenDates": [],
+                "breakMinutes": 30,  # Individuelle Pause in Minuten
             },
             {
                 "id": "emp_002",
@@ -68,6 +69,7 @@ def _seed_example_job(connection, queue_table: str) -> str:
                 },
                 "skills": ["Apotheker"],
                 "forbiddenDates": ["2026-01-02"],
+                "breakMinutes": 45,  # Längere Pause für diesen Employee
             }
         ],
         "wishes": [

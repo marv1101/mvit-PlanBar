@@ -33,7 +33,7 @@ def _initialize_sqlite(connection: sqlite3.Connection) -> None:
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS job_queue (
-            job_id TEXT PRIMARY KEY,
+            job_id INTEGER PRIMARY KEY AUTOINCREMENT,
             payload TEXT NOT NULL,
             status TEXT NOT NULL,
             result TEXT,
@@ -61,12 +61,11 @@ def _initialize_sqlite(connection: sqlite3.Connection) -> None:
     connection.commit()
 
 
-def enqueue_job(connection: sqlite3.Connection, payload: dict, queue_table: str) -> None:
+def enqueue_job(connection: sqlite3.Connection, payload: dict, queue_table: str) -> int | None:
     now = datetime.now(timezone.utc).isoformat()
-    connection.execute(
-        f"INSERT OR REPLACE INTO {queue_table} (job_id, payload, status, priority, created_at, updated_at, attempts) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    cursor = connection.execute(
+        f"INSERT OR REPLACE INTO {queue_table} (job_id, payload, status, priority, created_at, updated_at, attempts) VALUES (NULL, ?, ?, ?, ?, ?, ?)",
         (
-            payload["metadata"]["jobId"],
             json.dumps(payload),
             "queued",
             int(payload.get("metadata", {}).get("priority", 0)),
@@ -77,6 +76,8 @@ def enqueue_job(connection: sqlite3.Connection, payload: dict, queue_table: str)
     )
     connection.commit()
 
+    return cursor.lastrowid;
+
 
 def fetch_next_job(connection: sqlite3.Connection, queue_table: str) -> dict | None:
     cursor = connection.execute(
@@ -86,7 +87,11 @@ def fetch_next_job(connection: sqlite3.Connection, queue_table: str) -> dict | N
     row = cursor.fetchone()
     if row is None:
         return None
-    return json.loads(row["payload"])
+    
+    payload = json.loads(row["payload"])
+    # Füge die echte INTEGER job_id aus der DB hinzu
+    payload["_db_job_id"] = row["job_id"]
+    return payload
 
 
 def mark_job_processing(connection: sqlite3.Connection, job_id: str) -> None:
