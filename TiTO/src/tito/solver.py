@@ -28,7 +28,6 @@ def _date_to_days(start_date_str: str, target_date_str: str) -> int:
     target = datetime.strptime(target_date_str, "%Y-%m-%d")
     return (target - start).days
 
-
 def solve_model(model: dict, timeout_seconds: int) -> dict:
     """Löse das Modell mit Google OR-Tools unter Berücksichtigung aller Constraints."""
     start_time = datetime.now()
@@ -45,6 +44,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     
     start_date = config.get("startDate", "2026-01-01")
     end_date = config.get("endDate", "2026-01-31")
+    
     max_consecutive_days = config.get("maxConsecutiveDays", 6)
     min_rest_hours = config.get("minRestTimeHours", 11)
     
@@ -57,7 +57,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                 f"assign_emp{emp_idx}_req{req_idx}"
             )
     
-    # Constraint 1: Jede Anforderung muss erfüllt oder nicht erfüllt sein
+    # Constraint 1: Skill- und Verfügbarkeitsprüfung
     for req_idx, requirement in enumerate(requirements):
         needed_skills = requirement.get("neededSkills", {})
         valid_employees = []
@@ -81,24 +81,46 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         for emp_idx in range(len(employees)):
             if emp_idx not in valid_employees:
                 cp_model.add(assignments[(emp_idx, req_idx)] == 0)
+        
+        # WICHTIG: Jedes Requirement MUSS erfüllt werden (Hard Constraint)
+        requirement_assignments = [
+            assignments[(emp_idx, req_idx)]
+            for emp_idx in valid_employees
+        ]
+        if requirement_assignments:
+            cp_model.add(LinearExpr.sum(requirement_assignments) >= 1)
     
-    # Constraint 2: Maximale aufeinanderfolgende Arbeitstage
-    for emp_idx, employee in enumerate(employees):
-        emp_requirements = [
-            (req_idx, req)
-            for req_idx, req in enumerate(requirements)
-            if assignments[(emp_idx, req_idx)].Proto().name
+    # Constraint 2: Alle Tage der Datumsrange müssen besetzt sein
+    start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
+    current_date = start_date_obj
+    
+    while current_date <= end_date_obj:
+        date_str = current_date.strftime("%Y-%m-%d")
+        
+        # Finde alle Requirements für diesen Tag
+        reqs_for_day = [
+            req_idx for req_idx, req in enumerate(requirements)
+            if req.get("date") == date_str
         ]
         
-        # Gruppiere nach Datum
-        dates_assigned = {}
-        for req_idx, req in enumerate(requirements):
-            date = req.get("date")
-            if date not in dates_assigned:
-                dates_assigned[date] = []
-            dates_assigned[date].append((emp_idx, req_idx))
+        # Mindestens ein Employee muss an diesem Tag zugewiesen sein
+        if reqs_for_day:
+            day_assignments = [
+                assignments[(emp_idx, req_idx)]
+                for req_idx in reqs_for_day
+                for emp_idx in range(len(employees))
+            ]
+            if day_assignments:
+                cp_model.add(LinearExpr.sum(day_assignments) >= 1)
+        
+        current_date += timedelta(days=1)
     
-    # Constraint 3: Wünsche als weiche Constraints
+    # Constraint 3: Maximale aufeinanderfolgende Arbeitstage
+    # TODO: Implementiere Constraint für max_consecutive_days
+    # Derzeit nicht implementiert, um Speicherfehler zu vermeiden
+    
+    # Constraint 4: Wünsche als weiche Constraints
     wish_penalty_vars = []
     for wish in wishes:
         wish_type = wish.get("type", "")

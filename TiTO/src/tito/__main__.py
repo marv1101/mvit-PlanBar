@@ -34,6 +34,16 @@ def _seed_example_job(connection, queue_table: str) -> str:
                 "date": "2026-01-02",
                 "shiftId": "S_FRUEH",
                 "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-03",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_SPAET",
+                "neededSkills": {"Apotheker": 1},
             }
         ],
         "employees": [
@@ -47,6 +57,17 @@ def _seed_example_job(connection, queue_table: str) -> str:
                 },
                 "skills": ["Apotheker"],
                 "forbiddenDates": [],
+            },
+            {
+                "id": "emp_002",
+                "name": "Max Musterhausen",
+                "contract": {
+                    "weeklyHours": 35.0,
+                    "employmentType": "Apotheker",
+                    "currentBalanceHours": 3,
+                },
+                "skills": ["Apotheker"],
+                "forbiddenDates": ["2026-01-02"],
             }
         ],
         "wishes": [
