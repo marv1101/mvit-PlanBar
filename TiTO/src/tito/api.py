@@ -76,7 +76,7 @@ def create_app(settings: Settings | None = None) -> Flask:
         if not payload:
             return jsonify({"error": "Invalid JSON payload"}), 400
 
-        # Extract PHASE 4 robustness parameters from metadata
+        # Extract parameters from metadata
         metadata = payload.get("metadata", {})
         idempotency_key = metadata.get("idempotency_key")
         callback_url = metadata.get("callback_url")
@@ -180,7 +180,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     def robustness_metrics():
         """Get robustness metrics: retries, DLQ, callbacks"""
 
-        status_counts = {row["status"]: row["count"] for row in fetch_jobs_grouped_by_status(connection, settings.queue_table)}
+        status_counts = fetch_jobs_grouped_by_status(connection)
         
         dlq_count = fetch_dlq_count(connection)
         
