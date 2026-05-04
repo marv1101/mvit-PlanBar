@@ -1,5 +1,7 @@
-from typing import Any
+from collections import defaultdict
+from typing import Any, Dict, List, Tuple
 from datetime import datetime, timedelta
+import math
 from ortools.sat.python.cp_model import CpModel, CpSolver, CpSolverStatus, LinearExpr
 
 
@@ -28,6 +30,48 @@ def _date_to_days(start_date_str: str, target_date_str: str) -> int:
     target = datetime.strptime(target_date_str, "%Y-%m-%d")
     return (target - start).days
 
+
+def _parse_date(date_str: str) -> datetime:
+    return datetime.strptime(date_str, "%Y-%m-%d")
+
+
+def _date_to_week_key(date_str: str) -> Tuple[int, int]:
+    dt = _parse_date(date_str)
+    year, week, _ = dt.isocalendar()
+    return year, week
+
+
+def _is_sunday(date_str: str) -> bool:
+    return _parse_date(date_str).weekday() == 6
+
+
+def _shift_duration_minutes(shift: dict) -> int:
+    start = _time_to_minutes(shift.get("startTime", "00:00"))
+    end = _time_to_minutes(shift.get("endTime", "00:00"))
+    duration = end - start
+    if duration <= 0:
+        duration += 24 * 60
+    return duration
+
+
+def _required_break_minutes(shift: dict, employee: dict) -> int:
+    duration = _shift_duration_minutes(shift)
+    break_from_shift = shift.get("minBreakMinutes", 0) or 0
+    break_from_employee = employee.get("breakMinutes", 0) or 0
+    required_break = 0
+    if duration >= 9 * 60:
+        required_break = 45
+    elif duration >= 6 * 60:
+        required_break = 30
+    return max(required_break, break_from_shift, break_from_employee)
+
+
+def _effective_shift_minutes(shift: dict, employee: dict) -> int:
+    duration = _shift_duration_minutes(shift)
+    break_minutes = _required_break_minutes(shift, employee)
+    return max(0, duration - break_minutes)
+
+
 def solve_model(model: dict, timeout_seconds: int) -> dict:
     """Löse das Modell mit Google OR-Tools unter Berücksichtigung aller Constraints."""
     start_time = datetime.now()
@@ -47,7 +91,23 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     
     max_consecutive_days = config.get("maxConsecutiveDays", 6)
     min_rest_hours = config.get("minRestTimeHours", 11)
-    
+    max_daily_hours = config.get("maxDailyWorkHours", 10)
+    min_free_sundays_per_year = config.get("minFreeSundaysPerYear", 15)
+    default_weekly_hours = config.get("defaultWeeklyHours", 40.0)
+
+    date_requirements: Dict[str, List[int]] = defaultdict(list)
+    week_requirements: Dict[Tuple[int, int], List[int]] = defaultdict(list)
+    for req_idx, requirement in enumerate(requirements):
+        req_date = requirement.get("date")
+        if req_date:
+            date_requirements[req_date].append(req_idx)
+            week_requirements[_date_to_week_key(req_date)].append(req_idx)
+
+    unique_dates = sorted(date_requirements.keys())
+    horizon_days = 0
+    if unique_dates:
+        horizon_days = (_parse_date(unique_dates[-1]) - _parse_date(unique_dates[0])).days + 1
+
     # Erstelle Decision Variables
     # assignment[emp_id, req_idx] = 1 wenn Mitarbeiter emp_id zu Requirement req_idx zugewiesen
     assignments = {}
@@ -113,7 +173,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     # Zwischen zwei Schichten eines Mitarbeiters müssen mindestens min_rest_hours liegen
     if min_rest_hours > 0 and len(requirements) > 1:
         min_rest_minutes = min_rest_hours * 60
-        
+
         for emp_idx in range(num_workers):
             # Für jedes Paar von Requirements prüfen, ob die Ruhezeit verletzt würde
             for req_i in range(len(requirements)):
@@ -153,7 +213,72 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                         cp_model.add(
                             assignments[(emp_idx, req_i)] + assignments[(emp_idx, req_j)] <= 1
                         )
-    
+
+    # Neue Constraints: Tagesarbeitszeit, Sonntagsruhe, max. aufeinanderfolgende Tage und Wochenstunden
+    works_on_date = {}
+    daily_max_minutes = int(max_daily_hours * 60)
+    sunday_dates = [date for date in unique_dates if _is_sunday(date)]
+    if horizon_days > 0:
+        required_free_sundays = int(math.ceil(min_free_sundays_per_year * (horizon_days / 365.0)))
+    else:
+        required_free_sundays = 0
+    allowed_sunday_workdays = max(0, len(sunday_dates) - required_free_sundays)
+
+    for emp_idx, employee in enumerate(employees):
+        for date, req_indices in date_requirements.items():
+            works_on_date[(emp_idx, date)] = cp_model.new_bool_var(
+                f"works_emp{emp_idx}_{date}"
+            )
+            cp_model.add(
+                sum(assignments[(emp_idx, req_idx)] for req_idx in req_indices)
+                >= works_on_date[(emp_idx, date)]
+            )
+            for req_idx in req_indices:
+                cp_model.add(assignments[(emp_idx, req_idx)] <= works_on_date[(emp_idx, date)])
+
+            effective_day_minutes = []
+            for req_idx in req_indices:
+                requirement = requirements[req_idx]
+                shift = shift_templates.get(requirement.get("shiftId"), {})
+                effective_day_minutes.append(
+                    assignments[(emp_idx, req_idx)] * _effective_shift_minutes(shift, employee)
+                )
+
+            if effective_day_minutes:
+                cp_model.add(LinearExpr.sum(effective_day_minutes) <= daily_max_minutes)
+
+        # Sonntagsruhe als harter Constraint
+        #if sunday_dates:
+        #    sunday_work_flags = [works_on_date[(emp_idx, date)] for date in sunday_dates]
+        #    cp_model.add(LinearExpr.sum(sunday_work_flags) <= allowed_sunday_workdays)
+
+        # Maximal aufeinanderfolgende Arbeitstage
+        if max_consecutive_days > 0 and len(unique_dates) > max_consecutive_days:
+            for index in range(len(unique_dates) - max_consecutive_days):
+                window = unique_dates[index : index + max_consecutive_days + 1]
+                cp_model.add(
+                    LinearExpr.sum(
+                        works_on_date[(emp_idx, date)] for date in window
+                    )
+                    <= max_consecutive_days
+                )
+
+        # Wochenarbeitszeit basierend auf Vertrag
+        weekly_hours = float(
+            employee.get("contract", {}).get("weeklyHours", default_weekly_hours)
+        )
+        weekly_limit_minutes = int(weekly_hours * 60)
+        for week_key, req_indices in week_requirements.items():
+            weekly_minutes = []
+            for req_idx in req_indices:
+                requirement = requirements[req_idx]
+                shift = shift_templates.get(requirement.get("shiftId"), {})
+                weekly_minutes.append(
+                    assignments[(emp_idx, req_idx)] * _effective_shift_minutes(shift, employee)
+                )
+            if weekly_minutes:
+                cp_model.add(LinearExpr.sum(weekly_minutes) <= weekly_limit_minutes)
+
     # Constraint 4: Wünsche als weiche Constraints
     wish_penalty_vars = []
     for wish in wishes:
