@@ -21,6 +21,11 @@ class Settings:
     jwt_audience: str | None = None
     jwt_issuer: str | None = None
 
+    max_retries: int = 3
+    retry_base_delay: int = 5  # seconds, exponential backoff: 5, 10, 20, ...
+    callback_max_attempts: int = 3
+    callback_retry_delay: int = 60  # seconds between callback retries
+
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "Settings":
         env_dict = cast(dict[str, str], env or os.environ)
@@ -59,4 +64,8 @@ class Settings:
             jwt_algorithms=algorithms,
             jwt_audience=env_dict.get("JWT_AUDIENCE"),
             jwt_issuer=env_dict.get("JWT_ISSUER"),
+            max_retries=int(env_dict.get("MAX_RETRIES", "3")),
+            retry_base_delay=int(env_dict.get("RETRY_BASE_DELAY", "5")),
+            callback_max_attempts=int(env_dict.get("CALLBACK_MAX_ATTEMPTS", "3")),
+            callback_retry_delay=int(env_dict.get("CALLBACK_RETRY_DELAY", "60")),
         )

@@ -4,8 +4,9 @@ from enum import StrEnum
 class JobStatus(StrEnum):
     QUEUED = "queued"
     PROCESSING = "processing"
-    FAILED = "failed"
     COMPLETED = "completed"
+    FAILED = "failed"
+    DEAD_LETTERED = "dead_lettered"
 
 
 def select_job(available_jobs: list[dict]) -> dict | None:
