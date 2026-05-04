@@ -180,7 +180,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     def robustness_metrics():
         """Get robustness metrics: retries, DLQ, callbacks"""
 
-        status_counts = fetch_jobs_grouped_by_status(connection)
+        status_counts = fetch_jobs_grouped_by_status(connection, settings.queue_table)
         
         dlq_count = fetch_dlq_count(connection)
         

@@ -487,39 +487,88 @@ def store_result(connection: sqlite3.Connection | psycopg2.extensions.connection
         connection.commit()
 
 
-def count_jobs(connection: sqlite3.Connection, queue_table: str) -> int:
-    cursor = connection.execute(f"SELECT COUNT(1) AS count FROM {queue_table}")
-    row = cursor.fetchone()
-    return int(row["count"])
+def count_jobs(connection: sqlite3.Connection | psycopg2.extensions.connection, queue_table: str) -> int:
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute(f"SELECT COUNT(1) AS count FROM {queue_table}")
+        row = cursor.fetchone()
+        cursor.close()
+        return int(row["count"])
+    else:
+        cursor = connection.execute(f"SELECT COUNT(1) AS count FROM {queue_table}")
+        row = cursor.fetchone()
+        return int(row["count"])
 
 
-def register_worker(connection: sqlite3.Connection, worker_id: str, ip: str, cpu_usage: float, ram_usage: float) -> None:
-    now = datetime.now(timezone.utc).isoformat()
-    connection.execute(
-        "INSERT OR REPLACE INTO workers (worker_id, ip, registered_at, last_heartbeat, cpu_usage, ram_usage, active_jobs) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (worker_id, ip, now, now, cpu_usage, ram_usage, 0),
-    )
-    connection.commit()
+def register_worker(connection: sqlite3.Connection | psycopg2.extensions.connection, worker_id: str, ip: str, cpu_usage: float, ram_usage: float) -> None:
+    now = datetime.now(timezone.utc)
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute(
+            """INSERT INTO workers (worker_id, ip, registered_at, last_heartbeat, cpu_usage, ram_usage, active_jobs) 
+               VALUES (%s, %s, %s, %s, %s, %s, %s)
+               ON CONFLICT (worker_id) DO UPDATE SET
+               ip = EXCLUDED.ip,
+               registered_at = EXCLUDED.registered_at,
+               last_heartbeat = EXCLUDED.last_heartbeat,
+               cpu_usage = EXCLUDED.cpu_usage,
+               ram_usage = EXCLUDED.ram_usage,
+               active_jobs = EXCLUDED.active_jobs""",
+            (worker_id, ip, now, now, cpu_usage, ram_usage, 0)
+        )
+        connection.commit()
+        cursor.close()
+    else:
+        now_iso = now.isoformat()
+        connection.execute(
+            "INSERT OR REPLACE INTO workers (worker_id, ip, registered_at, last_heartbeat, cpu_usage, ram_usage, active_jobs) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (worker_id, ip, now_iso, now_iso, cpu_usage, ram_usage, 0),
+        )
+        connection.commit()
 
 
-def update_worker_heartbeat(connection: sqlite3.Connection, worker_id: str, cpu_usage: float, ram_usage: float, active_jobs: int) -> None:
-    now = datetime.now(timezone.utc).isoformat()
-    connection.execute(
-        "UPDATE workers SET last_heartbeat = ?, cpu_usage = ?, ram_usage = ?, active_jobs = ? WHERE worker_id = ?",
-        (now, cpu_usage, ram_usage, active_jobs, worker_id),
-    )
-    connection.commit()
+def update_worker_heartbeat(connection: sqlite3.Connection | psycopg2.extensions.connection, worker_id: str, cpu_usage: float, ram_usage: float, active_jobs: int) -> None:
+    now = datetime.now(timezone.utc)
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute(
+            "UPDATE workers SET last_heartbeat = %s, cpu_usage = %s, ram_usage = %s, active_jobs = %s WHERE worker_id = %s",
+            (now, cpu_usage, ram_usage, active_jobs, worker_id),
+        )
+        connection.commit()
+        cursor.close()
+    else:
+        now_iso = now.isoformat()
+        connection.execute(
+            "UPDATE workers SET last_heartbeat = ?, cpu_usage = ?, ram_usage = ?, active_jobs = ? WHERE worker_id = ?",
+            (now_iso, cpu_usage, ram_usage, active_jobs, worker_id),
+        )
+        connection.commit()
 
 
-def get_workers(connection: sqlite3.Connection) -> list[dict]:
-    cursor = connection.execute("SELECT * FROM workers ORDER BY registered_at DESC")
-    return [dict(row) for row in cursor.fetchall()]
+def get_workers(connection: sqlite3.Connection | psycopg2.extensions.connection) -> list[dict]:
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM workers ORDER BY registered_at DESC")
+        rows = cursor.fetchall()
+        cursor.close()
+        return [dict(row) for row in rows]
+    else:
+        cursor = connection.execute("SELECT * FROM workers ORDER BY registered_at DESC")
+        return [dict(row) for row in cursor.fetchall()]
 
 
-def count_workers(connection: sqlite3.Connection) -> int:
-    cursor = connection.execute("SELECT COUNT(1) AS count FROM workers")
-    row = cursor.fetchone()
-    return int(row["count"])
+def count_workers(connection: sqlite3.Connection | psycopg2.extensions.connection) -> int:
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute("SELECT COUNT(1) AS count FROM workers")
+        row = cursor.fetchone()
+        cursor.close()
+        return int(row["count"])
+    else:
+        cursor = connection.execute("SELECT COUNT(1) AS count FROM workers")
+        row = cursor.fetchone()
+        return int(row["count"])
 
 def mark_job_failed_with_retry(
     connection: sqlite3.Connection | psycopg2.extensions.connection, 
@@ -910,12 +959,12 @@ def fetch_dlq_jobs(connection: sqlite3.Connection | psycopg2.extensions.connecti
         )
         return [dict(row) for row in cursor.fetchall()]
     
-def fetch_jobs_grouped_by_status(connection: sqlite3.Connection | psycopg2.extensions.connection) -> dict:
+def fetch_jobs_grouped_by_status(connection: sqlite3.Connection | psycopg2.extensions.connection, queue_table: str) -> dict:
     """Fetch job counts grouped by status."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
         cursor.execute(
-            "SELECT status, COUNT(*) as count FROM job_queue GROUP BY status"
+            f"SELECT status, COUNT(*) as count FROM {queue_table} GROUP BY status"
         )
         rows = cursor.fetchall()
         cursor.close()
@@ -924,6 +973,6 @@ def fetch_jobs_grouped_by_status(connection: sqlite3.Connection | psycopg2.exten
     else:
         # SQLite
         cursor = connection.execute(
-            "SELECT status, COUNT(*) as count FROM job_queue GROUP BY status"
+            f"SELECT status, COUNT(*) as count FROM {queue_table} GROUP BY status"
         )
         return {row["status"]: row["count"] for row in cursor.fetchall()}
