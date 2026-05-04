@@ -768,6 +768,26 @@ def fetch_pending_callbacks(
         )
         return [dict(row) for row in cursor.fetchall()]
 
+def fetch_callback_count_grouped_by_status(
+    connection: sqlite3.Connection | psycopg2.extensions.connection
+) -> dict:
+    """Fetch count of callbacks grouped by status."""
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute(
+            "SELECT callback_status, COUNT(*) as count FROM callback_queue GROUP BY callback_status"
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        
+        return {row["callback_status"]: row["count"] for row in rows}
+    else:
+        # SQLite
+        cursor = connection.execute(
+            "SELECT callback_status, COUNT(*) as count FROM callback_queue GROUP BY callback_status"
+        )
+        return {row["callback_status"]: row["count"] for row in cursor.fetchall()}
+
 def fetch_callback_status_by_job_id(
     connection: sqlite3.Connection | psycopg2.extensions.connection,
     job_id: int
@@ -850,6 +870,20 @@ def store_callback_result(
         )
         connection.commit()
 
+def fetch_dlq_count(connection: sqlite3.Connection | psycopg2.extensions.connection) -> int:
+    """Fetch count of jobs in Dead Letter Queue."""
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute("SELECT COUNT(*) as count FROM dead_letter_queue")
+        row = cursor.fetchone()
+        cursor.close()
+        return row["count"]
+    else:
+        # SQLite
+        cursor = connection.execute("SELECT COUNT(*) as count FROM dead_letter_queue")
+        row = cursor.fetchone()
+        return int(row["count"])
+
 def fetch_dlq_jobs(connection: sqlite3.Connection | psycopg2.extensions.connection, limit: int = 10) -> list[dict]:
     """Fetch jobs from Dead Letter Queue."""
     if isinstance(connection, psycopg2.extensions.connection):
@@ -876,3 +910,20 @@ def fetch_dlq_jobs(connection: sqlite3.Connection | psycopg2.extensions.connecti
         )
         return [dict(row) for row in cursor.fetchall()]
     
+def fetch_jobs_grouped_by_status(connection: sqlite3.Connection | psycopg2.extensions.connection) -> dict:
+    """Fetch job counts grouped by status."""
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute(
+            "SELECT status, COUNT(*) as count FROM job_queue GROUP BY status"
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        
+        return {row["status"]: row["count"] for row in rows}
+    else:
+        # SQLite
+        cursor = connection.execute(
+            "SELECT status, COUNT(*) as count FROM job_queue GROUP BY status"
+        )
+        return {row["status"]: row["count"] for row in cursor.fetchall()}

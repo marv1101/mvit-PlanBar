@@ -4,7 +4,7 @@ from flask import Flask, jsonify, request
 from .auth import authenticate_request, authorize_access
 from .config import Settings
 from .db import (
-    count_jobs, enqueue_job, get_connection, register_worker, 
+    count_jobs, enqueue_job, fetch_callback_count_grouped_by_status, fetch_dlq_count, fetch_jobs_grouped_by_status, get_connection, register_worker, 
     update_worker_heartbeat, get_workers, fetch_pending_callbacks,
     fetch_dlq_jobs, fetch_job_status_by_id, fetch_callback_status_by_job_id,
     fetch_job_by_id, update_job
@@ -179,18 +179,12 @@ def create_app(settings: Settings | None = None) -> Flask:
     @require_auth
     def robustness_metrics():
         """Get robustness metrics: retries, DLQ, callbacks"""
-        cursor = connection.execute(
-            f"SELECT status, COUNT(*) as count FROM {settings.queue_table} GROUP BY status"
-        )
-        status_counts = {row["status"]: row["count"] for row in cursor.fetchall()}
+
+        status_counts = {row["status"]: row["count"] for row in fetch_jobs_grouped_by_status(connection, settings.queue_table)}
         
-        cursor = connection.execute("SELECT COUNT(*) as count FROM dead_letter_queue")
-        dlq_count = cursor.fetchone()["count"]
+        dlq_count = fetch_dlq_count(connection)
         
-        cursor = connection.execute(
-            "SELECT callback_status, COUNT(*) as count FROM callback_queue GROUP BY callback_status"
-        )
-        callback_counts = {row["callback_status"]: row["count"] for row in cursor.fetchall()}
+        callback_counts = fetch_callback_count_grouped_by_status(connection)
         
         return jsonify({
             "job_statuses": status_counts,
