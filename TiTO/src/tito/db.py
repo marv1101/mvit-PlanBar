@@ -322,6 +322,75 @@ def enqueue_job(
         connection.commit()
         return job_id
 
+def fetch_job_by_id(connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int) -> dict | None:
+    """Fetch job details by job ID."""
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute(
+            "SELECT * FROM job_queue WHERE job_id = %s",
+            (job_id,)
+        )
+        job = cursor.fetchone()
+        cursor.close()
+        
+        if job is None:
+            return None
+        
+        return dict(job)
+    else:
+        # SQLite
+        cursor = connection.execute(
+            "SELECT * FROM job_queue WHERE job_id = ?",
+            (job_id,)
+        )
+        job = cursor.fetchone()
+        
+        if job is None:
+            return None
+
+        return dict(job)
+
+def fetch_job_status_by_id(connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int) -> dict | None:
+    """Fetch job status and details by job ID."""
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute(
+            "SELECT job_id, status, result, attempts, max_retries, last_error FROM job_queue WHERE job_id = %s",
+            (job_id,)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        
+        if row is None:
+            return None
+        
+        return {
+            "job_id": row["job_id"],
+            "status": row["status"],
+            "result": row["result"],
+            "attempts": row["attempts"],
+            "max_retries": row["max_retries"],
+            "last_error": row["last_error"]
+        }
+    else:
+        # SQLite
+        cursor = connection.execute(
+            "SELECT job_id, status, result, attempts, max_retries, last_error FROM job_queue WHERE job_id = ?",
+            (job_id,)
+        )
+        row = cursor.fetchone()
+        
+        if row is None:
+            return None
+        
+        return {
+            "job_id": row["job_id"],
+            "status": row["status"],
+            "result": json.loads(row["result"]) if row["result"] else None,
+            "attempts": row["attempts"],
+            "max_retries": row["max_retries"],
+            "last_error": row["last_error"]
+        }
 
 def fetch_next_job(connection: sqlite3.Connection | psycopg2.extensions.connection, queue_table: str) -> dict | None:
     """Fetch next job from queue (FIFO with priority). Handles both SQLite and PostgreSQL."""
@@ -377,6 +446,25 @@ def mark_job_processing(connection: sqlite3.Connection | psycopg2.extensions.con
         )
         connection.commit()
 
+def update_job(connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int, status: str, result: dict | None = None, error: str | None = None) -> None:
+    """Update job status, result and error information."""
+    now = datetime.now(timezone.utc)
+    
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute(
+            """UPDATE job_queue SET status = %s, result = %s, last_error = %s, updated_at = %s WHERE job_id = %s""",
+            (status, json.dumps(result) if result else None, error, now, job_id)
+        )
+        connection.commit()
+        cursor.close()
+    else:
+        # SQLite
+        connection.execute(
+            "UPDATE job_queue SET status = ?, result = ?, last_error = ?, updated_at = ? WHERE job_id = ?",
+            (status, json.dumps(result) if result else None, error, now.isoformat(), job_id),
+        )
+        connection.commit()
 
 def store_result(connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int, result: dict) -> None:
     """Store job result and mark as completed."""
@@ -680,6 +768,28 @@ def fetch_pending_callbacks(
         )
         return [dict(row) for row in cursor.fetchall()]
 
+def fetch_callback_status_by_job_id(
+    connection: sqlite3.Connection | psycopg2.extensions.connection,
+    job_id: int
+) -> list[dict]:
+    """Fetch callback statuses for a specific job."""
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute(
+            "SELECT callback_id, callback_status, attempted_at, attempts, max_attempts FROM callback_queue WHERE job_id = %s",
+            (job_id,)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        
+        return [dict(row) for row in rows]
+    else:
+        # SQLite
+        cursor = connection.execute(
+            "SELECT callback_id, callback_status, attempted_at, attempts, max_attempts FROM callback_queue WHERE job_id = ?",
+            (job_id,)
+        )
+        return [dict(row) for row in cursor.fetchall()]
 
 def check_idempotency(
     connection: sqlite3.Connection | psycopg2.extensions.connection,
@@ -739,3 +849,30 @@ def store_callback_result(
             (status, now.isoformat(), callback_id)
         )
         connection.commit()
+
+def fetch_dlq_jobs(connection: sqlite3.Connection | psycopg2.extensions.connection, limit: int = 10) -> list[dict]:
+    """Fetch jobs from Dead Letter Queue."""
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute(
+            """SELECT dlq_id, job_id, original_payload, failure_reason, sent_to_dlq_at, attempts, tenant_id
+               FROM dead_letter_queue
+               ORDER BY sent_to_dlq_at DESC
+               LIMIT %s""",
+            (limit,)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        
+        return [dict(row) for row in rows]
+    else:
+        # SQLite
+        cursor = connection.execute(
+            """SELECT dlq_id, job_id, original_payload, failure_reason, sent_to_dlq_at, attempts, tenant_id
+               FROM dead_letter_queue
+               ORDER BY sent_to_dlq_at DESC
+               LIMIT ?""",
+            (limit,)
+        )
+        return [dict(row) for row in cursor.fetchall()]
+    

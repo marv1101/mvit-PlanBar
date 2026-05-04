@@ -5,7 +5,9 @@ from .auth import authenticate_request, authorize_access
 from .config import Settings
 from .db import (
     count_jobs, enqueue_job, get_connection, register_worker, 
-    update_worker_heartbeat, get_workers, fetch_pending_callbacks
+    update_worker_heartbeat, get_workers, fetch_pending_callbacks,
+    fetch_dlq_jobs, fetch_job_status_by_id, fetch_callback_status_by_job_id,
+    fetch_job_by_id, update_job
 )
 
 
@@ -124,11 +126,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     @app.get("/dlq")
     @require_auth
     def get_dlq():
-        """Get jobs in Dead Letter Queue"""
-        cursor = connection.execute(
-            "SELECT dlq_id, job_id, original_payload, failure_reason, sent_to_dlq_at, attempts FROM dead_letter_queue ORDER BY sent_to_dlq_at DESC"
-        )
-        dlq_jobs = [dict(row) for row in cursor.fetchall()]
+        dlq_jobs = fetch_dlq_jobs(connection, limit=50)
         return jsonify({"count": len(dlq_jobs), "jobs": dlq_jobs})
     
     @app.get("/callbacks/pending")
@@ -142,25 +140,17 @@ def create_app(settings: Settings | None = None) -> Flask:
     @require_auth
     def get_job_status(job_id):
         """Get detailed job status including retry attempts and callbacks"""
-        cursor = connection.execute(
-            f"""SELECT job_id, status, attempts, max_retries, last_error, failed_at, 
-                      scheduled_for, callback_url, result FROM {settings.queue_table} WHERE job_id = ?""",
-            (job_id,)
-        )
-        job = cursor.fetchone()
+        job = fetch_job_status_by_id(connection, job_id)
+        
         if not job:
             return jsonify({"error": "Job not found"}), 404
         
         job_data = dict(job)
         
         # Get callback status if exists
-        cursor = connection.execute(
-            "SELECT callback_id, callback_status, attempts, max_attempts FROM callback_queue WHERE job_id = ?",
-            (job_id,)
-        )
-        callback = cursor.fetchone()
+        callback = fetch_callback_status_by_job_id(connection, job_id)
         if callback:
-            job_data["callback"] = dict(callback)
+            job_data["callback"] = callback
         
         return jsonify(job_data)
     
@@ -168,11 +158,8 @@ def create_app(settings: Settings | None = None) -> Flask:
     @require_auth
     def manual_retry_job(job_id):
         """Manually retry a failed job"""
-        cursor = connection.execute(
-            f"SELECT status, attempts, max_retries FROM {settings.queue_table} WHERE job_id = ?",
-            (job_id,)
-        )
-        job = cursor.fetchone()
+
+        job = fetch_job_by_id(connection, job_id)
         
         if not job:
             return jsonify({"error": "Job not found"}), 404
@@ -183,11 +170,8 @@ def create_app(settings: Settings | None = None) -> Flask:
         # Reset to queued status
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc).isoformat()
-        connection.execute(
-            f"UPDATE {settings.queue_table} SET status = ?, updated_at = ?, scheduled_for = NULL WHERE job_id = ?",
-            ("queued", now, job_id)
-        )
-        connection.commit()
+
+        update_job(connection, job_id, status="queued")
         
         return jsonify({"status": "retry_scheduled", "jobId": job_id})
     
