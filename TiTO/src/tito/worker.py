@@ -19,12 +19,16 @@ def run_worker(settings: Settings) -> None:
     ram = psutil.virtual_memory().percent
     
     # Registriere bei der API
+    headers = {}
+    if settings.api_tokens:
+        headers["Authorization"] = f"Bearer {settings.api_tokens[0]}"
+
     try:
         requests.post(f"{settings.api_url}/workers/register", json={
             "worker_id": worker_id,
             "cpu_usage": cpu,
             "ram_usage": ram
-        }, timeout=5)
+        }, timeout=5, headers=headers)
     except Exception as e:
         print(f"Failed to register worker: {e}")
     
@@ -49,6 +53,7 @@ def run_worker(settings: Settings) -> None:
             validate_job_payload(job)
             model = build_model(job)
             result = solve_model(model, settings.timeout_seconds)
+
             store_result(connection, db_job_id, result)
         except Exception as exc:
             print(f"Job failed: {exc}")
@@ -66,7 +71,7 @@ def run_worker(settings: Settings) -> None:
                     "cpu_usage": cpu,
                     "ram_usage": ram,
                     "active_jobs": active_jobs
-                }, timeout=5)
+                }, timeout=5, headers=headers)
             except Exception as e:
                 print(f"Failed to send heartbeat: {e}")
         

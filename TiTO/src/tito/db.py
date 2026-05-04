@@ -94,7 +94,7 @@ def fetch_next_job(connection: sqlite3.Connection, queue_table: str) -> dict | N
     return payload
 
 
-def mark_job_processing(connection: sqlite3.Connection, job_id: str) -> None:
+def mark_job_processing(connection: sqlite3.Connection, job_id: int) -> None:
     now = datetime.now(timezone.utc).isoformat()
     connection.execute(
         "UPDATE job_queue SET status = ?, updated_at = ?, attempts = attempts + 1 WHERE job_id = ?",
@@ -103,7 +103,7 @@ def mark_job_processing(connection: sqlite3.Connection, job_id: str) -> None:
     connection.commit()
 
 
-def store_result(connection: sqlite3.Connection, job_id: str, result: dict) -> None:
+def store_result(connection: sqlite3.Connection, job_id: int, result: dict) -> None:
     now = datetime.now(timezone.utc).isoformat()
     connection.execute(
         "UPDATE job_queue SET status = ?, result = ?, updated_at = ? WHERE job_id = ?",

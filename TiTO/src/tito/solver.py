@@ -154,7 +154,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                             assignments[(emp_idx, req_i)] + assignments[(emp_idx, req_j)] <= 1
                         )
     
-    # Constraint 3: Wünsche als weiche Constraints
+    # Constraint 4: Wünsche als weiche Constraints
     wish_penalty_vars = []
     for wish in wishes:
         wish_type = wish.get("type", "")
@@ -287,7 +287,6 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     
     return {
         "metadata": {
-            "jobId": metadata.get("jobId"),
             "status": solver_status,
             "solveTimeSeconds": round(solve_time, 2),
             "timestamp": datetime.now().isoformat() + "Z",
