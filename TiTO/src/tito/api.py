@@ -1,6 +1,6 @@
 from functools import wraps
 
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 from .auth import authenticate_request, authorize_access
 from .config import Settings
 from .db import (
@@ -9,6 +9,7 @@ from .db import (
     fetch_dlq_jobs, fetch_job_status_by_id, fetch_callback_status_by_job_id,
     fetch_job_by_id, update_job
 )
+from . import monitoring
 
 
 def create_app(settings: Settings | None = None) -> Flask:
@@ -55,12 +56,8 @@ def create_app(settings: Settings | None = None) -> Flask:
     @app.get("/metrics")
     @require_auth
     def metrics():
-        workers = get_workers(connection)
-        return jsonify({
-            "queue_length": count_jobs(connection, settings.queue_table),
-            "active_workers": len(workers),
-            "workers": workers
-        })
+        metrics_data = monitoring.get_metrics(connection, settings.queue_table, settings.timeout_seconds)
+        return jsonify(metrics_data)
 
     @app.get("/jobs")
     @require_auth
@@ -179,17 +176,20 @@ def create_app(settings: Settings | None = None) -> Flask:
     @require_auth
     def robustness_metrics():
         """Get robustness metrics: retries, DLQ, callbacks"""
-
-        status_counts = fetch_jobs_grouped_by_status(connection, settings.queue_table)
-        
-        dlq_count = fetch_dlq_count(connection)
-        
-        callback_counts = fetch_callback_count_grouped_by_status(connection)
-        
+        metrics_data = monitoring.get_metrics(connection, settings.queue_table, settings.timeout_seconds)
         return jsonify({
-            "job_statuses": status_counts,
-            "dead_letter_queue_size": dlq_count,
-            "callbacks": callback_counts
+            "job_statuses": metrics_data["job_status_counts"],
+            "dead_letter_queue_size": metrics_data["dead_letter_queue_size"],
+            "callbacks": metrics_data["callback_counts"],
+            "error_rate": metrics_data["error_rate"],
+            "solver_timeout_rate": metrics_data["solver_timeout_rate"],
+            "average_job_duration_seconds": metrics_data["average_job_duration_seconds"],
         })
+
+    @app.get("/metrics/prometheus")
+    @require_auth
+    def prometheus_metrics():
+        text = monitoring.export_prometheus(connection, settings.queue_table, settings.timeout_seconds)
+        return Response(text, mimetype="text/plain; version=0.0.4")
 
     return app

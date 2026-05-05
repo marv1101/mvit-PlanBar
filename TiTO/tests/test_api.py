@@ -137,6 +137,29 @@ def test_metrics_with_auth(tmp_path: Path):
     assert response.status_code == 200
     assert response.json["queue_length"] == 0
     assert response.json["active_workers"] == 0
+    assert response.json["job_status_counts"] == {}
+    assert response.json["dead_letter_queue_size"] == 0
+    assert response.json["error_rate"] == 0.0
+
+
+def test_metrics_prometheus_endpoint(tmp_path: Path):
+    db_file = tmp_path / "api_tito.db"
+    settings = Settings.from_env({
+        "DATABASE_URL": f"sqlite:///{db_file}",
+        "API_TOKENS": "test-token"
+    })
+    app = create_app(settings)
+    client = app.test_client()
+    headers = {"Authorization": "Bearer test-token"}
+
+    response = client.get("/metrics/prometheus", headers=headers)
+    assert response.status_code == 200
+    assert response.headers["Content-Type"].startswith("text/plain")
+    body = response.get_data(as_text=True)
+    assert "tito_queue_length" in body
+    assert "tito_active_workers" in body
+    assert "tito_error_rate" in body
+    assert "tito_dead_letter_queue_size" in body
 
 
 def _create_jwt(secret: str, role: str, audience: str | None = None, issuer: str | None = None) -> str:
