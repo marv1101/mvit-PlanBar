@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 from datetime import datetime, timedelta
 import math
+import logging
 from ortools.sat.python.cp_model import CpModel, CpSolver, CpSolverStatus, LinearExpr
 
 
@@ -339,37 +340,50 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     assignments_solution = []
     unassigned_requirements = []
     
-    for req_idx, requirement in enumerate(requirements):
-        assigned = False
-        for emp_idx, employee in enumerate(employees):
-            if solver.Value(assignments[(emp_idx, req_idx)]) == 1:
-                shift_id = requirement.get("shiftId")
-                date = requirement.get("date")
-                shift = shift_templates.get(shift_id, {})
-                
-                assignments_solution.append({
-                    "employeeId": employee["id"],
-                    "date": date,
-                    "shiftId": shift_id,
-                    "startTime": shift.get("startTime", "00:00"),
-                    "endTime": shift.get("endTime", "00:00"),
-                })
-                assigned = True
-                break
-        
-        if not assigned:
-            unassigned_requirements.append(requirement)
+    try:
+        for req_idx, requirement in enumerate(requirements):
+            assigned = False
+            for emp_idx, employee in enumerate(employees):
+                if solver.Value(assignments[(emp_idx, req_idx)]) == 1:
+                    shift_id = requirement.get("shiftId")
+                    date = requirement.get("date")
+                    shift = shift_templates.get(shift_id, {})
+                    
+                    assignments_solution.append({
+                        "employeeId": employee["id"],
+                        "date": date,
+                        "shiftId": shift_id,
+                        "startTime": shift.get("startTime", "00:00"),
+                        "endTime": shift.get("endTime", "00:00"),
+                    })
+                    assigned = True
+                    break
+            
+            if not assigned:
+                unassigned_requirements.append(requirement)
+    except Exception as e:
+        # If no solution available (e.g., timeout without feasible solution)
+        assignments_solution = []
+        unassigned_requirements = requirements
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Could not extract solution: {e}")
     
     # Berechne Metriken
-    fulfilled_wishes = sum(
-        solver.Value(wish_var)
-        for wish_var, _ in wish_penalty_vars
-    )
-    total_wishes = len(wish_penalty_vars)
-    wish_rate = (
-        100.0 if total_wishes == 0
-        else round((fulfilled_wishes / total_wishes) * 100, 1)
-    )
+    try:
+        fulfilled_wishes = sum(
+            solver.Value(wish_var)
+            for wish_var, _ in wish_penalty_vars
+        )
+        total_wishes = len(wish_penalty_vars)
+        wish_rate = (
+            100.0 if total_wishes == 0
+            else round((fulfilled_wishes / total_wishes) * 100, 1)
+        )
+    except Exception as e:
+        fulfilled_wishes = 0
+        wish_rate = 0.0
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Could not calculate wish metrics: {e}")
     
     # Bestimme Status
     if status == CpSolverStatus.OPTIMAL:  # OPTIMAL
@@ -380,6 +394,16 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         solver_status = "FEASIBLE"
         is_optimal = False
         info = "Zulässige Lösung gefunden, aber nicht optimal."
+    elif status == CpSolverStatus.UNKNOWN:  # UNKNOWN (timeout or interrupted)
+        # Check if we have a feasible solution despite timeout
+        if solver.BestObjectiveBound() > -float('inf'):
+            solver_status = "TIMEOUT"
+            is_optimal = False
+            info = "Timeout erreicht, aber zulässige Lösung gefunden."
+        else:
+            solver_status = "TIMEOUT"
+            is_optimal = False
+            info = "Timeout erreicht, keine Lösung gefunden."
     elif status == CpSolverStatus.MODEL_INVALID:  # MODEL_INVALID
         solver_status = "MODEL_INVALID"
         is_optimal = False

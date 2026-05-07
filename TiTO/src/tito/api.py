@@ -1,6 +1,7 @@
 from functools import wraps
 import threading
 import time
+import logging
 
 from flask import Flask, Response, jsonify, request
 from .auth import authenticate_request, authorize_access
@@ -31,6 +32,13 @@ def create_app(settings: Settings | None = None) -> Flask:
     settings = settings or Settings.from_env()
     connection = get_connection(settings.database_url)
 
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
+
     # Start background cleanup thread
     cleanup_thread = threading.Thread(target=cleanup_worker_thread, args=(connection,), daemon=True)
     cleanup_thread.start()
@@ -53,7 +61,12 @@ def create_app(settings: Settings | None = None) -> Flask:
                 settings.jwt_audience,
                 settings.jwt_issuer,
             ):
-                return jsonify({"error": "Unauthorized"}), 401
+                logger.warning(f"Authentication failed for request to {request.path}")
+                return jsonify({
+                    "error": "Unauthorized",
+                    "message": "Invalid or missing authentication token",
+                    "status_code": 401
+                }), 401
             if not authorize_access(
                 token,
                 request.path,
@@ -63,7 +76,12 @@ def create_app(settings: Settings | None = None) -> Flask:
                 settings.jwt_audience,
                 settings.jwt_issuer,
             ):
-                return jsonify({"error": "Forbidden"}), 403
+                logger.warning(f"Authorization failed for request to {request.path}")
+                return jsonify({
+                    "error": "Forbidden",
+                    "message": "Insufficient permissions for this resource",
+                    "status_code": 403
+                }), 403
             return view(*args, **kwargs)
         return decorated
 
@@ -89,7 +107,12 @@ def create_app(settings: Settings | None = None) -> Flask:
     def post_job():
         payload = request.get_json(silent=True)
         if not payload:
-            return jsonify({"error": "Invalid JSON payload"}), 400
+            logger.warning("Invalid JSON payload received")
+            return jsonify({
+                "error": "Invalid request",
+                "message": "Request body must be valid JSON",
+                "status_code": 400
+            }), 400
 
         # Extract parameters from metadata
         metadata = payload.get("metadata", {})
@@ -108,8 +131,14 @@ def create_app(settings: Settings | None = None) -> Flask:
         
         if job_id is None:
             # Duplicate job with idempotency_key
-            return jsonify({"error": "Duplicate job (idempotency_key already exists)", "status": "duplicate"}), 409
+            logger.info(f"Duplicate job rejected with idempotency_key: {idempotency_key}")
+            return jsonify({
+                "error": "Duplicate job",
+                "message": "A job with the same idempotency_key already exists",
+                "status_code": 409
+            }), 409
         
+        logger.info(f"Job {job_id} queued successfully")
         return jsonify({"status": "queued", "jobId": job_id}), 201
 
     @app.post("/workers/register")
@@ -117,12 +146,18 @@ def create_app(settings: Settings | None = None) -> Flask:
     def register_worker_endpoint():
         data = request.get_json(silent=True)
         if not data or 'worker_id' not in data:
-            return jsonify({"error": "Invalid payload"}), 400
+            logger.warning("Invalid worker registration payload")
+            return jsonify({
+                "error": "Invalid request",
+                "message": "worker_id is required",
+                "status_code": 400
+            }), 400
         worker_id = data['worker_id']
         ip = request.remote_addr or "unknown"
         cpu_usage = data.get('cpu_usage', 0.0)
         ram_usage = data.get('ram_usage', 0.0)
         register_worker(connection, worker_id, ip, cpu_usage, ram_usage)
+        logger.info(f"Worker {worker_id} registered")
         return jsonify({"status": "registered"})
 
     @app.post("/workers/heartbeat")
@@ -130,7 +165,12 @@ def create_app(settings: Settings | None = None) -> Flask:
     def heartbeat_endpoint():
         data = request.get_json(silent=True)
         if not data or 'worker_id' not in data:
-            return jsonify({"error": "Invalid payload"}), 400
+            logger.warning("Invalid heartbeat payload")
+            return jsonify({
+                "error": "Invalid request",
+                "message": "worker_id is required",
+                "status_code": 400
+            }), 400
         worker_id = data['worker_id']
         cpu_usage = data.get('cpu_usage', 0.0)
         ram_usage = data.get('ram_usage', 0.0)
@@ -143,9 +183,15 @@ def create_app(settings: Settings | None = None) -> Flask:
     def deregister_endpoint():
         data = request.get_json(silent=True)
         if not data or 'worker_id' not in data:
-            return jsonify({"error": "Invalid payload"}), 400
+            logger.warning("Invalid deregister payload")
+            return jsonify({
+                "error": "Invalid request",
+                "message": "worker_id is required",
+                "status_code": 400
+            }), 400
         worker_id = data['worker_id']
         deregister_worker(connection, worker_id)
+        logger.info(f"Worker {worker_id} deregistered")
         return jsonify({"status": "deregistered"})
     
     @app.post("/workers/cleanup")
@@ -175,7 +221,12 @@ def create_app(settings: Settings | None = None) -> Flask:
         job = fetch_job_status_by_id(connection, job_id)
         
         if not job:
-            return jsonify({"error": "Job not found"}), 404
+            logger.warning(f"Job {job_id} not found")
+            return jsonify({
+                "error": "Not found",
+                "message": f"Job {job_id} does not exist",
+                "status_code": 404
+            }), 404
         
         job_data = dict(job)
         
@@ -194,17 +245,27 @@ def create_app(settings: Settings | None = None) -> Flask:
         job = fetch_job_by_id(connection, job_id)
         
         if not job:
-            return jsonify({"error": "Job not found"}), 404
+            logger.warning(f"Attempted to retry non-existent job {job_id}")
+            return jsonify({
+                "error": "Not found",
+                "message": f"Job {job_id} does not exist",
+                "status_code": 404
+            }), 404
         
         if job["status"] not in ("failed", "dead_lettered"):
-            return jsonify({"error": f"Cannot retry job in {job['status']} status"}), 400
+            logger.warning(f"Cannot retry job {job_id} in status {job['status']}")
+            return jsonify({
+                "error": "Invalid operation",
+                "message": f"Cannot retry job in {job['status']} status",
+                "status_code": 400
+            }), 400
         
         # Reset to queued status
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc).isoformat()
 
         update_job(connection, job_id, status="queued")
-        
+        logger.info(f"Job {job_id} manually retried")
         return jsonify({"status": "retry_scheduled", "jobId": job_id})
     
     @app.get("/metrics/robustness")

@@ -3,6 +3,7 @@ import uuid
 import psutil
 import requests
 import signal
+import logging
 from datetime import datetime, timezone
 from typing import Any
 from .config import Settings
@@ -23,15 +24,23 @@ class WorkerContext:
         
     def request_stop(self, signum=None, frame=None):
         """Signal handler for graceful shutdown."""
-        print("\n[Worker] Received shutdown signal. Finishing current job...")
+        logger = logging.getLogger(__name__)
+        logger.info("Received shutdown signal. Finishing current job...")
         self.should_stop = True
 
 
 def run_worker(settings: Settings) -> None:
     """Hauptschleife des TiTO-Workers mit Robustness-Features."""
-    print("Starting TiTO Worker...")
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
+    
+    logger.info("Starting TiTO Worker...")
     worker_id = str(uuid.uuid4())
-    print(f"Worker ID: {worker_id}")
+    logger.info(f"Worker ID: {worker_id}")
     
     # Setup graceful shutdown
     worker_context = WorkerContext()
@@ -54,7 +63,7 @@ def run_worker(settings: Settings) -> None:
             "ram_usage": ram
         }, timeout=5, headers=headers)
     except Exception as e:
-        print(f"[Worker] Failed to register worker: {e}")
+        logger.error(f"Failed to register worker: {e}")
     
     connection = get_connection(settings.database_url)
     active_jobs = 0
@@ -75,7 +84,7 @@ def run_worker(settings: Settings) -> None:
                         "active_jobs": active_jobs
                     }, timeout=5, headers=headers)
                 except Exception as e:
-                    print(f"[Worker] Failed to send heartbeat: {e}")
+                    logger.error(f"Failed to send heartbeat: {e}")
 
             # Process job queue
             job = fetch_next_job(connection, settings.queue_table)
@@ -95,7 +104,7 @@ def run_worker(settings: Settings) -> None:
                 if idempotency_key:
                     existing_job = check_idempotency(connection, idempotency_key)
                     if existing_job and existing_job["status"] == "completed":
-                        print(f"[Worker] Job {db_job_id}: Skipping duplicate (idempotency_key: {idempotency_key})")
+                        logger.info(f"Job {db_job_id}: Skipping duplicate (idempotency_key: {idempotency_key})")
                         # Still enqueue callback for the duplicate
                         if job.get("metadata", {}).get("callback_url"):
                             enqueue_callback(
@@ -107,7 +116,7 @@ def run_worker(settings: Settings) -> None:
                 
                 # Mark job as processing and set timeout
                 mark_job_processing(connection, db_job_id)
-                print(f"[Worker] Processing job ID: {db_job_id}")
+                logger.info(f"Processing job ID: {db_job_id}")
 
                 # Validate payload
                 validate_job_payload(job)
@@ -118,7 +127,7 @@ def run_worker(settings: Settings) -> None:
 
                 # Store successful result
                 store_result(connection, db_job_id, result)
-                print(f"[Worker] Job {db_job_id}: Completed successfully")
+                logger.info(f"Job {db_job_id}: Completed successfully")
                 
                 # enqueue callback if requested
                 callback_url = job.get("metadata", {}).get("callback_url")
@@ -127,10 +136,10 @@ def run_worker(settings: Settings) -> None:
                         connection, db_job_id, callback_url, result,
                         tenant_id=job.get("metadata", {}).get("tenant_id")
                     )
-                    print(f"[Worker] Job {db_job_id}: Callback enqueued")
+                    logger.info(f"Job {db_job_id}: Callback enqueued")
                 
             except Exception as exc:
-                print(f"[Worker] Job {db_job_id} failed: {exc}")
+                logger.error(f"Job {db_job_id} failed: {exc}")
                 
                 #try to retry with exponential backoff
                 will_retry = mark_job_failed_with_retry(connection, db_job_id, str(exc))
@@ -143,9 +152,9 @@ def run_worker(settings: Settings) -> None:
                         attempts=3,
                         tenant_id=job.get("metadata", {}).get("tenant_id")
                     )
-                    print(f"[Worker] Job {db_job_id}: Moved to Dead Letter Queue")
+                    logger.warning(f"Job {db_job_id}: Moved to Dead Letter Queue")
                 else:
-                    print(f"[Worker] Job {db_job_id}: Scheduled for retry")
+                    logger.info(f"Job {db_job_id}: Scheduled for retry")
             
             finally:
                 active_jobs -= 1
@@ -154,19 +163,19 @@ def run_worker(settings: Settings) -> None:
         except KeyboardInterrupt:
             worker_context.should_stop = True
         except Exception as e:
-            print(f"[Worker] Unexpected error in worker loop: {e}")
+            logger.error(f"Unexpected error in worker loop: {e}")
             time.sleep(1)
     
-    print("[Worker] Worker shutting down gracefully...")
+    logger.info("Worker shutting down gracefully...")
     
     # Deregister from API
     try:
         requests.post(f"{settings.api_url}/workers/deregister", json={
             "worker_id": worker_id
         }, timeout=5, headers=headers)
-        print(f"[Worker] Deregistered worker {worker_id}")
+        logger.info(f"Deregistered worker {worker_id}")
     except Exception as e:
-        print(f"[Worker] Failed to deregister worker: {e}")
+        logger.error(f"Failed to deregister worker: {e}")
     
     connection.close()
 
@@ -198,16 +207,16 @@ def _process_pending_callbacks(
                 if response.status_code < 300:
                     # Success
                     store_callback_result(connection, callback_id, "sent")
-                    print(f"[Worker] Callback {callback_id}: Sent successfully")
+                    logger.info(f"Callback {callback_id}: Sent successfully")
                 else:
                     # Failure but will retry
                     store_callback_result(connection, callback_id, "pending")
-                    print(f"[Worker] Callback {callback_id}: Failed (HTTP {response.status_code}), will retry")
+                    logger.warning(f"Callback {callback_id}: Failed (HTTP {response.status_code}), will retry")
             
             except requests.exceptions.RequestException as e:
                 # Network error, will retry
                 store_callback_result(connection, callback_id, "pending")
-                print(f"[Worker] Callback {callback_id}: Network error, will retry - {e}")
+                logger.warning(f"Callback {callback_id}: Network error, will retry - {e}")
     
     except Exception as e:
-        print(f"[Worker] Error processing callbacks: {e}")
+        logger.error(f"Error processing callbacks: {e}")

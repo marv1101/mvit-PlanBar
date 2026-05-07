@@ -63,13 +63,14 @@ def test_solver_respects_weekly_hours():
         "requirements": [
             {"date": "2026-01-04", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
             {"date": "2026-01-05", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+            {"date": "2026-01-06", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
         ],
         "employees": [
             {
                 "id": "emp_001",
                 "skills": ["Apotheker"],
                 "forbiddenDates": [],
-                "contract": {"weeklyHours": 15.0},
+                "contract": {"weeklyHours": 14.0},
             },
         ],
         "wishes": [],
