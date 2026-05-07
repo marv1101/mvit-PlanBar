@@ -58,10 +58,25 @@ def run_worker(settings: Settings) -> None:
     
     connection = get_connection(settings.database_url)
     active_jobs = 0
-    heartbeat_counter = 0
+    last_heartbeat_time = time.time()
     
     while not worker_context.should_stop:
         try:
+            # Sende Heartbeat alle 5 Sekunden
+            if time.time() - last_heartbeat_time >= 5:
+                last_heartbeat_time = time.time()
+                cpu = psutil.cpu_percent()
+                ram = psutil.virtual_memory().percent
+                try:
+                    requests.post(f"{settings.api_url}/workers/heartbeat", json={
+                        "worker_id": worker_id,
+                        "cpu_usage": cpu,
+                        "ram_usage": ram,
+                        "active_jobs": active_jobs
+                    }, timeout=5, headers=headers)
+                except Exception as e:
+                    print(f"[Worker] Failed to send heartbeat: {e}")
+
             # Process job queue
             job = fetch_next_job(connection, settings.queue_table)
             if job is None:
@@ -135,24 +150,6 @@ def run_worker(settings: Settings) -> None:
             finally:
                 active_jobs -= 1
                 worker_context.current_job_id = None
-            
-            # Sende Heartbeat alle 1 Jobs
-            heartbeat_counter += 1
-            if heartbeat_counter >= 1:
-                heartbeat_counter = 0
-                cpu = psutil.cpu_percent()
-                ram = psutil.virtual_memory().percent
-                try:
-                    requests.post(f"{settings.api_url}/workers/heartbeat", json={
-                        "worker_id": worker_id,
-                        "cpu_usage": cpu,
-                        "ram_usage": ram,
-                        "active_jobs": active_jobs
-                    }, timeout=5, headers=headers)
-                except Exception as e:
-                    print(f"[Worker] Failed to send heartbeat: {e}")
-            
-            time.sleep(0.1)
         
         except KeyboardInterrupt:
             worker_context.should_stop = True
@@ -161,6 +158,16 @@ def run_worker(settings: Settings) -> None:
             time.sleep(1)
     
     print("[Worker] Worker shutting down gracefully...")
+    
+    # Deregister from API
+    try:
+        requests.post(f"{settings.api_url}/workers/deregister", json={
+            "worker_id": worker_id
+        }, timeout=5, headers=headers)
+        print(f"[Worker] Deregistered worker {worker_id}")
+    except Exception as e:
+        print(f"[Worker] Failed to deregister worker: {e}")
+    
     connection.close()
 
 

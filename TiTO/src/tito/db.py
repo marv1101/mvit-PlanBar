@@ -1,7 +1,7 @@
 import json
 import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -569,6 +569,36 @@ def count_workers(connection: sqlite3.Connection | psycopg2.extensions.connectio
         cursor = connection.execute("SELECT COUNT(1) AS count FROM workers")
         row = cursor.fetchone()
         return int(row["count"])
+
+
+def deregister_worker(connection: sqlite3.Connection | psycopg2.extensions.connection, worker_id: str) -> None:
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM workers WHERE worker_id = %s", (worker_id,))
+        connection.commit()
+        cursor.close()
+    else:
+        connection.execute("DELETE FROM workers WHERE worker_id = ?", (worker_id,))
+        connection.commit()
+
+
+def cleanup_inactive_workers(connection: sqlite3.Connection | psycopg2.extensions.connection, timeout_seconds: int = 300) -> int:
+    """Remove workers that haven't sent a heartbeat within the timeout period."""
+    cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=timeout_seconds)
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM workers WHERE last_heartbeat < %s", (cutoff_time,))
+        deleted_count = cursor.rowcount
+        connection.commit()
+        cursor.close()
+        return deleted_count
+    else:
+        cutoff_iso = cutoff_time.isoformat()
+        cursor = connection.execute("DELETE FROM workers WHERE last_heartbeat < ?", (cutoff_iso,))
+        deleted_count = cursor.rowcount
+        connection.commit()
+        return deleted_count
+
 
 def mark_job_failed_with_retry(
     connection: sqlite3.Connection | psycopg2.extensions.connection, 

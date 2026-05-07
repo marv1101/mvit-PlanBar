@@ -1,4 +1,6 @@
 from functools import wraps
+import threading
+import time
 
 from flask import Flask, Response, jsonify, request
 from .auth import authenticate_request, authorize_access
@@ -7,15 +9,31 @@ from .db import (
     count_jobs, enqueue_job, fetch_callback_count_grouped_by_status, fetch_dlq_count, fetch_jobs_grouped_by_status, get_connection, register_worker, 
     update_worker_heartbeat, get_workers, fetch_pending_callbacks,
     fetch_dlq_jobs, fetch_job_status_by_id, fetch_callback_status_by_job_id,
-    fetch_job_by_id, update_job
+    fetch_job_by_id, update_job, deregister_worker, cleanup_inactive_workers
 )
 from . import monitoring
+
+
+def cleanup_worker_thread(connection, interval_minutes: int = 5):
+    """Background thread that periodically cleans up inactive workers."""
+    while True:
+        try:
+            deleted_count = cleanup_inactive_workers(connection, timeout_seconds=300)  # 5 minutes
+            if deleted_count > 0:
+                print(f"[Cleanup] Removed {deleted_count} inactive workers")
+        except Exception as e:
+            print(f"[Cleanup] Error during cleanup: {e}")
+        time.sleep(interval_minutes * 60)
 
 
 def create_app(settings: Settings | None = None) -> Flask:
     app = Flask(__name__)
     settings = settings or Settings.from_env()
     connection = get_connection(settings.database_url)
+
+    # Start background cleanup thread
+    cleanup_thread = threading.Thread(target=cleanup_worker_thread, args=(connection,), daemon=True)
+    cleanup_thread.start()
 
     def require_auth(view):
         @wraps(view)
@@ -119,6 +137,23 @@ def create_app(settings: Settings | None = None) -> Flask:
         active_jobs = data.get('active_jobs', 0)
         update_worker_heartbeat(connection, worker_id, cpu_usage, ram_usage, active_jobs)
         return jsonify({"status": "updated"})
+    
+    @app.post("/workers/deregister")
+    @require_auth
+    def deregister_endpoint():
+        data = request.get_json(silent=True)
+        if not data or 'worker_id' not in data:
+            return jsonify({"error": "Invalid payload"}), 400
+        worker_id = data['worker_id']
+        deregister_worker(connection, worker_id)
+        return jsonify({"status": "deregistered"})
+    
+    @app.post("/workers/cleanup")
+    @require_auth
+    def cleanup_endpoint():
+        timeout_seconds = request.args.get('timeout', default=300, type=int)
+        deleted_count = cleanup_inactive_workers(connection, timeout_seconds)
+        return jsonify({"status": "cleanup completed", "deleted_workers": deleted_count})
     
     @app.get("/dlq")
     @require_auth
