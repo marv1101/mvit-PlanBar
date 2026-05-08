@@ -12,7 +12,7 @@ from .db import (
     mark_job_failed_with_retry, move_job_to_dlq, check_job_timeout,
     enqueue_callback, check_idempotency, fetch_pending_callbacks, store_callback_result
 )
-from .schema import validate_job_payload
+from .schema import validate_job_payload, JobPayload
 from .solver import build_model, solve_model
 
 
@@ -118,11 +118,11 @@ def run_worker(settings: Settings) -> None:
                 mark_job_processing(connection, db_job_id)
                 logger.info(f"Processing job ID: {db_job_id}")
 
-                # Validate payload
-                validate_job_payload(job)
+                # Validate payload and get Pydantic model
+                job_payload: JobPayload = validate_job_payload(job)
                 
                 # Build and solve model (with timeout)
-                model = build_model(job)
+                model = build_model(job_payload.model_dump())
                 result = solve_model(model, settings.timeout_seconds)
 
                 # Store successful result

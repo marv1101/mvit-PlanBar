@@ -12,6 +12,7 @@ TiTO wird über an eine Queue angebunden. Dabei werden aus der Queue die Jobs mi
 - Flask - WebAPI for Stats
 - PostgreSQL - Jobqueue in Tabelle
 - Google OR-Tools - Solver
+- **Pydantic** - Schema-Validierung und Typsicherheit (ab Phase 8)
 
 ## Systemarchitektur & Datenfluss
 
@@ -28,10 +29,11 @@ TiTO ist bewusst als Queue-basierter Worker gebaut. Die Entkopplung über Postgr
 
 ### Validierung und Schema-Versionierung
 
-- TiTO validiert jedes Job-Payload gegen ein definiertes JSON-Schema.
-- Das Schema sollte versionsfähig sein, z. B. über ein Feld `schemaVersion` oder `payloadVersion`.
+- TiTO validiert jedes Job-Payload mit Pydantic für Typsicherheit und automatische Validierung.
+- Das Schema ist versionsfähig über `schemaVersion` im Config-Objekt.
 - Änderungen am Input-Format müssen rückwärtskompatibel bleiben oder klar dokumentiert werden.
 - Das Modell sollte alle relevanten Daten enthalten: Mandant, Job-Metadaten, Schichten, Mitarbeiter, Anforderungen, Wünsche und Verfügbarkeiten.
+- **Phase 8**: Migration von `jsonschema` zu **Pydantic** für bessere Typsicherheit, IDE-Unterstützung und automatische Validierung.
 
 ### Timeout / Fallback-Verhalten
 

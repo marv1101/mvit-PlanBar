@@ -1,20 +1,31 @@
 from collections import defaultdict
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 from datetime import datetime, timedelta
 import math
 import logging
 from ortools.sat.python.cp_model import CpModel, CpSolver, CpSolverStatus, LinearExpr
 
+from .schema import JobPayload, ShiftTemplate, Requirement, Employee, Wish
 
-def build_model(payload: dict) -> dict:
-    """Übersetze das Eingabe-Payload in ein vorläufiges Modell."""
+
+def build_model(payload: Union[dict, JobPayload]) -> dict:
+    """
+    Übersetze das Eingabe-Payload in ein vorläufiges Modell.
+    Akzeptiert sowohl dict als auch JobPayload (Pydantic).
+    """
+    if isinstance(payload, JobPayload):
+        # Wenn Pydantic-Modell übergeben wird, use model_dump()
+        payload_dict = payload.model_dump()
+    else:
+        payload_dict = payload
+    
     model = {
-        "metadata": payload.get("metadata", {}),
-        "config": payload.get("config", {}),
-        "shiftTemplates": {item["id"]: item for item in payload.get("shiftTemplates", [])},
-        "requirements": payload.get("requirements", []),
-        "employees": payload.get("employees", []),
-        "wishes": payload.get("wishes", []),
+        "metadata": payload_dict.get("metadata", {}),
+        "config": payload_dict.get("config", {}),
+        "shiftTemplates": {item["id"]: item for item in payload_dict.get("shiftTemplates", [])},
+        "requirements": payload_dict.get("requirements", []),
+        "employees": payload_dict.get("employees", []),
+        "wishes": payload_dict.get("wishes", []),
     }
     return model
 
