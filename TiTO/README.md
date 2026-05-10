@@ -33,6 +33,7 @@ TiTO ist bewusst als Queue-basierter Worker gebaut. Die Entkopplung über Postgr
 - Das Schema ist versionsfähig über `schemaVersion` im Config-Objekt.
 - Änderungen am Input-Format müssen rückwärtskompatibel bleiben oder klar dokumentiert werden.
 - Das Modell sollte alle relevanten Daten enthalten: Mandant, Job-Metadaten, Schichten, Mitarbeiter, Anforderungen, Wünsche und Verfügbarkeiten.
+- API-Dokumentation ist über `GET /openapi.json` verfügbar und kann in Swagger UI oder ReDoc verwendet werden.
 - **Phase 8**: Migration von `jsonschema` zu **Pydantic** für bessere Typsicherheit, IDE-Unterstützung und automatische Validierung.
 
 ### Timeout / Fallback-Verhalten

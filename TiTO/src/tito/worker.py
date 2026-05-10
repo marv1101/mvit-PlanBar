@@ -186,6 +186,7 @@ def _process_pending_callbacks(
     headers: dict
 ) -> None:
     """Process pending callbacks and retry sending them."""
+    logger = logging.getLogger(__name__)
     try:
         callbacks = fetch_pending_callbacks(connection, limit=5)
         if not callbacks:

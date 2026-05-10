@@ -162,6 +162,23 @@ def test_metrics_prometheus_endpoint(tmp_path: Path):
     assert "tito_dead_letter_queue_size" in body
 
 
+def test_openapi_json_endpoint(tmp_path: Path):
+    db_file = tmp_path / "api_tito.db"
+    settings = Settings.from_env({
+        "DATABASE_URL": f"sqlite:///{db_file}",
+        "API_TOKENS": "test-token"
+    })
+    app = create_app(settings)
+    client = app.test_client()
+
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    assert response.json["openapi"] == "3.0.0"
+    assert response.json["info"]["title"] == "TiTO API"
+    assert "/jobs" in response.json["paths"]
+    assert "JobPayload" in response.json["components"]["schemas"]
+
+
 def _create_jwt(secret: str, role: str, audience: str | None = None, issuer: str | None = None) -> str:
     header = {"alg": "HS256", "typ": "JWT"}
     payload = {

@@ -112,3 +112,11 @@
 - **Authentication**: Required
 - **Response**:
   - 200 OK: Plain text in Prometheus exposition format
+
+### GET /openapi.json
+- **Description**: Retrieve the OpenAPI schema document for TiTO.
+- **Authentication**: None
+- **Response**:
+  - 200 OK: OpenAPI JSON document describing endpoints and request/response schemas
+
+> Hinweis: Das OpenAPI-Dokument kann in Swagger UI oder ReDoc geladen werden, um eine interaktive API-Dokumentation zu erhalten.

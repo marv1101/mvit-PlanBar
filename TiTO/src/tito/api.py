@@ -12,6 +12,7 @@ from .db import (
     fetch_dlq_jobs, fetch_job_status_by_id, fetch_callback_status_by_job_id,
     fetch_job_by_id, update_job, deregister_worker, cleanup_inactive_workers
 )
+from .schema import JobPayload
 from . import monitoring
 
 
@@ -84,6 +85,215 @@ def create_app(settings: Settings | None = None) -> Flask:
                 }), 403
             return view(*args, **kwargs)
         return decorated
+
+    def _build_openapi_spec(settings: Settings) -> dict:
+        job_payload_schema = JobPayload.model_json_schema(
+            ref_template="#/components/schemas/{model}"
+        )
+        components = job_payload_schema.pop("$defs", {}) if isinstance(job_payload_schema, dict) else {}
+        if isinstance(job_payload_schema, dict):
+            components["JobPayload"] = job_payload_schema
+
+        return {
+            "openapi": "3.0.0",
+            "info": {
+                "title": "TiTO API",
+                "version": "1.0.0",
+                "description": "OpenAPI specification for the TiTO scheduling service.",
+            },
+            "servers": [
+                {"url": settings.api_url, "description": "TiTO API server"}
+            ],
+            "paths": {
+                "/health": {
+                    "get": {
+                        "summary": "Health check",
+                        "responses": {
+                            "200": {
+                                "description": "Service is running",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {"type": "object", "properties": {"status": {"type": "string"}}}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "/openapi.json": {
+                    "get": {
+                        "summary": "OpenAPI specification",
+                        "responses": {
+                            "200": {
+                                "description": "OpenAPI JSON document",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {"type": "object"}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "/metrics": {
+                    "get": {
+                        "summary": "Retrieve metrics",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "responses": {
+                            "200": {"description": "Metrics data"},
+                            "401": {"description": "Unauthorized"}
+                        }
+                    }
+                },
+                "/metrics/prometheus": {
+                    "get": {
+                        "summary": "Prometheus metrics export",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "responses": {
+                            "200": {"description": "Prometheus formatted metrics", "content": {"text/plain": {"schema": {"type": "string"}}}},
+                            "401": {"description": "Unauthorized"}
+                        }
+                    }
+                },
+                "/metrics/robustness": {
+                    "get": {
+                        "summary": "Robustness metrics",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "responses": {
+                            "200": {"description": "Robustness and queue metrics"},
+                            "401": {"description": "Unauthorized"}
+                        }
+                    }
+                },
+                "/jobs": {
+                    "get": {
+                        "summary": "List all jobs",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "responses": {
+                            "200": {"description": "Job list"},
+                            "401": {"description": "Unauthorized"}
+                        }
+                    },
+                    "post": {
+                        "summary": "Enqueue a new job",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "requestBody": {
+                            "required": True,
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/JobPayload"}
+                                }
+                            }
+                        },
+                        "responses": {
+                            "201": {"description": "Job queued successfully"},
+                            "400": {"description": "Invalid request payload"},
+                            "401": {"description": "Unauthorized"},
+                            "409": {"description": "Duplicate job"}
+                        }
+                    }
+                },
+                "/jobs/{job_id}": {
+                    "get": {
+                        "summary": "Get job status",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "parameters": [{"name": "job_id", "in": "path", "required": True, "schema": {"type": "integer"}}],
+                        "responses": {
+                            "200": {"description": "Job details"},
+                            "401": {"description": "Unauthorized"},
+                            "404": {"description": "Job not found"}
+                        }
+                    }
+                },
+                "/jobs/{job_id}/retry": {
+                    "post": {
+                        "summary": "Retry a failed job",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "parameters": [{"name": "job_id", "in": "path", "required": True, "schema": {"type": "integer"}}],
+                        "responses": {
+                            "200": {"description": "Retry scheduled"},
+                            "400": {"description": "Invalid operation"},
+                            "401": {"description": "Unauthorized"},
+                            "404": {"description": "Job not found"}
+                        }
+                    }
+                },
+                "/workers/register": {
+                    "post": {
+                        "summary": "Register a new worker",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "requestBody": {
+                            "required": True,
+                            "content": {
+                                "application/json": {
+                                    "schema": {"type": "object", "properties": {"worker_id": {"type": "string"}, "cpu_usage": {"type": "number"}, "ram_usage": {"type": "number"}}, "required": ["worker_id"]}
+                                }
+                            }
+                        },
+                        "responses": {"200": {"description": "Worker registered"}, "401": {"description": "Unauthorized"}}
+                    }
+                },
+                "/workers/heartbeat": {
+                    "post": {
+                        "summary": "Update worker heartbeat",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "requestBody": {
+                            "required": True,
+                            "content": {
+                                "application/json": {
+                                    "schema": {"type": "object", "properties": {"worker_id": {"type": "string"}, "cpu_usage": {"type": "number"}, "ram_usage": {"type": "number"}, "active_jobs": {"type": "integer"}}, "required": ["worker_id"]}
+                                }
+                            }
+                        },
+                        "responses": {"200": {"description": "Heartbeat updated"}, "401": {"description": "Unauthorized"}}
+                    }
+                },
+                "/workers/deregister": {
+                    "post": {
+                        "summary": "Deregister a worker",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "requestBody": {
+                            "required": True,
+                            "content": {
+                                "application/json": {
+                                    "schema": {"type": "object", "properties": {"worker_id": {"type": "string"}}, "required": ["worker_id"]}
+                                }
+                            }
+                        },
+                        "responses": {"200": {"description": "Worker deregistered"}, "401": {"description": "Unauthorized"}}
+                    }
+                },
+                "/workers/cleanup": {
+                    "post": {
+                        "summary": "Cleanup inactive workers",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "parameters": [{"name": "timeout", "in": "query", "required": False, "schema": {"type": "integer", "default": 300}}],
+                        "responses": {"200": {"description": "Cleanup completed"}, "401": {"description": "Unauthorized"}}
+                    }
+                },
+                "/dlq": {
+                    "get": {
+                        "summary": "List dead letter queue jobs",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "responses": {"200": {"description": "DLQ jobs"}, "401": {"description": "Unauthorized"}}
+                    }
+                },
+                "/callbacks/pending": {
+                    "get": {
+                        "summary": "List pending callbacks",
+                        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+                        "responses": {"200": {"description": "Pending callbacks"}, "401": {"description": "Unauthorized"}}
+                    }
+                }
+            },
+            "components": {
+                "securitySchemes": {
+                    "bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"},
+                    "apiKeyAuth": {"type": "apiKey", "name": "X-API-Key", "in": "header"}
+                },
+                "schemas": components,
+            }
+        }
 
     @app.get("/health")
     def health_check():
@@ -287,5 +497,10 @@ def create_app(settings: Settings | None = None) -> Flask:
     def prometheus_metrics():
         text = monitoring.export_prometheus(connection, settings.queue_table, settings.timeout_seconds)
         return Response(text, mimetype="text/plain; version=0.0.4")
+
+    @app.get("/openapi.json")
+    def openapi_spec():
+        spec = _build_openapi_spec(settings)
+        return jsonify(spec)
 
     return app
