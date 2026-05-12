@@ -350,6 +350,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     # Extrahiere Lösung
     assignments_solution = []
     unassigned_requirements = []
+    violations = []
     
     try:
         for req_idx, requirement in enumerate(requirements):
@@ -372,6 +373,12 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             
             if not assigned:
                 unassigned_requirements.append(requirement)
+                violations.append({
+                    "type": "UNASSIGNED_REQUIREMENT",
+                    "severity": "HARD",
+                    "message": f"Requirement on {requirement.get('date')} with shift {requirement.get('shiftId')} could not be assigned",
+                    "details": requirement
+                })
     except Exception as e:
         # If no solution available (e.g., timeout without feasible solution)
         assignments_solution = []
@@ -390,6 +397,34 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             100.0 if total_wishes == 0
             else round((fulfilled_wishes / total_wishes) * 100, 1)
         )
+        
+        # Wünsche als Soft-Constraint-Verletzungen tracken
+        for wish in wishes:
+            wish_type = wish.get("type", "")
+            employee_id = wish.get("employeeId")
+            
+            emp_idx = next(
+                (i for i, e in enumerate(employees) if e.get("id") == employee_id),
+                None
+            )
+            if emp_idx is None: continue
+            
+            if wish_type == "PREFER_SHIFT":
+                date = wish.get("date")
+                shift_id = wish.get("shiftId")
+                matching_req = next(
+                    (i for i, r in enumerate(requirements)
+                     if r.get("date") == date and r.get("shiftId") == shift_id),
+                    None
+                )
+                if matching_req is not None:
+                    if solver.Value(assignments[(emp_idx, matching_req)]) == 0:
+                        violations.append({
+                            "type": "WISH_NOT_FULFILLED",
+                            "severity": "SOFT",
+                            "message": f"Wish for employee {employee_id} on {date} (shift {shift_id}) not fulfilled",
+                            "details": wish
+                        })
     except Exception as e:
         fulfilled_wishes = 0
         wish_rate = 0.0
@@ -398,6 +433,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     
     # Bestimme Status
     if status == CpSolverStatus.OPTIMAL:  # OPTIMAL
+
         solver_status = "SUCCESS"
         is_optimal = True
         info = "Optimale Lösung gefunden."
@@ -459,9 +495,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             "wishFulfillmentRate": wish_rate,
             "totalObjectiveScore": len(assignments_solution) * 100,
             "employeeUtilization": employee_utilization,
-            "violations": {
-                "softConstraints": []
-            }
+            "violations": violations,
         },
         "diagnostics": {
             "isOptimal": is_optimal,
