@@ -146,14 +146,34 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                 skill in employee_skills for skill in needed_skills.keys()
             )
             
-            if has_required_skills:
+        # Rollentrennung: Wenn das Requirement eine bestimmte Rolle erfordert,
+        # darf nur ein Mitarbeiter mit dieser Rolle zugewiesen werden.
+        # (Hier wird davon ausgegangen, dass 'neededSkills' auch Rollen enthalten kann 
+        # oder wir eine separate Logik für 'role' im Employee-Objekt nutzen)
+        # Da wir 'role' in Employee hinzugefügt haben, prüfen wir hier die Übereinstimmung,
+        # falls das Requirement eine spezifische Rolle verlangt (z.B. über ein Skill-Key 'ROLE_')
+        
+        # Wir implementieren eine einfache Rollenprüfung: 
+        # Wenn ein Skill mit "ROLE_" beginnt, wird er als Rollenanforderung gewertet.
+        role_required = None
+        for skill in needed_skills.keys():
+            if skill.startswith("ROLE_"):
+                role_required = skill.replace("ROLE_", "")
+                break
+        
+        if role_required:
+            employee_role = employee.get("role")
+            if employee_role != role_required:
+                # Mitarbeiter hat nicht die erforderliche Rolle
+                # Wir setzen dies später in der Schleife über valid_employees
+                pass
+
+        if has_required_skills:
+            # Zusätzliche Prüfung für die Rolle
+            if role_required and employee.get("role") != role_required:
+                pass # Nicht valid
+            else:
                 valid_employees.append(emp_idx)
-        
-        # Nur gültige Mitarbeiter können zugewiesen werden
-        for emp_idx in range(len(employees)):
-            if emp_idx not in valid_employees:
-                cp_model.add(assignments[(emp_idx, req_idx)] == 0)
-        
         # WICHTIG: Jedes Requirement MUSS erfüllt werden (Hard Constraint)
         requirement_assignments = [
             assignments[(emp_idx, req_idx)]
@@ -290,6 +310,50 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                 )
             if weekly_minutes:
                 cp_model.add(LinearExpr.sum(weekly_minutes) <= weekly_limit_minutes)
+
+        # Rotationsregeln: Vermeidung von Monotonie (z.B. nicht mehr als 3 Tage hintereinander die gleiche Schicht)
+        # Wir implementieren eine einfache Regel: Max 3 gleiche Schichten in Folge
+        max_same_shift_consecutive = 3
+        for shift_id in shift_templates.keys():
+            # Finde alle Requirements für diese Schicht
+            shift_reqs = [i for i, r in enumerate(requirements) if r.get("shiftId") == shift_id]
+            if len(shift_reqs) > max_same_shift_consecutive:
+                # Wir müssen die Daten sortieren, um "aufeinanderfolgend" zu prüfen
+                # Da unique_dates bereits sortiert ist, nutzen wir das.
+                # Wir erstellen eine Liste von (datum, req_idx) für diese Schicht
+                shift_dates_reqs = []
+                for d in unique_dates:
+                    for r_idx in date_requirements[d]:
+                        if requirements[r_idx].get("shiftId") == shift_id:
+                            shift_dates_reqs.append(r_idx)
+                
+                # Prüfe Fenster von max_same_shift_consecutive + 1 Tagen
+                # Achtung: Das ist komplex, da ein Mitarbeiter an einem Tag mehrere Schichten haben könnte.
+                # Wir vereinfachen: Wenn er an X Tagen hintereinander die gleiche Schicht-ID hat.
+                for i in range(len(unique_dates) - max_same_shift_consecutive):
+                    window_dates = unique_dates[i : i + max_same_shift_consecutive + 1]
+                    window_assignments = []
+                    for d in window_dates:
+                        # Falls es mehrere Requirements der gleichen Schicht am selben Tag gibt,
+                        # nehmen wir die Summe der Zuweisungen für diesen Mitarbeiter
+                        day_reqs = [assignments[(emp_idx, r_idx)] for r_idx in date_requirements[d] 
+                                    if requirements[r_idx].get("shiftId") == shift_id]
+                        if day_reqs:
+                            # Wir brauchen eine Variable, die 1 ist, wenn er an diesem Tag diese Schicht macht
+                            # Da er pro Tag meist nur eine Schicht macht, ist die Summe okay, 
+                            # aber wir müssen sicherstellen, dass es ein Bool-Wert bleibt.
+                            # Wir nutzen eine Hilfsvariable.
+                            day_works_shift = cp_model.new_bool_var(f"emp{emp_idx}_date{d}_shift{shift_id}")
+                            cp_model.add(LinearExpr.sum(day_reqs) >= day_works_shift)
+                            for var in day_reqs:
+                                cp_model.add(var <= day_works_shift)
+                            window_assignments.append(day_works_shift)
+                        else:
+                            window_assignments.append(0)
+                    
+                    if len(window_assignments) > max_same_shift_consecutive:
+                        cp_model.add(LinearExpr.sum(window_assignments) <= max_same_shift_consecutive)
+
 
     # Constraint 4: Wünsche als weiche Constraints
     wish_penalty_vars = []

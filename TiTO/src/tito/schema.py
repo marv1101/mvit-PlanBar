@@ -83,6 +83,7 @@ class Employee(BaseModel):
     """Employee data for scheduling."""
     id: str = Field(..., description="Unique employee identifier")
     name: str = Field(..., description="Employee name")
+    role: Optional[str] = Field(default=None, description="Primary role of the employee")
     contractHours: Optional[float] = Field(default=None, gt=0, description="Weekly contract hours (new)")
     contract: Optional[Dict[str, Any]] = Field(default=None, description="Contract details (old)")
     maxDailyHours: Optional[float] = Field(default=None, gt=0, description="Maximum daily working hours")
