@@ -399,7 +399,7 @@ def fetch_next_job(connection: sqlite3.Connection | psycopg2.extensions.connecti
         cursor.execute(
             f"""SELECT * FROM {queue_table} 
                WHERE status = 'queued' AND (scheduled_for IS NULL OR scheduled_for <= NOW() AT TIME ZONE 'UTC')
-               ORDER BY priority DESC, created_at ASC LIMIT 1"""
+               ORDER BY priority DESC, created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED"""
         )
         row = cursor.fetchone()
         cursor.close()
