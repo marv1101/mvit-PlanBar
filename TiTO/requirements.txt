@@ -34,8 +34,8 @@ referencing==0.37.0
 requests==2.33.1
 rpds-py==0.30.0
 six==1.17.0
--e git+https://github.com/marv1101/mvit-PlanBar@f3fa9977f15206080995fc35fe951ecc1df364f0#egg=tito&subdirectory=TiTO
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 urllib3==2.6.3
 Werkzeug==3.1.8
+gunicorn>=20.1.0

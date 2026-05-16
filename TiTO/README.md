@@ -53,7 +53,7 @@ TiTO ist bewusst als Queue-basierter Worker gebaut. Die Entkopplung über Postgr
 ### Monitoring & Betrieb
 
 - TiTO benötigt Health-Checks und Metriken für Queue-Länge, Job-Dauer, Fehlerquote und Solver-Laufzeiten.
-- Eine einfache Flask-API kann hier Status- und Statistikendaten liefern.
+- Eine einfache Flask-API kann hier Status- und Statistikdaten liefern.
 - Für SaaS sind Performance-Metriken wichtig: Anzahl aktiver Worker, durchschnittliche Durchlaufzeit, Anteil `TIMEOUT`-Jobs.
 - Operationalisierung sollte auch Ausbau/Skalierung mehrerer Worker-Instanzen abbilden.
 
@@ -99,54 +99,11 @@ Metrics: Score der Optimierung (wie viele Wünsche wurden erfüllt?).
   },
   "shiftTemplates": [
     {
-      "id": "S_FRUEH",
-      "name": "Frühschicht",
-      "startTime": "06:00",
-      "endTime": "14:00",
-      "minBreakMinutes": 30
-    },
-    {
-      "id": "S_SPAET",
-      "name": "Spätschicht",
-      "startTime": "14:00",
-      "endTime": "22:00",
-      "minBreakMinutes": 30
-    }
-  ],
-  "requirements": [
-    {
-      "date": "2026-01-01",
-      "shiftId": "S_FRUEH",
-      "neededSkills": { "Apotheker": 1, "PTA": 2 }
-    }
-  ],
-  "employees": [
-    {
-      "id": "emp_001",
-      "name": "Max Mustermann",
-      "contract": {
-        "weeklyHours": 40.0,
-        "employmentType": "Apotheker",
-        "currentBalanceHours": 5.5
-      },
-      "skills": ["Notdienst", "BTM"],
-      "forbiddenDates": ["2026-01-15"]
-    }
-  ],
-  "wishes": [
-    {
-      "employeeId": "emp_001",
-      "type": "OFF",
-      "date": "2026-01-01",
-      "weight": 5,
-      "comment": "Neujahr frei gewünscht"
-    },
-    {
-      "employeeId": "emp_001",
-      "type": "PREFER_SHIFT",
-      "shiftId": "S_FRUEH",
-      "date": "2026-01-02",
-      "weight": 2
+        "id": "S_FRUEH",
+        "name": "Frühschicht",
+        "startTime": "06:00",
+        "endTime": "14:00",
+        "minBreakMinutes": 30
     }
   ]
 }
