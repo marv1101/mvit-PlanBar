@@ -1,3 +1,5 @@
 mvit PlanBar.code-workspace
 Infrastructure/.env
 PlanBar - Frontend/ATTRIBUTIONS.md
+PlanBar - Frontend/node_modules/*
+.continue/prompts/new-prompt.md

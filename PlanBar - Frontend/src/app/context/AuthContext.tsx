@@ -39,7 +39,7 @@ const MOCK_USERS = [
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in (from localStorage)
@@ -51,7 +51,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('currentUser');
       }
     }
-    setIsLoading(false);
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
