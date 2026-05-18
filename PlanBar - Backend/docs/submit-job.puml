@@ -1,0 +1,36 @@
+@startuml
+title Job Submission Flow
+
+actor User
+participant Frontend
+participant Backend
+participant TiTO_Service
+
+User -> Frontend: Job-Details übergeben (z.B. Formular-Submit)
+activate Frontend
+
+Frontend -> Backend: POST /api/jobs/submit(jobData)
+activate Backend
+
+Backend -> Backend: 1. Validierung der Eingabedaten
+Backend -> Backend: 2. Job-Payload erstellen
+
+Backend -> TiTO_Service: Job-Verarbeitung anfordern (z.B. API-Call oder Message Queue)
+activate TiTO_Service
+
+TiTO_Service -> TiTO_Service: 3. Job-Verarbeitung durchführen (Solver, DB-Update)
+note right of TiTO_Service: Nutzt die Logik aus TiTO (solver.py, db.py)
+TiTO_Service -> Backend: 4. Job-Nummer und Status zurückmelden (queued oder error)
+
+
+Backend --> TiTO_Service : Job-Status und Ergebnis abfragen (JobResult)
+TiTO_Service --> Backend : Job-Ergebnis zurückliefern (z.B. 200 OK mit Ergebnis oder 500 bei Fehler)
+deactivate TiTO_Service
+
+Backend --> Frontend: Erfolgsbestätigung mit Job-ID (202 Accepted)
+deactivate Backend
+
+Frontend --> User: Erfolgsmeldung anzeigen und Job-ID präsentieren
+deactivate Frontend
+
+@enduml
