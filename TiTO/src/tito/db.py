@@ -169,7 +169,7 @@ def _initialize_postgres(connection: psycopg2.extensions.connection) -> None:
             """
             CREATE TABLE IF NOT EXISTS dead_letter_queue (
                 dlq_id SERIAL PRIMARY KEY,
-                job_id INTEGER NOT NULL,
+                job_id SERIAL NOT NULL,
                 original_payload JSONB NOT NULL,
                 failure_reason TEXT NOT NULL,
                 sent_to_dlq_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -184,7 +184,7 @@ def _initialize_postgres(connection: psycopg2.extensions.connection) -> None:
             """
             CREATE TABLE IF NOT EXISTS callback_queue (
                 callback_id SERIAL PRIMARY KEY,
-                job_id INTEGER NOT NULL,
+                job_id SERIAL NOT NULL,
                 callback_url TEXT NOT NULL,
                 callback_status TEXT DEFAULT 'pending',
                 result_payload JSONB,
@@ -284,7 +284,7 @@ def enqueue_job(
                 tenant_id
             )
         )
-        job_id = cursor.fetchone()[0]
+        job_id = cursor.fetchone()["job_id"]
         connection.commit()
         cursor.close()
         return job_id

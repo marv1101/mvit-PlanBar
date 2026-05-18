@@ -6,37 +6,59 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create job queue table
 CREATE TABLE IF NOT EXISTS job_queue (
-    id SERIAL PRIMARY KEY,
-    job_id VARCHAR(255) UNIQUE,
-    tenant_id INTEGER NOT NULL,
-    payload JSONB NOT NULL,
-    status VARCHAR(50) DEFAULT 'pending',
-    priority INTEGER DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    scheduled_at TIMESTAMP WITH TIME ZONE,
-    started_at TIMESTAMP WITH TIME ZONE,
-    completed_at TIMESTAMP WITH TIME ZONE,
-    failed_at TIMESTAMP WITH TIME ZONE,
-    error_message TEXT,
-    retry_count INTEGER DEFAULT 0,
-    max_retries INTEGER DEFAULT 3
-);
+                job_id SERIAL PRIMARY KEY,
+                payload JSONB NOT NULL,
+                status TEXT NOT NULL,
+                result JSONB,
+                priority INTEGER DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                attempts INTEGER DEFAULT 0,
+                max_retries INTEGER DEFAULT 3,
+                last_error TEXT,
+                failed_at TIMESTAMP WITH TIME ZONE,
+                scheduled_for TIMESTAMP WITH TIME ZONE,
+                callback_url TEXT,
+                idempotency_key TEXT UNIQUE,
+                timeout_at TIMESTAMP WITH TIME ZONE,
+                tenant_id TEXT
+            );
 
 -- Create callback queue table
 CREATE TABLE IF NOT EXISTS callback_queue (
-    id SERIAL PRIMARY KEY,
-    job_id VARCHAR(255) NOT NULL,
-    tenant_id INTEGER NOT NULL,
-    callback_url VARCHAR(2048) NOT NULL,
-    payload JSONB NOT NULL,
-    status VARCHAR(50) DEFAULT 'pending',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    processed_at TIMESTAMP WITH TIME ZONE,
-    error_message TEXT,
-    retry_count INTEGER DEFAULT 0,
-    max_retries INTEGER DEFAULT 3
-);
+                callback_id SERIAL PRIMARY KEY,
+                job_id SERIAL NOT NULL,
+                callback_url TEXT NOT NULL,
+                callback_status TEXT DEFAULT 'pending',
+                result_payload JSONB,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                attempted_at TIMESTAMP WITH TIME ZONE,
+                attempts INTEGER DEFAULT 0,
+                max_attempts INTEGER DEFAULT 3,
+                tenant_id TEXT,
+                FOREIGN KEY(job_id) REFERENCES job_queue(job_id) ON DELETE CASCADE
+            );
+
+    CREATE TABLE IF NOT EXISTS workers (
+                worker_id TEXT PRIMARY KEY,
+                ip TEXT NOT NULL,
+                registered_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                last_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL,
+                cpu_usage REAL,
+                ram_usage REAL,
+                active_jobs INTEGER DEFAULT 0
+            );
+    
+    CREATE TABLE IF NOT EXISTS dead_letter_queue (
+                dlq_id SERIAL PRIMARY KEY,
+                job_id SERIAL NOT NULL,
+                original_payload JSONB NOT NULL,
+                failure_reason TEXT NOT NULL,
+                sent_to_dlq_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                attempts INTEGER NOT NULL,
+                tenant_id TEXT,
+                FOREIGN KEY(job_id) REFERENCES job_queue(job_id) ON DELETE CASCADE
+            );
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_job_queue_status ON job_queue(status);

@@ -4,7 +4,11 @@ from pathlib import Path
 root = Path(__file__).resolve().parent
 sys.path.insert(0, str(root / "src"))
 
-from tito.__main__ import main
+from tito.__main__ import main, get_app
 
 if __name__ == "__main__":
     main()
+
+
+# WSGI-Anwendung für Gunicorn
+application = get_app()
