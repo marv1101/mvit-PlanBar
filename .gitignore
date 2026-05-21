@@ -3,3 +3,14 @@ Infrastructure/.env
 PlanBar - Frontend/ATTRIBUTIONS.md
 PlanBar - Frontend/node_modules/*
 .continue/prompts/new-prompt.md
+PlanBar - Backend/src/app/__pycache__/*
+PlanBar - Backend/src/app/api/__pycache__/*
+PlanBar - Backend/src/app/core/__pycache__/*
+PlanBar - Backend/src/app/api/v1/__pycache__/*
+PlanBar - Backend/src/app/db/models/__pycache__/*
+PlanBar - Backend/src/app/schemas/__pycache__/*
+PlanBar - Backend/src/app/services/__pycache__/*
+PlanBar - Backend/src/app/db/__pycache__/*
+PlanBar - Backend/tests/__pycache__/*
+PlanBar - Backend/tests/integration/__pycache__/*
+PlanBar - Backend/.env

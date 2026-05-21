@@ -3,6 +3,37 @@
 ## TL;DR
 Implementierung eines Python/FastAPI-Backends als REST API mit JWT-Auth, SQLAlchemy ORM, und Proxy zu TiTO. Das Backend fungiert als zentrale Schnittstelle für das Frontend, persistent speichert alle Daten in einer separaten PostgreSQL-DB und verwaltet TiTO-Jobs asynchron über einen Callback-Mechanismus. Modulare Struktur mit FastAPI Routers, umfassende Tests, und Docker-ready Deployment.
 
+### Aktueller Umsetzungsstand
+- [x] Phase 1A: Projekt Setup & Foundation
+  - [x] `src/app/` Ordnerstruktur erstellt
+  - [x] `pyproject.toml` & `requirements.txt` angelegt
+  - [x] `src/app/config.py` mit `pydantic-settings` eingerichtet
+  - [x] `.env.example` angelegt
+- [x] Phase 1B: Database & ORM Basis
+  - [x] `src/app/db/base.py` erstellt
+  - [x] `src/app/db/database.py` erstellt
+  - [x] `src/app/db/models/user.py` implementiert
+- [x] Phase 1C: Auth & Schemas
+  - [x] `src/app/core/auth.py` implementiert
+  - [x] `src/app/schemas/user.py` implementiert
+- [x] Phase 1D: API Layer
+  - [x] `src/app/api/v1/router.py` eingerichtet
+  - [x] `src/app/api/v1/users.py`: Register/Login/Me implementiert
+  - [x] `src/app/api/v1/health.py` implementiert
+- [x] Phase 1E: Business Logic Services
+  - [x] `src/app/services/user_service.py` implementiert
+- [x] Phase 1F: Middleware & Error Handling
+  - [x] `src/app/middleware/error_handler.py` erstellt
+  - [x] `src/app/core/logging.py` erstellt
+- [x] Phase 1G: Testing
+  - [x] `tests/conftest.py` vorhanden
+  - [x] `tests/integration/test_health.py` vorhanden und bestanden
+- [x] Phase 1H: Deployment & Dokumentation
+  - [x] `Dockerfile` vorhanden
+  - [x] `.dockerignore` vorhanden
+
+> Offen: PostgreSQL-Compose-Setup, Alembic-Migrationen, weitere Domain-Modelle, vollständige CRUD-APIs, TiTO-Proxy/Callback, Auth-Middleware, Metrics-Endpunkte, umfassende Tests, ausführliche Dokumentation.
+
 ---
 
 ## Projekt-Architektur-Überblick
