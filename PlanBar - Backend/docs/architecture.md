@@ -188,17 +188,3 @@ Das Backend muss folgende Hauptfunktionen erfüllen:
 6. **DLQ-Management** (Fehlgeschlagene Jobs)
 
 Die Architektur sieht vor, dass das Backend als **Schnittstelle** zwischen Frontend und TiTO agiert, wobei alle TiTO-Ergebnisse im Backend gespeichert werden, damit das Frontend sie abrufen kann.
-
-## Fehlende Definitionen
-
-Die folgende Definitionen müssen noch erstellt werden:
-
-1. **Backend-DB Schema** - Alle Tabellen mit vollständiger Definition (Datentypen, Constraints, Indexe)
-2. **API Request/Response Models** - Pydantic Models für alle Endpunkte
-3. **Authentifizierung** - JWT Token Struktur, API Key Format, Role/Permission Model
-4. **TiTO Result Parsing** - Transformation von TiTO Response zu Backend Entity
-5. **Metriken-Entität** - Struktur für Metriken und Robustness-Metriken
-6. **DLQ & Callback** - Struktur für DLQ-Entry und Callback-Status
-7. **Wochenumschalter** - A/B-Wochen-Entität
-8. **Schichtdaten** - Shift-Entität und Summary-Entität
-9. **ER-Modell** - Vollständiges ER-Diagramm mit allen Beziehungen
