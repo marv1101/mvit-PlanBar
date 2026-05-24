@@ -18,6 +18,13 @@ class TiTOMetadata(BaseModel):
     timestamp: str
 
 
+class TiTORequestMetadata(BaseModel):
+    """Metadata sent with job submission to TiTO"""
+    callback_url: str
+    idempotency_key: Optional[str] = None
+    tenant_id: Optional[str] = None
+
+
 class TiTOMetrics(BaseModel):
     wishFulfillmentRate: float
     totalObjectiveScore: float
@@ -56,6 +63,7 @@ class TiTOJobRequest(BaseModel):
     shiftWishes: list[dict[str, Any]]
     requirements: list[dict[str, Any]]
     constraints: Optional[dict[str, Any]] = None
+    metadata: Optional[TiTORequestMetadata] = None
 
 
 class TiTOCallbackPayload(BaseModel):

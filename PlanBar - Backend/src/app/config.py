@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(15)
     refresh_token_expire_days: int = Field(7)
     tito_api_url: str = Field("http://localhost:5001")
+    backend_callback_url: str = Field("http://localhost:8000")
     tito_api_key: str | None = Field(None)
 
 

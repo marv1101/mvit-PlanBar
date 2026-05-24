@@ -22,6 +22,27 @@ Backend für PlanBar mit FastAPI, PostgreSQL und TiTO-Integration.
   - `alembic upgrade head`
   - `alembic revision --autogenerate -m "describe changes"`
 
+## TiTO-Integration und Callbacks
+
+### Konfiguration
+
+Die TiTO-Integration erfordert die folgenden Umgebungsvariablen:
+
+- `TITO_API_URL` – Die URL des TiTO-Diensts (Standard: `http://localhost:5001`)
+- `BACKEND_CALLBACK_URL` – Die URL des Backends für TiTO-Callbacks (Standard: `http://localhost:8000`)
+- `TITO_API_KEY` – Optionaler API-Schlüssel für TiTO (falls erforderlich)
+
+### Callback-Flow
+
+1. **Job-Submission**: Wenn eine Schedule an TiTO übermittelt wird, wird die `BACKEND_CALLBACK_URL` im Metadaten-Block enthalten.
+2. **Job-Verarbeitung**: TiTO verarbeitet den Job und speichert die Metadaten.
+3. **Callback**: Nach Abschluss sendet TiTO ein POST-Request an `{BACKEND_CALLBACK_URL}/api/v1/callbacks/tito` mit dem Ergebnis.
+4. **Verarbeitung**: Das Backend aktualisiert die Schedule mit den Ergebnissen und erstellt neue Shiftplan-Einträge.
+
+### Endpoint
+
+- `POST /api/v1/callbacks/tito` – TiTO Callback-Empfang (für interne Kommunikation)
+
 ## Verfügbare Endpunkte
 
 - `POST /api/v1/users` – Benutzer registrieren

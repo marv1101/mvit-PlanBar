@@ -2,11 +2,12 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.db.models.employee import Employee
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
-from app.schemas.tito import TiTOJobRequest
+from app.schemas.tito import TiTOJobRequest, TiTORequestMetadata
 from app.services.tito_proxy import tito_proxy
 
 
@@ -139,9 +140,15 @@ def _build_tito_payload(
             "note": wish.note or "",
         })
 
+    metadata = TiTORequestMetadata(
+        callback_url=f"{settings.backend_callback_url}/api/v1/callbacks/tito",
+        idempotency_key=f"schedule_{schedule.id}",
+    )
+
     return TiTOJobRequest(
         employees=employee_list,
         shiftWishes=wishes_list,
         requirements=[],
         constraints={},
+        metadata=metadata,
     ).model_dump()

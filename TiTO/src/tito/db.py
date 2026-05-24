@@ -319,7 +319,18 @@ def enqueue_job(
             )
         )
         job_id = cursor.lastrowid
-        connection.commit()
+        try:
+            connection.commit()
+        except sqlite3.OperationalError as e:
+            if "no transaction is active" in str(e):
+                pass
+            else:
+                raise e
+        except Exception as e:
+            if hasattr(connection, 'commit'):
+                connection.commit()
+            else:
+                raise e
         return job_id
 
 def fetch_job_by_id(connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int) -> dict | None:

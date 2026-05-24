@@ -14,7 +14,7 @@ def process_tito_callback(db: Session, payload: TiTOCallbackPayload) -> Schedule
     if not schedule:
         return None
 
-    schedule.status = "completed" if payload.status == "SUCCESS" else "failed"
+    schedule.status = "completed" if payload.status.upper() == "SUCCESS" or payload.status.lower() == "completed" else "failed"
     schedule.metadata_json = payload.metadata.model_dump() if payload.metadata else None
     schedule.metrics_json = payload.metrics.model_dump() if payload.metrics else None
     schedule.diagnostics_json = payload.diagnostics.model_dump() if payload.diagnostics else None
