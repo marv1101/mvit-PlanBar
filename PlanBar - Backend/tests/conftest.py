@@ -1,9 +1,61 @@
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
-from app.main import app
+from app.db.base import Base
+from app.db.database import engine
+from app.dependencies import get_db
+from app.main import create_app
+
+TEST_DATABASE_URL = "sqlite:///./test_planbar.db"
+
+_test_engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+TestSessionLocal = sessionmaker(bind=_test_engine, autoflush=False, autocommit=False)
 
 
-@pytest.fixture(scope="session")
-def client() -> TestClient:
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_db():
+    Base.metadata.create_all(bind=_test_engine)
+    yield
+    Base.metadata.drop_all(bind=_test_engine)
+
+
+@pytest.fixture
+def db_session():
+    db = TestSessionLocal()
+    try:
+        yield db
+    finally:
+        db.rollback()
+        db.close()
+
+
+@pytest.fixture
+def client(db_session):
+    app = create_app()
+
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
     return TestClient(app)
+
+
+@pytest.fixture
+def auth_headers(client):
+    register_data = {
+        "username": "testadmin",
+        "email": "admin@test.com",
+        "password": "testpassword123",
+    }
+    client.post("/api/v1/users", json=register_data)
+    login_response = client.post(
+        "/api/v1/users/login",
+        json={"email": "admin@test.com", "password": "testpassword123"},
+    )
+    token = login_response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}

@@ -15,6 +15,17 @@ class UserLogin(BaseModel):
     password: str = Field(..., min_length=8)
 
 
+class TokenRefreshRequest(BaseModel):
+    refresh_token: str = Field(..., min_length=10)
+
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = Field(None, min_length=3, max_length=64)
+    email: Optional[EmailStr] = None
+    password: Optional[str] = Field(None, min_length=8)
+    role: Optional[str] = None
+
+
 class UserResponse(BaseModel):
     id: int
     username: str
