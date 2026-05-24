@@ -73,5 +73,52 @@ services:
       retries: 5
       start_period: 10s
 
+  # PostgreSQL Database Service for PlanBar Backend
+  db_backend:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=planbar
+      - POSTGRES_PASSWORD=${PLANBAR_DB_PASSWORD}
+      - POSTGRES_DB=planbar_backend
+    volumes:
+      - planbar_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  planbar_backend:
+    build:
+      context: "../PlanBar - Backend"
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://planbar:${PLANBAR_DB_PASSWORD}@db_backend:5432/planbar_backend
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS}
+      - TITO_API_URL=http://tito:5001
+      - TITO_API_KEY=${TITO_API_KEY}
+    depends_on:
+      db_backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
 volumes:
   postgres_data:
+  planbar_postgres_data:
