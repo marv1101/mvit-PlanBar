@@ -7,7 +7,12 @@ from pydantic import BaseModel, Field
 class EmployeeBase(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=64)
     last_name: str = Field(..., min_length=1, max_length=64)
+    email: Optional[str] = None
     color: Optional[str] = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
+    working_hours_json: Optional[str] = None
+    break_start: Optional[str] = None
+    break_end: Optional[str] = None
+    max_work_hours: Optional[float] = None
 
 
 class EmployeeCreate(EmployeeBase):
@@ -17,7 +22,12 @@ class EmployeeCreate(EmployeeBase):
 class EmployeeUpdate(BaseModel):
     first_name: Optional[str] = Field(None, min_length=1, max_length=64)
     last_name: Optional[str] = Field(None, min_length=1, max_length=64)
+    email: Optional[str] = None
     color: Optional[str] = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
+    working_hours_json: Optional[str] = None
+    break_start: Optional[str] = None
+    break_end: Optional[str] = None
+    max_work_hours: Optional[float] = None
     user_id: Optional[int] = None
 
 

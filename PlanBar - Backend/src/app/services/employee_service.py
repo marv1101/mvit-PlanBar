@@ -17,7 +17,12 @@ def create_employee(db: Session, data: EmployeeCreate) -> Employee:
         user_id=data.user_id,
         first_name=data.first_name,
         last_name=data.last_name,
+        email=data.email,
         color=data.color,
+        working_hours_json=data.working_hours_json,
+        break_start=data.break_start,
+        break_end=data.break_end,
+        max_work_hours=data.max_work_hours,
     )
     db.add(employee)
     db.commit()
@@ -38,8 +43,18 @@ def update_employee(db: Session, employee: Employee, data: EmployeeUpdate) -> Em
         employee.first_name = data.first_name
     if data.last_name is not None:
         employee.last_name = data.last_name
+    if data.email is not None:
+        employee.email = data.email
     if data.color is not None:
         employee.color = data.color
+    if data.working_hours_json is not None:
+        employee.working_hours_json = data.working_hours_json
+    if data.break_start is not None:
+        employee.break_start = data.break_start
+    if data.break_end is not None:
+        employee.break_end = data.break_end
+    if data.max_work_hours is not None:
+        employee.max_work_hours = data.max_work_hours
     if data.user_id is not None:
         employee.user_id = data.user_id
     db.add(employee)

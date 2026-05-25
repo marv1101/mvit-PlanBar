@@ -12,17 +12,20 @@ router = APIRouter()
 
 class RoleCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=64)
+    color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
     permissions: str | None = None
 
 
 class RoleUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=64)
+    color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
     permissions: str | None = None
 
 
 class RoleResponse(BaseModel):
     id: int
     name: str
+    color: str | None = None
     permissions: str | None = None
 
     model_config = {"from_attributes": True}
@@ -37,7 +40,7 @@ def create_role(
     existing = db.query(Role).filter(Role.name == data.name).first()
     if existing:
         raise ConflictException(detail="Role with this name already exists")
-    role = Role(name=data.name, permissions=data.permissions)
+    role = Role(name=data.name, color=data.color, permissions=data.permissions)
     db.add(role)
     db.commit()
     db.refresh(role)
@@ -67,6 +70,8 @@ def update_role(
         if existing:
             raise ConflictException(detail="Role with this name already exists")
         role.name = data.name
+    if data.color is not None:
+        role.color = data.color
     if data.permissions is not None:
         role.permissions = data.permissions
     db.add(role)

@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.router import api_router
@@ -16,6 +17,13 @@ def create_app() -> FastAPI:
         title="PlanBar Backend",
         description="Backend API für PlanBar mit TiTO-Integration",
         version="0.1.0",
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     app.add_middleware(RequestLoggingMiddleware)
     app.include_router(api_router, prefix="/api/v1")

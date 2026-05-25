@@ -15,6 +15,9 @@ def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = Non
     schedule = Schedule(
         name=data.name,
         week_type=data.week_type,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        role_requirements=data.role_requirements,
         status="draft",
     )
     db.add(schedule)
@@ -29,6 +32,9 @@ def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = Non
             shift_id=shiftplan_data.shift_id,
             start_time=shiftplan_data.start_time,
             end_time=shiftplan_data.end_time,
+            week=shiftplan_data.week,
+            break_start=shiftplan_data.break_start,
+            break_end=shiftplan_data.break_end,
             notes=shiftplan_data.notes,
         )
         db.add(shiftplan)

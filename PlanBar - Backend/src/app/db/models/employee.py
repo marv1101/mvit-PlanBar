@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -13,7 +13,12 @@ class Employee(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     first_name = Column(String(64), nullable=False)
     last_name = Column(String(64), nullable=False)
+    email = Column(String(120), nullable=True)
     color = Column(String(7), nullable=True)
+    working_hours_json = Column(Text, nullable=True)
+    break_start = Column(String(5), nullable=True)
+    break_end = Column(String(5), nullable=True)
+    max_work_hours = Column(Float, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 

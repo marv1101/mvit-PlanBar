@@ -17,7 +17,7 @@ class ShiftWishCreate(BaseModel):
     employee_id: int
     date: date
     week: Optional[int] = None
-    type: str = Field("preferred", pattern=r"^(preferred|unavailable)$")
+    type: str = Field("preferred", pattern=r"^(preferred|unavailable|vacation)$")
     note: Optional[str] = None
 
 
@@ -25,7 +25,7 @@ class ShiftWishUpdate(BaseModel):
     employee_id: Optional[int] = None
     date: Optional[date] = None
     week: Optional[int] = None
-    type: Optional[str] = Field(None, pattern=r"^(preferred|unavailable)$")
+    type: Optional[str] = Field(None, pattern=r"^(preferred|unavailable|vacation)$")
     note: Optional[str] = None
 
 

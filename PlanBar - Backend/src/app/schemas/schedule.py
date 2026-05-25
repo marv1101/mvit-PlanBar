@@ -10,6 +10,9 @@ class ShiftplanBase(BaseModel):
     shift_id: str = Field(..., max_length=20)
     start_time: time
     end_time: time
+    week: Optional[str] = Field(None, pattern=r"^[AB]$")
+    break_start: Optional[str] = None
+    break_end: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -23,6 +26,9 @@ class ShiftplanUpdate(BaseModel):
     shift_id: Optional[str] = Field(None, max_length=20)
     start_time: Optional[time] = None
     end_time: Optional[time] = None
+    week: Optional[str] = Field(None, pattern=r"^[AB]$")
+    break_start: Optional[str] = None
+    break_end: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -44,6 +50,9 @@ class ScheduleBase(BaseModel):
 
 
 class ScheduleCreate(ScheduleBase):
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    role_requirements: Optional[Any] = None
     shiftplans: list[ShiftplanCreate] = []
 
 
@@ -55,6 +64,9 @@ class ScheduleUpdate(BaseModel):
 class ScheduleResponse(ScheduleBase):
     id: int
     status: str
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    role_requirements: Optional[Any] = None
     tito_job_id: Optional[int] = None
     metadata_json: Optional[Any] = None
     metrics_json: Optional[Any] = None
