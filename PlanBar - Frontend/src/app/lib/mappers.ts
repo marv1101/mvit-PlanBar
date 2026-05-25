@@ -42,7 +42,7 @@ export function employeeFromResponse(dto: EmployeeResponseDTO): Employee {
     id: String(dto.id),
     name: `${dto.first_name} ${dto.last_name}`,
     email: dto.email || '',
-    roles: [],
+    roles: dto.role_ids.map(String),
     workingHours: workingHours || {
       weekA: {
         monday: { start: '08:00', end: '18:00', enabled: true },
@@ -84,6 +84,7 @@ export function employeeToCreate(emp: Employee): EmployeeCreateDTO {
     break_start: emp.breakTime.start,
     break_end: emp.breakTime.end,
     max_work_hours: emp.maxWorkHours,
+    role_ids: emp.roles.length > 0 ? emp.roles.map(Number) : undefined,
   };
 }
 

@@ -13,6 +13,7 @@ class EmployeeBase(BaseModel):
     break_start: Optional[str] = None
     break_end: Optional[str] = None
     max_work_hours: Optional[float] = None
+    role_ids: list[int] = []
 
 
 class EmployeeCreate(EmployeeBase):
@@ -29,6 +30,7 @@ class EmployeeUpdate(BaseModel):
     break_end: Optional[str] = None
     max_work_hours: Optional[float] = None
     user_id: Optional[int] = None
+    role_ids: Optional[list[int]] = None
 
 
 class EmployeeResponse(EmployeeBase):

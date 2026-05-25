@@ -1,9 +1,17 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
+
+
+employee_roles = Table(
+    "employee_roles",
+    Base.metadata,
+    Column("employee_id", Integer, ForeignKey("employees.id"), primary_key=True),
+    Column("role_id", Integer, ForeignKey("roles.id"), primary_key=True),
+)
 
 
 class Employee(Base):
@@ -26,6 +34,7 @@ class Employee(Base):
     contracts = relationship("Contract", back_populates="employee", lazy="selectin")
     timecards = relationship("Timecard", back_populates="employee", lazy="selectin")
     shift_wishes = relationship("ShiftWish", back_populates="employee", lazy="selectin")
+    roles = relationship("Role", secondary=employee_roles, lazy="selectin")
 
 
 class Contract(Base):

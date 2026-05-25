@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.db.models.employee import Contract, Employee, Timecard
+from app.db.models.role import Role
 from app.db.models.shift_wish import ShiftWish
 from app.schemas.employee import (
     ContractCreate,
@@ -24,6 +25,9 @@ def create_employee(db: Session, data: EmployeeCreate) -> Employee:
         break_end=data.break_end,
         max_work_hours=data.max_work_hours,
     )
+    if data.role_ids:
+        roles = db.query(Role).filter(Role.id.in_(data.role_ids)).all()
+        employee.roles = roles
     db.add(employee)
     db.commit()
     db.refresh(employee)
@@ -57,6 +61,9 @@ def update_employee(db: Session, employee: Employee, data: EmployeeUpdate) -> Em
         employee.max_work_hours = data.max_work_hours
     if data.user_id is not None:
         employee.user_id = data.user_id
+    if data.role_ids is not None:
+        roles = db.query(Role).filter(Role.id.in_(data.role_ids)).all()
+        employee.roles = roles
     db.add(employee)
     db.commit()
     db.refresh(employee)

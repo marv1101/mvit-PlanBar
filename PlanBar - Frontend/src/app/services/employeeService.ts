@@ -9,6 +9,7 @@ export interface EmployeeCreateDTO {
   break_start?: string;
   break_end?: string;
   max_work_hours?: number;
+  role_ids?: number[];
 }
 
 export interface EmployeeUpdateDTO {
@@ -20,6 +21,7 @@ export interface EmployeeUpdateDTO {
   break_start?: string;
   break_end?: string;
   max_work_hours?: number;
+  role_ids?: number[];
 }
 
 export interface EmployeeResponseDTO {
@@ -33,6 +35,7 @@ export interface EmployeeResponseDTO {
   break_end: string | null;
   max_work_hours: number | null;
   user_id: number | null;
+  role_ids: number[];
   created_at: string;
   updated_at: string;
 }
