@@ -22,10 +22,10 @@ def build_model(payload: Union[dict, JobPayload]) -> dict:
     model = {
         "metadata": payload_dict.get("metadata", {}),
         "config": payload_dict.get("config", {}),
-        "shiftTemplates": {item["id"]: item for item in payload_dict.get("shiftTemplates", [])},
+        "shiftTemplates": {item["id"]: item for item in (payload_dict.get("shiftTemplates") or [])},
         "requirements": payload_dict.get("requirements", []),
         "employees": payload_dict.get("employees", []),
-        "wishes": payload_dict.get("wishes", []),
+        "wishes": payload_dict.get("wishes") or [],
     }
     return model
 
@@ -96,7 +96,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     shift_templates = model["shiftTemplates"]
     employees = model.get("employees", [])
     requirements = model.get("requirements", [])
-    wishes = model.get("wishes", [])
+    wishes = model.get("wishes") or []
     
     start_date = config.get("startDate", "2026-01-01")
     end_date = config.get("endDate", "2026-01-31")
@@ -131,17 +131,17 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     
     # Constraint 1: Skill- und Verfügbarkeitsprüfung
     for req_idx, requirement in enumerate(requirements):
-        needed_skills = requirement.get("neededSkills", {})
+        needed_skills = requirement.get("neededSkills") or {}
         valid_employees = []
         
         for emp_idx, employee in enumerate(employees):
             date = requirement.get("date")
             # Prüfe ob Mitarbeiter verfügbar ist
-            if date in employee.get("forbiddenDates", []):
+            if date in (employee.get("forbiddenDates") or []):
                 continue
             
             # Prüfe Skills
-            employee_skills = set(employee.get("skills", []))
+            employee_skills = set(employee.get("skills") or [])
             has_required_skills = all(
                 skill in employee_skills for skill in needed_skills.keys()
             )
@@ -297,7 +297,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
 
         # Wochenarbeitszeit basierend auf Vertrag
         weekly_hours = float(
-            employee.get("contract", {}).get("weeklyHours", default_weekly_hours)
+            (employee.get("contract") or {}).get("weeklyHours", default_weekly_hours)
         )
         weekly_limit_minutes = int(weekly_hours * 60)
         for week_key, req_indices in week_requirements.items():

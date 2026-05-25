@@ -53,9 +53,11 @@ class Requirement(BaseModel):
     @model_validator(mode='after')
     def normalize_requirement_fields(self) -> 'Requirement':
         """Normalize old field names to new ones."""
-        # Handle shift ID
+        # Handle shift ID (bidirectional)
         if self.shiftId and not self.shiftTemplateId:
             self.shiftTemplateId = self.shiftId
+        if self.shiftTemplateId and not self.shiftId:
+            self.shiftId = self.shiftTemplateId
         
         # Handle skills - convert neededSkills dict to list
         if self.neededSkills:

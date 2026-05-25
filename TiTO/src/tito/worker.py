@@ -1,3 +1,4 @@
+import json as json_module
 import time
 import uuid
 import psutil
@@ -195,12 +196,24 @@ def _process_pending_callbacks(
         for callback in callbacks:
             callback_id = callback["callback_id"]
             callback_url = callback["callback_url"]
+            job_id = callback.get("job_id")
             result_payload = callback["result_payload"]
+            
+            # Parse result_payload if it's a JSON string (SQLite)
+            if isinstance(result_payload, str):
+                result_payload = json_module.loads(result_payload)
+            
+            # Wrap with job_id and status for the callback receiver
+            payload = {
+                "job_id": job_id,
+                "status": result_payload.get("metadata", {}).get("status", "unknown"),
+                **result_payload,
+            }
             
             try:
                 response = requests.post(
                     callback_url,
-                    json=result_payload,
+                    json=payload,
                     timeout=10,
                     headers={"Content-Type": "application/json"}
                 )
