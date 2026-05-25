@@ -14,41 +14,13 @@ from app.services.schedule_service import submit_schedule_to_tito
 
 @pytest.fixture
 def test_schedule(db_session: Session) -> Schedule:
-    """Create a test schedule with shiftplans."""
-    schedule_data = ScheduleCreate(
+    """Create a test schedule without shiftplans."""
+    schedule = Schedule(
         name="Test Schedule",
         week_type="A",
-        shiftplans=[
-            ShiftplanCreate(
-                employee_id=1,
-                date=date(2026, 5, 24),
-                shift_id="morning",
-                start_time=time(8, 0),
-                end_time=time(16, 0),
-                notes="Test shift",
-            )
-        ],
-    )
-    schedule = Schedule(
-        name=schedule_data.name,
-        week_type=schedule_data.week_type,
         status="draft",
     )
     db_session.add(schedule)
-    db_session.flush()
-
-    for sp_data in schedule_data.shiftplans:
-        sp = Shiftplan(
-            schedule_id=schedule.id,
-            employee_id=sp_data.employee_id,
-            date=sp_data.date,
-            shift_id=sp_data.shift_id,
-            start_time=sp_data.start_time,
-            end_time=sp_data.end_time,
-            notes=sp_data.notes,
-        )
-        db_session.add(sp)
-
     db_session.commit()
     db_session.refresh(schedule)
     return schedule
@@ -65,6 +37,18 @@ def test_employee(db_session: Session) -> Employee:
     db_session.commit()
     db_session.refresh(employee)
     return employee
+
+
+@pytest.fixture
+def test_employees_two(db_session: Session) -> dict[str, Employee]:
+    """Create two test employees (emp_001 and emp_002)."""
+    emp1 = Employee(first_name="Alice", last_name="Smith")
+    emp2 = Employee(first_name="Bob", last_name="Jones")
+    db_session.add_all([emp1, emp2])
+    db_session.commit()
+    db_session.refresh(emp1)
+    db_session.refresh(emp2)
+    return {"001": emp1, "002": emp2}
 
 
 @pytest.fixture
@@ -113,16 +97,16 @@ async def test_submit_schedule_includes_callback_url(
         assert f"schedule_{test_schedule.id}" == payload["metadata"]["idempotency_key"]
 
 
-@pytest.mark.asyncio
-async def test_callback_endpoint_processes_results(client, db_session: Session, test_schedule: Schedule):
+def test_callback_endpoint_processes_results(client, db_session: Session, test_schedule: Schedule, test_employees_two: dict[str, Employee]):
     """Test that callback endpoint correctly updates schedule."""
+    alice = test_employees_two["001"]
     test_schedule.status = "submitted"
-    test_schedule.tito_job_id = 123
+    test_schedule.tito_job_id = 125
     db_session.add(test_schedule)
     db_session.commit()
 
     callback_payload = {
-        "job_id": 123,
+        "job_id": 125,
         "status": "SUCCESS",
         "metadata": {
             "status": "success",
@@ -132,7 +116,7 @@ async def test_callback_endpoint_processes_results(client, db_session: Session, 
         "solution": {
             "assignments": [
                 {
-                    "employeeId": "emp_001",
+                    "employeeId": f"emp_{alice.id:03d}",
                     "date": "2026-05-24",
                     "shiftId": "morning",
                     "startTime": "08:00",
@@ -144,7 +128,7 @@ async def test_callback_endpoint_processes_results(client, db_session: Session, 
         "metrics": {
             "wishFulfillmentRate": 0.95,
             "totalObjectiveScore": 850.5,
-            "employeeUtilization": {"emp_001": 0.95},
+            "employeeUtilization": {f"emp_{alice.id:03d}": 0.95},
             "violations": None,
         },
         "diagnostics": {
@@ -167,21 +151,22 @@ async def test_callback_endpoint_processes_results(client, db_session: Session, 
 
     # Verify new shiftplan was created from solution
     shiftplans = db_session.query(Shiftplan).filter(Shiftplan.schedule_id == test_schedule.id).all()
-    assert len(shiftplans) > 0
-    assert shiftplans[0].employee_id == 1  # parsed from "emp_001"
+    assert len(shiftplans) == 1
+    assert shiftplans[0].employee_id == alice.id
     assert shiftplans[0].shift_id == "morning"
 
 
-@pytest.mark.asyncio
-async def test_callback_endpoint_with_multiple_assignments(client, db_session: Session, test_schedule: Schedule):
+def test_callback_endpoint_with_multiple_assignments(client, db_session: Session, test_schedule: Schedule, test_employees_two: dict[str, Employee]):
     """Test callback with multiple employee assignments."""
+    alice = test_employees_two["001"]
+    bob = test_employees_two["002"]
     test_schedule.status = "submitted"
-    test_schedule.tito_job_id = 124
+    test_schedule.tito_job_id = 126
     db_session.add(test_schedule)
     db_session.commit()
 
     callback_payload = {
-        "job_id": 124,
+        "job_id": 126,
         "status": "completed",
         "metadata": {
             "status": "success",
@@ -191,14 +176,14 @@ async def test_callback_endpoint_with_multiple_assignments(client, db_session: S
         "solution": {
             "assignments": [
                 {
-                    "employeeId": "emp_001",
+                    "employeeId": f"emp_{alice.id:03d}",
                     "date": "2026-05-24",
                     "shiftId": "morning",
                     "startTime": "08:00",
                     "endTime": "16:00",
                 },
                 {
-                    "employeeId": "emp_002",
+                    "employeeId": f"emp_{bob.id:03d}",
                     "date": "2026-05-24",
                     "shiftId": "evening",
                     "startTime": "16:00",
@@ -210,7 +195,7 @@ async def test_callback_endpoint_with_multiple_assignments(client, db_session: S
         "metrics": {
             "wishFulfillmentRate": 0.98,
             "totalObjectiveScore": 920.3,
-            "employeeUtilization": {"emp_001": 0.95, "emp_002": 0.88},
+            "employeeUtilization": {f"emp_{alice.id:03d}": 0.95, f"emp_{bob.id:03d}": 0.88},
             "violations": None,
         },
         "diagnostics": {
@@ -226,7 +211,7 @@ async def test_callback_endpoint_with_multiple_assignments(client, db_session: S
     # Verify multiple shiftplans were created
     shiftplans = db_session.query(Shiftplan).filter(Shiftplan.schedule_id == test_schedule.id).all()
     assert len(shiftplans) == 2
-    assert {sp.employee_id for sp in shiftplans} == {1, 2}
+    assert {sp.employee_id for sp in shiftplans} == {alice.id, bob.id}
 
 
 def test_callback_endpoint_with_invalid_job_id(client):

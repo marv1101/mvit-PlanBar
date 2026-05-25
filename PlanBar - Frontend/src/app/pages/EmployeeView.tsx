@@ -4,12 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { User, Calendar, Clock, Coffee, Download } from 'lucide-react';
+import { User, Calendar, Clock, Coffee, Download, Loader2 } from 'lucide-react';
 import { WeekType, Shift } from '../types';
 import { toast } from 'sonner';
 
 export function EmployeeView() {
-  const { employees, schedules, roles } = useApp();
+  const { employees, schedules, roles, loading } = useApp();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>('');
   const [currentWeek, setCurrentWeek] = useState<WeekType>('A');
@@ -174,6 +174,23 @@ export function EmployeeView() {
   };
 
   const weekDays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="font-semibold text-2xl mb-2">Mitarbeiteransicht</h2>
+          <p className="text-gray-600">Persönliche Schichtübersicht für Mitarbeiter</p>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
+            <p className="text-gray-600">Lade Daten...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

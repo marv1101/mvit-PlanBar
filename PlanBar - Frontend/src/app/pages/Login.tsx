@@ -103,13 +103,13 @@ export function Login() {
             <p className="text-center font-medium">Demo-Zugangsdaten:</p>
             <div className="bg-gray-50 p-3 rounded-md space-y-1">
               <p><strong>Administrator:</strong></p>
-              <p className="text-xs">Email: admin@apotheke.de</p>
-              <p className="text-xs">Passwort: admin123</p>
+              <p className="text-xs">Email: admin@mphion.de</p>
+              <p className="text-xs">Passwort: Admin@123</p>
             </div>
             <div className="bg-gray-50 p-3 rounded-md space-y-1">
               <p><strong>Mitarbeiter:</strong></p>
-              <p className="text-xs">Email: mitarbeiter@apotheke.de</p>
-              <p className="text-xs">Passwort: mitarbeiter123</p>
+              <p className="text-xs">Email: testuser@mphion.de</p>
+              <p className="text-xs">Passwort: User@123</p>
             </div>
           </div>
         </CardContent>

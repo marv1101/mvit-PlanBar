@@ -34,7 +34,7 @@ from app.services.employee_service import (
 router = APIRouter()
 
 
-@router.post("/", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)
 def create_employee_endpoint(
     data: EmployeeCreate,
     db: Session = Depends(get_db),
@@ -43,7 +43,7 @@ def create_employee_endpoint(
     return create_employee(db, data)
 
 
-@router.get("/", response_model=list[EmployeeResponse])
+@router.get("", response_model=list[EmployeeResponse])
 def list_employees_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -91,7 +91,7 @@ def delete_employee_endpoint(
 contract_router = APIRouter()
 
 
-@contract_router.post("/", response_model=ContractResponse, status_code=status.HTTP_201_CREATED)
+@contract_router.post("", response_model=ContractResponse, status_code=status.HTTP_201_CREATED)
 def create_contract_endpoint(
     data: ContractCreate,
     db: Session = Depends(get_db),
@@ -100,7 +100,7 @@ def create_contract_endpoint(
     return create_contract(db, data)
 
 
-@contract_router.get("/", response_model=list[ContractResponse])
+@contract_router.get("", response_model=list[ContractResponse])
 def list_contracts_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -136,7 +136,7 @@ def update_contract_endpoint(
 timecard_router = APIRouter()
 
 
-@timecard_router.post("/", response_model=TimecardResponse, status_code=status.HTTP_201_CREATED)
+@timecard_router.post("", response_model=TimecardResponse, status_code=status.HTTP_201_CREATED)
 def create_timecard_endpoint(
     data: TimecardCreate,
     db: Session = Depends(get_db),
@@ -145,7 +145,7 @@ def create_timecard_endpoint(
     return create_timecard(db, data)
 
 
-@timecard_router.get("/", response_model=list[TimecardResponse])
+@timecard_router.get("", response_model=list[TimecardResponse])
 def list_timecards_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

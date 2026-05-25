@@ -40,7 +40,7 @@ class ShiftWishResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-@router.post("/", response_model=ShiftWishResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ShiftWishResponse, status_code=status.HTTP_201_CREATED)
 def create_shift_wish(
     data: ShiftWishCreate,
     db: Session = Depends(get_db),
@@ -59,7 +59,7 @@ def create_shift_wish(
     return wish
 
 
-@router.get("/", response_model=list[ShiftWishResponse])
+@router.get("", response_model=list[ShiftWishResponse])
 def list_shift_wishes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

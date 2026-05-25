@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { RequestForm } from '../components/RequestForm';
 import { Request } from '../types';
@@ -22,7 +22,7 @@ const requestTypeColors = {
 };
 
 export function Requests() {
-  const { requests, deleteRequest, employees } = useApp();
+  const { requests, deleteRequest, employees, loading } = useApp();
   const { user } = useAuth();
   const [editingRequest, setEditingRequest] = useState<Request | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -74,6 +74,27 @@ export function Requests() {
   const canModifyRequest = (request: Request) => {
     return isAdmin || request.employeeId === currentEmployeeId;
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="font-semibold text-2xl mb-2">
+              {isAdmin ? 'Mitarbeiterwünsche' : 'Meine Wünsche'}
+            </h2>
+            <p className="text-gray-600">Lade Wünsche...</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
+            <p className="text-gray-600">Lade Wünsche...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

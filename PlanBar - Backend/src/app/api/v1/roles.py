@@ -31,7 +31,7 @@ class RoleResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-@router.post("/", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)
 def create_role(
     data: RoleCreate,
     db: Session = Depends(get_db),
@@ -47,7 +47,7 @@ def create_role(
     return role
 
 
-@router.get("/", response_model=list[RoleResponse])
+@router.get("", response_model=list[RoleResponse])
 def list_roles(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

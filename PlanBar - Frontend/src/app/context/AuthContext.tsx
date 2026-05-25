@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import api from '../lib/api';
+import { getAccessToken, getRefreshToken, setTokens, clearTokens } from '../lib/auth';
 
 interface User {
   id: string;
   name: string;
   email: string;
   role: 'admin' | 'employee';
-  employeeId?: string; // Link to employee in AppContext for employee users
+  employeeId?: string;
 }
 
 interface AuthContextType {
@@ -17,68 +19,46 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users for demo purposes
-const MOCK_USERS = [
-  {
-    id: '1',
-    email: 'admin@apotheke.de',
-    password: 'admin123',
-    name: 'Administrator',
-    role: 'admin' as const,
-    employeeId: undefined,
-  },
-  {
-    id: '2',
-    email: 'mitarbeiter@apotheke.de',
-    password: 'mitarbeiter123',
-    name: 'Thomas Müller',
-    role: 'employee' as const,
-    employeeId: '2', // Links to Thomas Müller in AppContext
-  },
-];
+function mapBackendUser(data: { id: number; username: string; email: string; role: string }): User {
+  return {
+    id: String(data.id),
+    name: data.username,
+    email: data.email,
+    role: data.role === 'user' ? 'employee' : (data.role as 'admin' | 'employee'),
+  };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in (from localStorage)
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        localStorage.removeItem('currentUser');
-      }
+    const token = getAccessToken();
+    if (!token) {
+      setIsLoading(false);
+      return;
     }
+    api.get('/users/me')
+      .then(res => setUser(mapBackendUser(res.data)))
+      .catch(() => clearTokens())
+      .finally(() => setIsLoading(false));
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    const foundUser = MOCK_USERS.find(
-      u => u.email === email && u.password === password
-    );
-
-    if (foundUser) {
-      const userData: User = {
-        id: foundUser.id,
-        name: foundUser.name,
-        email: foundUser.email,
-        role: foundUser.role,
-      };
-      setUser(userData);
-      localStorage.setItem('currentUser', JSON.stringify(userData));
+    try {
+      const { data } = await api.post('/users/login', { email, password });
+      setTokens(data.access_token, data.refresh_token);
+      const me = await api.get('/users/me');
+      setUser(mapBackendUser(me.data));
       return true;
+    } catch {
+      return false;
     }
-
-    return false;
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('currentUser');
+    clearTokens();
   };
 
   return (

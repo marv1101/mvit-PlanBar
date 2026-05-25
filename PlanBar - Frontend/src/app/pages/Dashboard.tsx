@@ -1,13 +1,13 @@
 import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Users, ClipboardList, Calendar, Clock, TrendingUp, Briefcase, AlertCircle } from 'lucide-react';
+import { Users, ClipboardList, Calendar, Clock, TrendingUp, Briefcase, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useNavigate } from 'react-router';
 import { Shift } from '../types';
 
 export function Dashboard() {
-  const { employees, requests, schedules, roles } = useApp();
+  const { employees, requests, schedules, roles, loading } = useApp();
   const navigate = useNavigate();
 
   // Get the most recent schedule
@@ -138,6 +138,23 @@ export function Dashboard() {
       .filter(item => item.role)
       .sort((a, b) => b.count - a.count);
   }, [stats.roleShiftCounts, roles]);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="font-semibold text-2xl mb-2">Dashboard</h2>
+          <p className="text-gray-600">Überblick über Ihre Schichtplanung</p>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
+            <p className="text-gray-600">Lade Daten...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

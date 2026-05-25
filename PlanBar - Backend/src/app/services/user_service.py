@@ -5,12 +5,12 @@ from app.db.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
 
 
-def create_user(db: Session, user_in: UserCreate) -> User:
+def create_user(db: Session, user_in: UserCreate, role: str = "user") -> User:
     user = User(
         username=user_in.username,
         email=user_in.email,
         password_hash=hash_password(user_in.password),
-        role="user",
+        role=role,
     )
     db.add(user)
     db.commit()

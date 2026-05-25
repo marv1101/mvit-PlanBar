@@ -5,7 +5,7 @@ services:
   tito:
     build:
       context: ../TiTO
-      dockerfile: Dockerfile
+      dockerfile: Dockerfileπ
     ports:
       - "5001:5001"
     env_file:
@@ -118,6 +118,29 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
+
+  # PlanBar Frontend Service (statisch, gebaut und von nginx ausgeliefert)
+  planbar_frontend:
+    build:
+      context: "../PlanBar - Frontend"
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    env_file:
+      - .env
+    environment:
+      # Backend URL für nginx proxy. Beim Endkunden: https://api.example.com
+      - BACKEND_URL=http://planbar_backend:8000
+    depends_on:
+      db_backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 volumes:
   postgres_data:

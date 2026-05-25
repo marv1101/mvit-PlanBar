@@ -27,7 +27,7 @@ from app.services.user_service import (
 router = APIRouter()
 
 
-@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
     existing = db.query(User).filter((User.email == user_in.email) | (User.username == user_in.username)).first()
     if existing:
@@ -76,7 +76,7 @@ def refresh_token(token_data: TokenRefreshRequest, db: Session = Depends(get_db)
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
-@router.get("/", response_model=list[UserResponse])
+@router.get("", response_model=list[UserResponse])
 def list_users_endpoint(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

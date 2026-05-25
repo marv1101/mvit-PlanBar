@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Role } from '../types';
 import { Input } from '../components/ui/input';
@@ -20,7 +20,7 @@ const colors = [
 ];
 
 export function Roles() {
-  const { roles, addRole, updateRole, deleteRole } = useApp();
+  const { roles, addRole, updateRole, deleteRole, loading } = useApp();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
 
@@ -39,6 +39,19 @@ export function Roles() {
     setDialogOpen(false);
     setEditingRole(null);
   };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
+            <p className="text-gray-600">Lade Rollen...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8 px-4">
