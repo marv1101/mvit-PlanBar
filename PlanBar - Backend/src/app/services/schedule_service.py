@@ -69,11 +69,11 @@ def delete_schedule(db: Session, schedule: Schedule) -> None:
     db.commit()
 
 
-async def submit_schedule_to_tito(db: Session, schedule: Schedule) -> Schedule:
+async def submit_schedule_to_tito(db: Session, schedule: Schedule, callback_url: str | None = None) -> Schedule:
     employees = db.query(Employee).all()
     shift_wishes = db.query(ShiftWish).all()
 
-    payload = _build_tito_payload(schedule, employees, shift_wishes)
+    payload = _build_tito_payload(schedule, employees, shift_wishes, callback_url=callback_url)
 
     try:
         result = await tito_proxy.submit_job(payload)
@@ -127,6 +127,7 @@ def _build_tito_payload(
     schedule: Schedule,
     employees: list[Employee],
     shift_wishes: list[ShiftWish],
+    callback_url: str | None = None,
 ) -> dict[str, Any]:
     """Build a payload matching the TiTO JobPayload schema."""
     if not schedule.start_date or not schedule.end_date:
@@ -181,11 +182,16 @@ def _build_tito_payload(
                     })
             current += timedelta(days=1)
 
+    if callback_url:
+        cb_url = callback_url.rstrip("/") + "/api/v1/callbacks/tito"
+    else:
+        cb_url = settings.backend_callback_url.rstrip("/") + "/api/v1/callbacks/tito"
+
     return {
         "metadata": {
             "tenantId": 1,
             "tenant_id": 1,
-            "callback_url": f"{settings.backend_callback_url}/api/v1/callbacks/tito",
+            "callback_url": cb_url,
             "idempotency_key": f"schedule_{schedule.id}",
         },
         "config": {

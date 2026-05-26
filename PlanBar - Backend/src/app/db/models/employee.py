@@ -36,6 +36,10 @@ class Employee(Base):
     shift_wishes = relationship("ShiftWish", back_populates="employee", lazy="selectin")
     roles = relationship("Role", secondary=employee_roles, lazy="selectin")
 
+    @property
+    def role_ids(self) -> list[int]:
+        return [role.id for role in self.roles]
+
 
 class Contract(Base):
     __tablename__ = "contracts"

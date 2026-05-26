@@ -108,6 +108,7 @@ services:
       - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS}
       - TITO_API_URL=http://tito:5001
       - TITO_API_KEY=${TITO_API_KEY}
+      - BACKEND_CALLBACK_URL=http://planbar_backend:8000
     depends_on:
       db_backend:
         condition: service_healthy

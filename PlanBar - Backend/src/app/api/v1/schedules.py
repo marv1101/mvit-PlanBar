@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
@@ -84,13 +84,15 @@ def delete_schedule_endpoint(
 @router.post("/{schedule_id}/submit", response_model=ScheduleResponse)
 async def submit_schedule_endpoint(
     schedule_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    return await submit_schedule_to_tito(db, schedule)
+    base_url = str(request.base_url)
+    return await submit_schedule_to_tito(db, schedule, callback_url=base_url)
 
 
 @router.post("/{schedule_id}/retry", response_model=ScheduleResponse)

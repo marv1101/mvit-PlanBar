@@ -29,7 +29,7 @@ class TiTOMetrics(BaseModel):
     wishFulfillmentRate: float
     totalObjectiveScore: float
     employeeUtilization: dict[str, float]
-    violations: Optional[dict[str, Any]] = None
+    violations: Optional[list[dict[str, Any]]] = None
 
 
 class TiTODiagnostics(BaseModel):
@@ -39,7 +39,7 @@ class TiTODiagnostics(BaseModel):
 
 class TiTOSolution(BaseModel):
     assignments: list[TiTOAssignment]
-    unassignedRequirements: list[str]
+    unassignedRequirements: list[dict[str, Any]]
 
 
 class TiTOJobResponse(BaseModel):

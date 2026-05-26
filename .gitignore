@@ -15,3 +15,6 @@ PlanBar - Backend/tests/__pycache__/*
 PlanBar - Backend/tests/integration/__pycache__/*
 PlanBar - Backend/.env
 PlanBar - Backend/test_planbar.db
+PlanBar - Backend/src/app/middleware/__pycache__/__init__.cpython-314.pyc
+PlanBar - Backend/src/app/middleware/__pycache__/error_handler.cpython-314.pyc
+PlanBar - Backend/src/app/middleware/__pycache__/request_logging.cpython-314.pyc

@@ -290,7 +290,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                 window = unique_dates[index : index + max_consecutive_days + 1]
                 cp_model.add(
                     LinearExpr.sum(
-                        works_on_date[(emp_idx, date)] for date in window
+                        [works_on_date[(emp_idx, date)] for date in window]
                     )
                     <= max_consecutive_days
                 )
