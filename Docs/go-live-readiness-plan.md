@@ -142,7 +142,7 @@ if settings.secret_key == "change-me-in-production":
 
 ### 0.7 Rate-Limiting auf Login-Endpoint
 
-**Status:** ❌ Offen  
+**Status:** ✅ Erledigt  
 **Datei:** `PlanBar - Backend/src/app/api/v1/users.py:39-51`
 
 **Problem:** Kein Schutz vor Brute-Force-Angriffen.
@@ -166,7 +166,7 @@ if settings.secret_key == "change-me-in-production":
 
 ### 0.8 Admin-Rollen-Check auf allen Admin-Endpoints
 
-**Status:** ❌ Offen  
+**Status:** ✅ Erledigt  
 **Dateien:**
 - `PlanBar - Backend/src/app/api/v1/roles.py:34-36`
 - `PlanBar - Backend/src/app/api/v1/schedules.py:32-38`
@@ -1195,11 +1195,11 @@ Woche 4 (Infrastruktur & Finale)    ░░░░░░░░░░░░░░�
 1. ❌ Keine Secrets in git → Phase 0.1-0.4
 2. ❌ CORS nicht `*` → Phase 0.5
 3. ❌ `SECRET_KEY` nicht default → Phase 0.6
-4. ❌ Admin-Endpoints geschützt → Phase 0.8
+4. ✅ Admin-Endpoints geschützt → Phase 0.8
 5. ❌ CI/CD läuft Tests → Phase 2.1
 6. ❌ Error-Handling logged Fehler → Phase 1.1-1.2
 7. ❌ Alembic-Migrationen statt `create_all()` → Phase 5.1
-8. ❌ Rate-Limiting auf Login → Phase 0.7
+8. ✅ Rate-Limiting auf Login → Phase 0.7
 
 ### Nice-to-Have vor Go-Live
 

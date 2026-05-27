@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.user import User
 from app.schemas.employee import (
     ContractCreate,
@@ -80,7 +80,7 @@ def update_employee_endpoint(
 def delete_employee_endpoint(
     employee_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
     employee = get_employee_by_id(db, employee_id)
     if not employee:

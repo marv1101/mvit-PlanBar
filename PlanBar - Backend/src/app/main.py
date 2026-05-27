@@ -1,7 +1,11 @@
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.core.rate_limit import limiter
 
 from app.api.v1.router import api_router
 from app.core.logging import configure_logging
@@ -23,6 +27,8 @@ def create_app() -> FastAPI:
         description="Backend API für PlanBar mit TiTO-Integration",
         version="0.1.0"
     )
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],

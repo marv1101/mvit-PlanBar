@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.rate_limit import limiter
 from app.db.base import Base
 from app.db.database import engine
 from app.dependencies import get_db
@@ -33,6 +34,7 @@ def db_session():
 
 @pytest.fixture
 def client(db_session):
+    limiter.enabled = False
     app = create_app()
 
     def override_get_db():
@@ -46,13 +48,20 @@ def client(db_session):
 
 
 @pytest.fixture
-def auth_headers(client):
+def auth_headers(client, db_session):
+    from app.db.models.user import User
+
     register_data = {
         "username": "testadmin",
         "email": "admin@test.com",
         "password": "testpassword123",
     }
     client.post("/api/v1/users", json=register_data)
+    user = db_session.query(User).filter(User.email == "admin@test.com").first()
+    if user:
+        user.role = "admin"
+        db_session.add(user)
+        db_session.commit()
     login_response = client.post(
         "/api/v1/users/login",
         json={"email": "admin@test.com", "password": "testpassword123"},

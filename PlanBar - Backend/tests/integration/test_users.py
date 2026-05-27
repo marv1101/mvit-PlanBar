@@ -1,6 +1,6 @@
 def test_register_login_and_refresh_token(client):
     new_user = {
-        "username": "testuser",
+        "username": "integrationtestuser",
         "email": "testuser@example.com",
         "password": "securepassword",
     }

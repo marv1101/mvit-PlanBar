@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, require_admin
 from app.core.auth import create_access_token, create_refresh_token, verify_token
+from app.core.rate_limit import limiter
 from app.core.exceptions import ConflictException, NotFoundException, UnauthorizedException
 from app.db.models.employee import Employee
 from app.db.models.user import User
@@ -44,7 +45,8 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(user_data: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db)):
     user = authenticate_user(db, user_data.email, user_data.password)
     if not user:
         raise UnauthorizedException(detail="Invalid email or password")
@@ -89,11 +91,9 @@ def refresh_token(token_data: TokenRefreshRequest, db: Session = Depends(get_db)
 
 @router.get("", response_model=list[UserResponse])
 def list_users_endpoint(
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
-    if current_user.role != "admin":
-        raise UnauthorizedException(detail="Insufficient permissions")
     return list_users(db)
 
 
@@ -137,12 +137,9 @@ def update_user_endpoint(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user_endpoint(
     user_id: int,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
-    if current_user.id != user_id and current_user.role != "admin":
-        raise UnauthorizedException(detail="Insufficient permissions")
-
     user = get_user_by_id(db, user_id)
     if user is None:
         raise NotFoundException(detail="User not found")
@@ -154,12 +151,9 @@ def delete_user_endpoint(
 @router.post("/admin-create", response_model=AdminUserCreateResponse, status_code=status.HTTP_201_CREATED)
 def admin_create_user_endpoint(
     user_in: AdminUserCreate,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
-    if current_user.role != "admin":
-        raise UnauthorizedException(detail="Insufficient permissions")
-
     existing = db.query(User).filter((User.email == user_in.email) | (User.username == user_in.username)).first()
     if existing:
         raise ConflictException(detail="User with email or username already exists")
@@ -194,11 +188,9 @@ def change_password_endpoint(
 
 @router.get("/employees/unlinked", response_model=list[dict])
 def list_unlinked_employees(
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
-    if current_user.role != "admin":
-        raise UnauthorizedException(detail="Insufficient permissions")
     employees = db.query(Employee).filter(Employee.user_id.is_(None)).all()
     return [
         {"id": e.id, "first_name": e.first_name, "last_name": e.last_name, "email": e.email}

@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictException, NotFoundException
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.role import Role
 from app.db.models.user import User
 
@@ -35,7 +35,7 @@ class RoleResponse(BaseModel):
 def create_role(
     data: RoleCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
     existing = db.query(Role).filter(Role.name == data.name).first()
     if existing:
@@ -60,7 +60,7 @@ def update_role(
     role_id: int,
     data: RoleUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
@@ -84,7 +84,7 @@ def update_role(
 def delete_role(
     role_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
