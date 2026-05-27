@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { useDrag, useDrop, DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useApp } from '../context/AppContext';
@@ -8,12 +8,17 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import { Pencil, Trash2, X, Users, Save, Loader2 } from 'lucide-react';
+import { Pencil, Trash2, Users, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Employee } from '../types';
 
 const ITEM_TYPE = 'SHIFT';
 const EMPLOYEE_ITEM_TYPE = 'EMPLOYEE';
+const HOUR_HEIGHT = 52;
+const START_HOUR = 6;
+const END_HOUR = 22;
+
+const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
 
 interface DragItem {
   shift: Shift;
@@ -31,18 +36,74 @@ interface EditableScheduleCalendarProps {
   onSaveShifts?: (shifts: Shift[]) => Promise<void>;
 }
 
-function ShiftCard({ 
-  shift, 
-  onEdit, 
-  onDelete 
-}: { 
-  shift: Shift; 
+function toMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function formatTime(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function assignLanes(shifts: Shift[]): { shift: Shift; lane: number; totalLanes: number }[] {
+  const sorted = [...shifts].sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
+  const lanes: number[] = [];
+  const result: { shift: Shift; lane: number }[] = [];
+
+  for (const shift of sorted) {
+    const start = toMinutes(shift.startTime);
+    const end = toMinutes(shift.endTime);
+    let assigned = false;
+
+    for (let i = 0; i < lanes.length; i++) {
+      if (lanes[i] <= start) {
+        lanes[i] = end;
+        result.push({ shift, lane: i });
+        assigned = true;
+        break;
+      }
+    }
+
+    if (!assigned) {
+      lanes.push(end);
+      result.push({ shift, lane: lanes.length - 1 });
+    }
+  }
+
+  return result.map(r => ({ ...r, totalLanes: lanes.length }));
+}
+
+function getShiftStyle(shift: Shift, lane: number, totalLanes: number) {
+  const startMin = toMinutes(shift.startTime);
+  const endMin = toMinutes(shift.endTime);
+  const rangeStart = START_HOUR * 60;
+  const top = ((startMin - rangeStart) / 60) * HOUR_HEIGHT;
+  const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 24);
+  const width = 100 / totalLanes;
+  const left = lane * width;
+
+  return {
+    top: `${top}px`,
+    height: `${height}px`,
+    left: `${left}%`,
+    width: `${width}%`,
+  };
+}
+
+interface ShiftBarProps {
+  shift: Shift;
+  lane: number;
+  totalLanes: number;
   onEdit: (shift: Shift) => void;
   onDelete: (shift: Shift) => void;
-}) {
+}
+
+function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) {
   const { employees } = useApp();
   const employee = employees.find(e => e.id === shift.employeeId);
-  
+
   const [{ isDragging }, drag] = useDrag(() => ({
     type: ITEM_TYPE,
     item: { shift, fromDate: shift.date } as DragItem,
@@ -53,43 +114,49 @@ function ShiftCard({
 
   if (!employee) return null;
 
+  const style = getShiftStyle(shift, lane, totalLanes);
+  const showTime = totalLanes <= 2;
+
   return (
     <div
       ref={drag}
-      className={`p-2 rounded text-xs mb-1 cursor-move relative group ${
+      className={`absolute rounded overflow-hidden cursor-move group z-10 ${
         isDragging ? 'opacity-50' : ''
       }`}
-      style={{ backgroundColor: employee.color + '20', borderLeft: `3px solid ${employee.color}` }}
+      style={{
+        ...style,
+        position: 'absolute',
+        backgroundColor: employee.color + '20',
+        borderLeft: `3px solid ${employee.color}`,
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onEdit(shift);
+      }}
     >
-      <div className="flex justify-between items-start">
-        <div className="flex-1 min-w-0">
-          <div className="font-medium truncate" style={{ color: employee.color }}>
-            {employee.name}
-          </div>
-          <div className="text-gray-600">
-            {shift.startTime} - {shift.endTime}
-          </div>
-        </div>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(shift);
-            }}
-            className="p-1 hover:bg-gray-200 rounded"
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(shift);
-            }}
-            className="p-1 hover:bg-red-100 rounded text-red-600"
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
-        </div>
+      <div className="flex flex-col justify-center h-full px-1.5 py-0.5 text-[11px] leading-tight">
+        <span className="font-medium truncate" style={{ color: employee.color }}>
+          {employee.name}
+        </span>
+        {showTime && (
+          <span className="text-gray-500 truncate">
+            {shift.startTime}–{shift.endTime}
+          </span>
+        )}
+      </div>
+      <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(shift); }}
+          className="p-0.5 hover:bg-gray-200 rounded bg-white/80"
+        >
+          <Pencil className="h-2.5 w-2.5" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(shift); }}
+          className="p-0.5 hover:bg-red-100 rounded text-red-600 bg-white/80"
+        >
+          <Trash2 className="h-2.5 w-2.5" />
+        </button>
       </div>
     </div>
   );
@@ -133,80 +200,98 @@ function EmployeeCard({ employee }: { employee: Employee }) {
   );
 }
 
-function DayCell({
-  date,
-  shifts,
-  weekType,
-  onDrop,
-  onEmployeeDrop,
-  onClick,
-  onEdit,
-  onDelete
-}: {
+interface DayColumnProps {
   date: Date;
-  shifts: Shift[];
   weekType: WeekType;
+  shifts: Shift[];
   onDrop: (shift: Shift, newDate: string) => void;
   onEmployeeDrop: (employeeId: string, date: string, weekType: WeekType) => void;
   onClick: (date: Date) => void;
   onEdit: (shift: Shift) => void;
   onDelete: (shift: Shift) => void;
-}) {
+}
+
+function DayColumn({
+  date, weekType, shifts, onDrop, onEmployeeDrop, onClick, onEdit, onDelete
+}: DayColumnProps) {
   const dateStr = date.toISOString().split('T')[0];
   const dayShifts = shifts.filter(s => s.date === dateStr && s.week === weekType);
+  const lanes = useMemo(() => assignLanes(dayShifts), [dayShifts]);
 
-  const [{ isOver, canDrop }, drop] = useDrop(() => ({
+  const onDropRef = useRef(onDrop);
+  onDropRef.current = onDrop;
+  const onEmployeeDropRef = useRef(onEmployeeDrop);
+  onEmployeeDropRef.current = onEmployeeDrop;
+  const onClickRef = useRef(onClick);
+  onClickRef.current = onClick;
+
+  const [{ isOver }, drop] = useDrop(() => ({
     accept: [ITEM_TYPE, EMPLOYEE_ITEM_TYPE],
     drop: (item: DragItem | EmployeeDragItem) => {
       if ('shift' in item) {
-        // It's a shift being moved
         if (item.fromDate !== dateStr) {
-          onDrop(item.shift, dateStr);
+          onDropRef.current(item.shift, dateStr);
         }
       } else if ('employeeId' in item) {
-        // It's an employee being added
-        onEmployeeDrop(item.employeeId, dateStr, weekType);
+        onEmployeeDropRef.current(item.employeeId, dateStr, weekType);
       }
     },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
-      canDrop: monitor.canDrop(),
     }),
   }), [dateStr, weekType]);
 
   const isToday = date.toDateString() === new Date().toDateString();
-  
+
   return (
-    <div
-      ref={drop}
-      onClick={() => onClick(date)}
-      className={`border p-2 min-h-[120px] cursor-pointer transition-colors ${
-        isOver ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50'
-      } ${isToday ? 'bg-blue-50/50' : ''}`}
-    >
-      <div className="font-medium text-sm mb-2 text-gray-700">
-        {date.getDate()}
+    <div className="flex-1 min-w-[100px] flex flex-col">
+      <div
+        className={`sticky top-0 z-20 text-center py-2 text-sm font-medium border-b ${
+          isToday ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'
+        }`}
+      >
+        {date.toLocaleDateString('de-DE', { weekday: 'short' })}
+        <br />
+        <span className="text-xs">{date.toLocaleDateString('de-DE', { day: 'numeric', month: '2-digit' })}</span>
       </div>
-      {dayShifts.map(shift => (
-        <ShiftCard 
-          key={shift.id} 
-          shift={shift} 
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
-      ))}
+      <div
+        ref={drop}
+        onClick={() => onClick(date)}
+        className={`relative flex-1 cursor-pointer transition-colors ${
+          isOver ? 'bg-blue-50' : ''
+        } ${isToday ? 'bg-blue-50/30' : ''}`}
+        style={{ minHeight: `${HOURS.length * HOUR_HEIGHT}px` }}
+      >
+        {HOURS.map(hour => (
+          <div
+            key={hour}
+            className="border-b border-gray-100"
+            style={{ height: `${HOUR_HEIGHT}px` }}
+          />
+        ))}
+        {lanes.map(({ shift, lane, totalLanes }) => (
+          <ShiftBar
+            key={shift.id}
+            shift={shift}
+            lane={lane}
+            totalLanes={totalLanes}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
-function EditShiftDialog({ 
-  shift, 
-  open, 
-  onClose, 
-  onSave 
-}: { 
-  shift: Shift | null; 
-  open: boolean; 
+function EditShiftDialog({
+  shift,
+  open,
+  onClose,
+  onSave
+}: {
+  shift: Shift | null;
+  open: boolean;
   onClose: () => void;
   onSave: (shift: Shift) => void;
 }) {
@@ -320,16 +405,16 @@ function EditShiftDialog({
   );
 }
 
-function AddShiftDialog({ 
-  date, 
+function AddShiftDialog({
+  date,
   week,
-  open, 
-  onClose, 
-  onSave 
-}: { 
+  open,
+  onClose,
+  onSave
+}: {
   date: Date | null;
   week: WeekType;
-  open: boolean; 
+  open: boolean;
   onClose: () => void;
   onSave: (shift: Shift) => void;
 }) {
@@ -489,18 +574,15 @@ export function EditableScheduleCalendar({
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
-    // Determine day of week
     const dateObj = new Date(date);
     const dayIndex = dateObj.getDay();
     const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayOfWeek = daysMap[dayIndex] as keyof typeof employee['workingHours']['weekA'];
     const weekKey = weekType === 'A' ? 'weekA' : 'weekB';
-
-    // Get employee's default working hours for this day
     const workingHours = employee.workingHours[weekKey][dayOfWeek];
 
     const newShift: Shift = {
-      id: `${employeeId}-${date}-${Date.now()}`,
+      id: `${Date.now()}`,
       employeeId,
       date,
       week: weekType,
@@ -521,7 +603,7 @@ export function EditableScheduleCalendar({
   };
 
   const handleSaveEdit = (updatedShift: Shift) => {
-    const updatedShifts = schedule.shifts.map(s => 
+    const updatedShifts = schedule.shifts.map(s =>
       s.id === updatedShift.id ? updatedShift : s
     );
     onUpdateSchedule({ ...schedule, shifts: updatedShifts });
@@ -560,46 +642,27 @@ export function EditableScheduleCalendar({
     }
   };
 
-  // Generate calendar days
   const startDate = new Date(schedule.startDate);
   const endDate = new Date(schedule.endDate);
   const days: Date[] = [];
-  
   let currentDate = new Date(startDate);
   while (currentDate <= endDate) {
     days.push(new Date(currentDate));
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
-  // Group by weeks for display
   const weeks: Date[][] = [];
   let currentWeekDays: Date[] = [];
-  
   days.forEach((day, index) => {
     if (day.getDay() === 1 && currentWeekDays.length > 0) {
       weeks.push(currentWeekDays);
       currentWeekDays = [];
     }
     currentWeekDays.push(day);
-    
     if (index === days.length - 1) {
       weeks.push(currentWeekDays);
     }
   });
-
-  const weekDays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-
-  // Filter weekDays based on checkbox selections
-  const visibleWeekDays = weekDays.filter((day, index) => {
-    // index: 0=Mo, 1=Di, 2=Mi, 3=Do, 4=Fr, 5=Sa, 6=So
-    if (index === 5 && !showSaturday) return false; // Saturday
-    if (index === 6 && !showSunday) return false; // Sunday
-    return true;
-  });
-
-  // Calculate grid columns based on visible days
-  const gridCols = visibleWeekDays.length;
-  const gridColsClass = `grid-cols-${gridCols}`;
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -665,7 +728,7 @@ export function EditableScheduleCalendar({
               htmlFor="show-saturday"
               className="text-sm font-normal cursor-pointer"
             >
-              Samstagsarbeit anzeigen
+              Samstag anzeigen
             </Label>
           </div>
           <div className="flex items-center gap-2">
@@ -678,67 +741,63 @@ export function EditableScheduleCalendar({
               htmlFor="show-sunday"
               className="text-sm font-normal cursor-pointer"
             >
-              Sonntagsarbeit anzeigen
+              Sonntag anzeigen
             </Label>
           </div>
         </div>
 
-        <div className="border rounded-lg overflow-hidden">
-          <div className="grid bg-gray-100 border-b" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
-            {visibleWeekDays.map(day => (
-              <div key={day} className="p-2 text-center font-medium text-sm">
-                {day}
-              </div>
-            ))}
-          </div>
-          
+        <div className="border rounded-lg overflow-x-auto">
           {weeks.map((week, weekIndex) => {
-            // Determine week type based on the first day of the week
             const firstDayOfWeek = week[0];
             const referenceDate = new Date('2024-01-01');
-            const weeksDiff = Math.floor((firstDayOfWeek.getTime() - referenceDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+            const weeksDiff = Math.floor(
+              (firstDayOfWeek.getTime() - referenceDate.getTime()) / (7 * 24 * 60 * 60 * 1000)
+            );
             const weekType: WeekType = weeksDiff % 2 === 0 ? 'A' : 'B';
-            
-            // Only show weeks that match the current week filter
-            if (weekType !== currentWeek) {
-              return null;
-            }
+
+            if (weekType !== currentWeek) return null;
+
+            const visibleDays = week.filter(day => {
+              const d = day.getDay();
+              if (d === 6 && !showSaturday) return false;
+              if (d === 0 && !showSunday) return false;
+              return true;
+            });
+
+            if (visibleDays.length === 0) return null;
 
             return (
-              <div key={weekIndex} className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
-                {week.map((day, dayIndex) => {
-                  // Check if this day should be hidden based on checkbox filters
-                  const dayOfWeek = day.getDay();
-                  const isSaturday = dayOfWeek === 6;
-                  const isSunday = dayOfWeek === 0;
-
-                  if ((isSaturday && !showSaturday) || (isSunday && !showSunday)) {
-                    return null;
-                  }
-
-                  // Fill empty cells at the start of the week
-                  const emptyStart = weekIndex === 0 && dayIndex === 0
-                    ? Array.from({ length: day.getDay() === 0 ? 6 : day.getDay() - 1 })
-                    : [];
-
-                  return (
-                    <React.Fragment key={day.toISOString()}>
-                      {emptyStart.map((_, i) => (
-                        <div key={`empty-${i}`} className="border p-2 bg-gray-50 min-h-[120px]" />
-                      ))}
-                      <DayCell
-                        date={day}
-                        shifts={schedule.shifts}
-                        weekType={weekType}
-                        onDrop={handleDrop}
-                        onEmployeeDrop={handleEmployeeDrop}
-                        onClick={handleDayClick}
-                        onEdit={handleEdit}
-                        onDelete={handleDelete}
-                      />
-                    </React.Fragment>
-                  );
-                })}
+              <div key={weekIndex} className="min-w-[600px]">
+                <div className="flex">
+                  <div
+                    className="sticky left-0 z-10 bg-white border-r flex-shrink-0"
+                    style={{ width: '52px' }}
+                  >
+                    <div className="h-[53px] border-b bg-gray-100" />
+                    {HOURS.map(hour => (
+                      <div
+                        key={hour}
+                        className="flex items-start justify-center text-[10px] text-gray-400 leading-none pt-0.5 border-b border-gray-100"
+                        style={{ height: `${HOUR_HEIGHT}px` }}
+                      >
+                        {`${String(hour).padStart(2, '0')}:00`}
+                      </div>
+                    ))}
+                  </div>
+                  {visibleDays.map(day => (
+                    <DayColumn
+                      key={day.toISOString()}
+                      date={day}
+                      weekType={weekType}
+                      shifts={schedule.shifts}
+                      onDrop={handleDrop}
+                      onEmployeeDrop={handleEmployeeDrop}
+                      onClick={handleDayClick}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
               </div>
             );
           })}

@@ -33,7 +33,7 @@ class Shiftplan(Base):
     schedule_id = Column(Integer, ForeignKey("schedules.id"), nullable=False, index=True)
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
     date = Column(Date, nullable=False)
-    shift_id = Column(String(20), nullable=False)
+    shift_id = Column(String(50), nullable=False)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
     week = Column(String(1), nullable=True)

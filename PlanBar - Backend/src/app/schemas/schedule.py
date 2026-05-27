@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 class ShiftplanBase(BaseModel):
     employee_id: int
     date: date
-    shift_id: str = Field(..., max_length=20)
+    shift_id: str = Field(..., max_length=50)
     start_time: time
     end_time: time
     week: Optional[str] = Field(None, pattern=r"^[AB]$")
@@ -23,7 +23,7 @@ class ShiftplanCreate(ShiftplanBase):
 class ShiftplanUpdate(BaseModel):
     employee_id: Optional[int] = None
     date: Optional[date] = None
-    shift_id: Optional[str] = Field(None, max_length=20)
+    shift_id: Optional[str] = Field(None, max_length=50)
     start_time: Optional[time] = None
     end_time: Optional[time] = None
     week: Optional[str] = Field(None, pattern=r"^[AB]$")

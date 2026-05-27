@@ -258,6 +258,7 @@ export function Schedule() {
 
   const handleUpdateSchedule = (updatedSchedule: ScheduleType) => {
     updateSchedule(updatedSchedule.id, updatedSchedule);
+    setSelectedSchedule(updatedSchedule);
   };
 
   const exportShifts = (shifts: ScheduleType['shifts'], name: string) => {
