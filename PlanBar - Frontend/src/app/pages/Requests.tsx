@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { RequestForm } from '../components/RequestForm';
@@ -26,6 +28,16 @@ export function Requests() {
   const { user } = useAuth();
   const [editingRequest, setEditingRequest] = useState<Request | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  useEffect(() => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    setStartDate(start.toISOString().split('T')[0]);
+    setEndDate(end.toISOString().split('T')[0]);
+  }, []);
 
   const isAdmin = user?.role === 'admin';
   const currentEmployeeId = user?.employeeId;
@@ -69,6 +81,11 @@ export function Requests() {
   const sortedRequests = [...filteredRequests].sort((a, b) =>
     new Date(a.date).getTime() - new Date(b.date).getTime()
   );
+
+  const dateFilteredRequests = sortedRequests.filter(req => {
+    if (!startDate || !endDate) return true;
+    return req.date >= startDate && req.date <= endDate;
+  });
 
   // Check if user can edit/delete a specific request
   const canModifyRequest = (request: Request) => {
@@ -135,8 +152,29 @@ export function Requests() {
         </Dialog>
       </div>
 
+      <div className="flex gap-4 items-end">
+        <div>
+          <Label htmlFor="filterStartDate">Von</Label>
+          <Input
+            id="filterStartDate"
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="filterEndDate">Bis</Label>
+          <Input
+            id="filterEndDate"
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4">
-        {sortedRequests.map((request) => (
+        {dateFilteredRequests.map((request) => (
           <Card key={request.id}>
             <CardHeader>
               <div className="flex justify-between items-start">
@@ -198,7 +236,7 @@ export function Requests() {
         ))}
       </div>
 
-      {sortedRequests.length === 0 && (
+      {dateFilteredRequests.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-gray-600 mb-4">
