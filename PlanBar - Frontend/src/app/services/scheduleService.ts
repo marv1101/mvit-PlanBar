@@ -43,6 +43,7 @@ export interface ScheduleCreateDTO {
 export interface ScheduleUpdateDTO {
   name?: string;
   week_type?: string;
+  status?: string;
 }
 
 export interface ScheduleResponseDTO {

@@ -3,6 +3,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from app.core.enums import ScheduleStatus
+
 
 class ShiftplanBase(BaseModel):
     employee_id: int
@@ -63,6 +65,7 @@ class ScheduleCreate(ScheduleBase):
 class ScheduleUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=128)
     week_type: Optional[str] = Field(None, pattern=r"^[AB]$")
+    status: Optional[ScheduleStatus] = None
 
 
 class ScheduleResponse(ScheduleBase):

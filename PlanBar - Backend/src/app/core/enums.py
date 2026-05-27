@@ -8,6 +8,7 @@ class UserRole(str, Enum):
 
 class ScheduleStatus(str, Enum):
     DRAFT = "draft"
+    REVIEW = "review"
     SUBMITTED = "submitted"
     PROCESSING = "processing"
     COMPLETED = "completed"

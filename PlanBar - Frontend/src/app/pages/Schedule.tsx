@@ -16,6 +16,7 @@ import { scheduleFromResponse, shiftplanToShift } from '../lib/mappers';
 
 const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   draft: { label: 'Entwurf', variant: 'secondary' },
+  review: { label: 'In Prüfung', variant: 'default' },
   submitted: { label: 'Wird berechnet...', variant: 'default' },
   completed: { label: 'Abgeschlossen', variant: 'outline' },
   failed: { label: 'Fehlgeschlagen', variant: 'destructive' },
@@ -259,6 +260,15 @@ export function Schedule() {
   const handleUpdateSchedule = (updatedSchedule: ScheduleType) => {
     updateSchedule(updatedSchedule.id, updatedSchedule);
     setSelectedSchedule(updatedSchedule);
+  };
+
+  const handleChangeStatus = (schedule: ScheduleType, newStatus: string) => {
+    const updated = { ...schedule, status: newStatus };
+    updateSchedule(schedule.id, updated);
+    setSelectedSchedule(updated);
+    if (manuallyCreatedSchedule?.id === schedule.id) {
+      setManuallyCreatedSchedule(updated);
+    }
   };
 
   const exportShifts = (shifts: ScheduleType['shifts'], name: string) => {
@@ -610,9 +620,36 @@ export function Schedule() {
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <CardTitle>{manuallyCreatedSchedule.name}</CardTitle>
-                    <StatusBadge status="draft" />
+                    <StatusBadge status={manuallyCreatedSchedule.status} />
+                    {manuallyCreatedSchedule.status === 'draft' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleChangeStatus(manuallyCreatedSchedule, 'review')}
+                      >
+                        In Prüfung geben
+                      </Button>
+                    )}
+                    {manuallyCreatedSchedule.status === 'review' && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleChangeStatus(manuallyCreatedSchedule, 'draft')}
+                        >
+                          Bearbeiten
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleChangeStatus(manuallyCreatedSchedule, 'completed')}
+                        >
+                          Abschließen
+                        </Button>
+                      </>
+                    )}
                   </div>
                   <Button
                     variant="ghost"
@@ -631,12 +668,21 @@ export function Schedule() {
                 </div>
               </CardHeader>
               <CardContent>
-                <EditableScheduleCalendar
-                  schedule={manuallyCreatedSchedule}
-                  currentWeek={currentWeek}
-                  onUpdateSchedule={(updated) => setManuallyCreatedSchedule(updated)}
-                  onSaveShifts={handleManualSave}
-                />
+                {manuallyCreatedSchedule.status === 'draft' ? (
+                  <EditableScheduleCalendar
+                    schedule={manuallyCreatedSchedule}
+                    currentWeek={currentWeek}
+                    onUpdateSchedule={(updated) => setManuallyCreatedSchedule(updated)}
+                    onSaveShifts={handleManualSave}
+                  />
+                ) : (
+                  <ScheduleCalendar
+                    shifts={manuallyCreatedSchedule.shifts}
+                    startDate={manuallyCreatedSchedule.startDate}
+                    endDate={manuallyCreatedSchedule.endDate}
+                    currentWeek={currentWeek}
+                  />
+                )}
               </CardContent>
             </Card>
           )}
@@ -746,9 +792,45 @@ export function Schedule() {
                 <Card>
                   <CardHeader>
                     <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <CardTitle>{selectedSchedule.name}</CardTitle>
                         <StatusBadge status={selectedSchedule.status} />
+                        {selectedSchedule.status === 'draft' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleChangeStatus(selectedSchedule, 'review')}
+                          >
+                            In Prüfung geben
+                          </Button>
+                        )}
+                        {selectedSchedule.status === 'review' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleChangeStatus(selectedSchedule, 'draft')}
+                            >
+                              Bearbeiten
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleChangeStatus(selectedSchedule, 'completed')}
+                            >
+                              Abschließen
+                            </Button>
+                          </>
+                        )}
+                        {selectedSchedule.status === 'failed' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleChangeStatus(selectedSchedule, 'draft')}
+                          >
+                            Wieder öffnen
+                          </Button>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         {selectedSchedule.status === 'failed' && (
@@ -797,12 +879,21 @@ export function Schedule() {
                         )}
                       </div>
                     )}
-                    <EditableScheduleCalendar
-                      schedule={selectedSchedule}
-                      currentWeek={currentWeek}
-                      onUpdateSchedule={handleUpdateSchedule}
-                      onSaveShifts={handleManageSave}
-                    />
+                    {selectedSchedule.status === 'draft' ? (
+                      <EditableScheduleCalendar
+                        schedule={selectedSchedule}
+                        currentWeek={currentWeek}
+                        onUpdateSchedule={handleUpdateSchedule}
+                        onSaveShifts={handleManageSave}
+                      />
+                    ) : (
+                      <ScheduleCalendar
+                        shifts={selectedSchedule.shifts}
+                        startDate={selectedSchedule.startDate}
+                        endDate={selectedSchedule.endDate}
+                        currentWeek={currentWeek}
+                      />
+                    )}
                   </CardContent>
                 </Card>
               )}

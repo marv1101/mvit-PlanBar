@@ -19,9 +19,14 @@ export function EmployeeView() {
     [employees, selectedEmployeeId]
   );
 
+  const visibleSchedules = useMemo(() =>
+    schedules.filter(s => s.status === 'review' || s.status === 'completed'),
+    [schedules]
+  );
+
   const selectedSchedule = useMemo(() => 
-    schedules.find(s => s.id === selectedScheduleId),
-    [schedules, selectedScheduleId]
+    visibleSchedules.find(s => s.id === selectedScheduleId),
+    [visibleSchedules, selectedScheduleId]
   );
 
   const employeeShifts = useMemo(() => {
@@ -231,7 +236,7 @@ export function EmployeeView() {
                 onChange={(e) => setSelectedScheduleId(e.target.value)}
               >
                 <option value="">Bitte wählen...</option>
-                {schedules.map(schedule => (
+                {visibleSchedules.map(schedule => (
                   <option key={schedule.id} value={schedule.id}>
                     {schedule.name} ({new Date(schedule.startDate).toLocaleDateString('de-DE')} - {new Date(schedule.endDate).toLocaleDateString('de-DE')})
                   </option>

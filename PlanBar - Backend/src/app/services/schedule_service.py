@@ -57,6 +57,8 @@ def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate) -> Sc
         schedule.name = data.name
     if data.week_type is not None:
         schedule.week_type = data.week_type
+    if data.status is not None:
+        schedule.status = data.status.value
     db.add(schedule)
     db.commit()
     db.refresh(schedule)
