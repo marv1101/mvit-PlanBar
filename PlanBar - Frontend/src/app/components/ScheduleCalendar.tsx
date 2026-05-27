@@ -69,7 +69,12 @@ export function ScheduleCalendar({ shifts, startDate, endDate, currentWeek }: Sc
                         borderLeft: `3px solid ${employee?.color}`,
                       }}
                     >
-                      <div className="font-medium truncate">
+                      <div className="font-medium truncate flex items-center gap-1">
+                        <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[9px] font-bold leading-none ${
+                          shift.week === 'A' ? 'bg-blue-500 text-white' : 'bg-purple-500 text-white'
+                        }`}>
+                          {shift.week}
+                        </span>
                         {employee?.name.split(' ')[0]}
                       </div>
                       <div className="text-gray-600">

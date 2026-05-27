@@ -155,6 +155,8 @@ def update_shiftplan(
         shiftplan.start_time = data.start_time
     if data.end_time is not None:
         shiftplan.end_time = data.end_time
+    if data.week is not None:
+        shiftplan.week = data.week
     if data.notes is not None:
         shiftplan.notes = data.notes
     db.add(shiftplan)

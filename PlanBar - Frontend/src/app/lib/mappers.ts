@@ -108,7 +108,7 @@ export function requestFromResponse(dto: ShiftWishResponseDTO): Request {
     id: String(dto.id),
     employeeId: String(dto.employee_id),
     date: dto.date,
-    week: dto.week ? 'A' : 'A' as WeekType,
+    week: dto.week === 2 ? 'B' : 'A' as WeekType,
     type: (API_TYPE_TO_FRONTEND[dto.type] || dto.type) as Request['type'],
     notes: dto.note || undefined,
   };

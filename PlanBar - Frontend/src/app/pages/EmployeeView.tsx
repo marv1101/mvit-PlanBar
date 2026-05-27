@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { User, Calendar, Clock, Coffee, Download, Loader2 } from 'lucide-react';
+import { getWeekType } from '../lib/week';
 import { WeekType, Shift } from '../types';
 import { toast } from 'sonner';
 
@@ -357,10 +358,7 @@ export function EmployeeView() {
                     
                     {calendarWeeks.map((week, weekIndex) => {
                       // Determine week type
-                      const firstDayOfWeek = week[0];
-                      const referenceDate = new Date('2024-01-01');
-                      const weeksDiff = Math.floor((firstDayOfWeek.getTime() - referenceDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
-                      const weekType: WeekType = weeksDiff % 2 === 0 ? 'A' : 'B';
+                      const weekType = getWeekType(week[0]);
                       
                       if (weekType !== currentWeek) return null;
 
@@ -397,7 +395,12 @@ export function EmployeeView() {
                                         borderLeft: `3px solid ${selectedEmployee.color}` 
                                       }}
                                     >
-                                      <div className="font-medium" style={{ color: selectedEmployee.color }}>
+                                      <div className="font-medium flex items-center gap-1" style={{ color: selectedEmployee.color }}>
+                                        <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[9px] font-bold leading-none ${
+                                          shift.week === 'A' ? 'bg-blue-500 text-white' : 'bg-purple-500 text-white'
+                                        }`}>
+                                          {shift.week}
+                                        </span>
                                         {shift.startTime} - {shift.endTime}
                                       </div>
                                       {shift.breakStart && shift.breakEnd && (
@@ -447,6 +450,11 @@ export function EmployeeView() {
                                 </p>
                                 <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                                   <div className="flex items-center gap-1">
+                                    <span className={`inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold leading-none ${
+                                      shift.week === 'A' ? 'bg-blue-500 text-white' : 'bg-purple-500 text-white'
+                                    }`}>
+                                      {shift.week}
+                                    </span>
                                     <Clock className="h-4 w-4" />
                                     {shift.startTime} - {shift.endTime}
                                   </div>

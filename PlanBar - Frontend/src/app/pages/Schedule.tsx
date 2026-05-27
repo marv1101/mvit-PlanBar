@@ -822,6 +822,15 @@ export function Schedule() {
                             </Button>
                           </>
                         )}
+                        {selectedSchedule.status === 'completed' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleChangeStatus(selectedSchedule, 'draft')}
+                          >
+                            Bearbeiten
+                          </Button>
+                        )}
                         {selectedSchedule.status === 'failed' && (
                           <Button
                             size="sm"
