@@ -68,11 +68,33 @@ export interface Shift {
   breakEnd?: string;
 }
 
+export interface TiTOViolation {
+  type: string;
+  severity: string;
+  message: string;
+  details?: unknown;
+}
+
+export interface TiTODiagnostics {
+  isOptimal: boolean;
+  info: string;
+}
+
+export interface TiTOMetrics {
+  wishFulfillmentRate: number;
+  totalObjectiveScore: number;
+  violations?: TiTOViolation[];
+}
+
 export interface Schedule {
   id: string;
   name: string;
+  status: string;
   startDate: string;
   endDate: string;
   shifts: Shift[];
   roleRequirements?: Record<EmployeeRole, number>;
+  titoJobId?: number | null;
+  diagnostics?: TiTODiagnostics | null;
+  metrics?: TiTOMetrics | null;
 }

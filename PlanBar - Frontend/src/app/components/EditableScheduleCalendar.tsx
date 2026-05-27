@@ -8,7 +8,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import { Pencil, Trash2, X, Users } from 'lucide-react';
+import { Pencil, Trash2, X, Users, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Employee } from '../types';
 
@@ -28,6 +28,7 @@ interface EditableScheduleCalendarProps {
   schedule: Schedule;
   currentWeek: WeekType;
   onUpdateSchedule: (schedule: Schedule) => void;
+  onSaveShifts?: (shifts: Shift[]) => Promise<void>;
 }
 
 function ShiftCard({ 
@@ -463,7 +464,8 @@ function AddShiftDialog({
 export function EditableScheduleCalendar({
   schedule,
   currentWeek,
-  onUpdateSchedule
+  onUpdateSchedule,
+  onSaveShifts
 }: EditableScheduleCalendarProps) {
   const { employees } = useApp();
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
@@ -473,6 +475,7 @@ export function EditableScheduleCalendar({
   const [showSaturday, setShowSaturday] = useState(true);
   const [showSunday, setShowSunday] = useState(true);
   const [showEmployeePanel, setShowEmployeePanel] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const handleDrop = (shift: Shift, newDate: string) => {
     const updatedShifts = schedule.shifts.map(s =>
@@ -544,6 +547,19 @@ export function EditableScheduleCalendar({
     toast.success('Schicht hinzugefügt');
   };
 
+  const handleSave = async () => {
+    if (!onSaveShifts) return;
+    setSaving(true);
+    try {
+      await onSaveShifts(schedule.shifts);
+      toast.success('Alle Schichten gespeichert');
+    } catch {
+      toast.error('Fehler beim Speichern der Schichten');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Generate calendar days
   const startDate = new Date(schedule.startDate);
   const endDate = new Date(schedule.endDate);
@@ -604,6 +620,20 @@ export function EditableScheduleCalendar({
             <Users className="h-4 w-4 mr-2" />
             {showEmployeePanel ? 'Mitarbeiterpool ausblenden' : 'Mitarbeiterpool anzeigen'}
           </Button>
+          {onSaveShifts && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Speichern...</>
+              ) : (
+                <><Save className="h-4 w-4 mr-2" />Speichern</>
+              )}
+            </Button>
+          )}
         </div>
 
         {showEmployeePanel && (

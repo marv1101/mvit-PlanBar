@@ -1,4 +1,4 @@
-import { Employee, Request, Role, Schedule, Shift, WeekType } from '../types';
+import { Employee, Request, Role, Schedule, Shift, TiTODiagnostics, TiTOMetrics, WeekType } from '../types';
 import type { EmployeeResponseDTO, EmployeeCreateDTO } from '../services/employeeService';
 import type { RoleResponseDTO, RoleCreateDTO } from '../services/roleService';
 import type { ShiftWishResponseDTO, ShiftWishCreateDTO, ShiftWishType } from '../services/requestService';
@@ -154,10 +154,14 @@ export function scheduleFromResponse(dto: ScheduleResponseDTO): Schedule {
   return {
     id: String(dto.id),
     name: dto.name,
+    status: dto.status,
     startDate: dto.start_date || '',
     endDate: dto.end_date || '',
     shifts: (dto.shiftplans || []).map(shiftplanToShift),
     roleRequirements: dto.role_requirements || undefined,
+    titoJobId: dto.tito_job_id,
+    diagnostics: dto.diagnostics_json as TiTODiagnostics | null | undefined,
+    metrics: dto.metrics_json as TiTOMetrics | null | undefined,
   };
 }
 

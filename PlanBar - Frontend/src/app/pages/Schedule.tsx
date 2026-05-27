@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Calendar, Sparkles, Download, Eye, Trash2, CalendarDays, Loader2, Send, RotateCcw } from 'lucide-react';
+import { Calendar, Sparkles, Download, Eye, Trash2, CalendarDays, Loader2, Send, RotateCcw, Pen, X } from 'lucide-react';
 import { Schedule as ScheduleType, WeekType } from '../types';
 import { ScheduleCalendar } from '../components/ScheduleCalendar';
 import { EditableScheduleCalendar } from '../components/EditableScheduleCalendar';
@@ -53,6 +53,13 @@ export function Schedule() {
   const [currentScheduleStatus, setCurrentScheduleStatus] = useState<string | null>(null);
   const [pollResult, setPollResult] = useState<ScheduleType | null>(null);
 
+  const [creationMode, setCreationMode] = useState<'tito' | 'manual'>('tito');
+  const [manualName, setManualName] = useState('');
+  const [manualStartDate, setManualStartDate] = useState('');
+  const [manualEndDate, setManualEndDate] = useState('');
+  const [manualWeekType, setManualWeekType] = useState<WeekType>('A');
+  const [manuallyCreatedSchedule, setManuallyCreatedSchedule] = useState<ScheduleType | null>(null);
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -81,7 +88,10 @@ export function Schedule() {
           } else if (res.status === 'failed') {
             stopPolling();
             setSubmitting(false);
-            toast.error('TiTO-Berechnung fehlgeschlagen');
+            setPollResult(scheduleFromResponse(res));
+            const diagnostics = res.diagnostics_json as { info?: string } | null;
+            const msg = diagnostics?.info || 'TiTO-Berechnung fehlgeschlagen';
+            toast.error(msg, { duration: 8000 });
             refresh();
           }
         } catch {
@@ -135,6 +145,55 @@ export function Schedule() {
     }
   };
 
+  const createManual = async () => {
+    if (!manualName || !manualStartDate || !manualEndDate) {
+      toast.error('Bitte Name, Start- und Enddatum eingeben');
+      return;
+    }
+
+    try {
+      const created = await scheduleService.createSchedule({
+        name: manualName,
+        start_date: manualStartDate,
+        end_date: manualEndDate,
+        week_type: manualWeekType,
+        shiftplans: [],
+      });
+
+      const mapped = scheduleFromResponse(created);
+      addSchedule(mapped);
+      setManuallyCreatedSchedule(mapped);
+      toast.success('Schichtplan erstellt');
+    } catch {
+      toast.error('Fehler beim Erstellen des Schichtplans');
+    }
+  };
+
+  const handleManualSave = async (shifts: ScheduleType['shifts']): Promise<void> => {
+    if (!manuallyCreatedSchedule) return;
+
+    const shiftplans = shifts.map(s => ({
+      employee_id: Number(s.employeeId),
+      date: s.date,
+      shift_id: s.id,
+      start_time: s.startTime,
+      end_time: s.endTime,
+      week: s.week,
+      break_start: s.breakStart,
+      break_end: s.breakEnd,
+    }));
+
+    await scheduleService.replaceAllShifts(Number(manuallyCreatedSchedule.id), shiftplans);
+    await refresh();
+    setManuallyCreatedSchedule(null);
+    setManualName('');
+    setManualStartDate('');
+    setManualEndDate('');
+    setManualWeekType('A');
+    setCreationMode('tito');
+    toast.success('Schichtplan gespeichert');
+  };
+
   const handleViewSchedule = async (schedule: ScheduleType) => {
     try {
       const res = await scheduleService.getSchedule(Number(schedule.id));
@@ -175,6 +234,26 @@ export function Schedule() {
         setSelectedSchedule(null);
       }
     }
+  };
+
+  const handleManageSave = async (shifts: ScheduleType['shifts']): Promise<void> => {
+    if (!selectedSchedule) return;
+
+    const shiftplans = shifts.map(s => ({
+      employee_id: Number(s.employeeId),
+      date: s.date,
+      shift_id: s.id,
+      start_time: s.startTime,
+      end_time: s.endTime,
+      week: s.week,
+      break_start: s.breakStart,
+      break_end: s.breakEnd,
+    }));
+
+    await scheduleService.replaceAllShifts(Number(selectedSchedule.id), shiftplans);
+    await refresh();
+    setSelectedSchedule(prev => prev ? { ...prev, shifts } : null);
+    toast.success('Schichtplan gespeichert');
   };
 
   const handleUpdateSchedule = (updatedSchedule: ScheduleType) => {
@@ -232,86 +311,169 @@ export function Schedule() {
         </TabsList>
 
         <TabsContent value="create" className="space-y-6">
-          {!currentScheduleId && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Schichtplan-Einstellungen</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="scheduleName">Plan-Name</Label>
-                  <Input
-                    id="scheduleName"
-                    value={scheduleName}
-                    onChange={(e) => setScheduleName(e.target.value)}
-                    placeholder="z.B. April 2026"
-                    disabled={submitting}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="startDate">Startdatum</Label>
-                    <Input
-                      id="startDate"
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      disabled={submitting}
-                    />
+          {!currentScheduleId && !manuallyCreatedSchedule && (
+            <>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex gap-2">
+                    <Button
+                      variant={creationMode === 'tito' ? 'default' : 'outline'}
+                      onClick={() => setCreationMode('tito')}
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      Über TiTO
+                    </Button>
+                    <Button
+                      variant={creationMode === 'manual' ? 'default' : 'outline'}
+                      onClick={() => setCreationMode('manual')}
+                    >
+                      <Pen className="h-4 w-4 mr-2" />
+                      Manuell
+                    </Button>
                   </div>
-                  <div>
-                    <Label htmlFor="endDate">Enddatum</Label>
-                    <Input
-                      id="endDate"
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      disabled={submitting}
-                    />
-                  </div>
-                </div>
+                </CardContent>
+              </Card>
 
-                <div className="space-y-2">
-                  <Label>Rollenanforderungen pro Tag</Label>
-                  <div className="grid grid-cols-2 gap-4">
-                    {roles.map(role => (
-                      <div key={role.id}>
-                        <Label htmlFor={`role-${role.id}`} className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: role.color }}
-                          />
-                          {role.name}
-                        </Label>
+              {creationMode === 'tito' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Schichtplan-Einstellungen</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="scheduleName">Plan-Name</Label>
+                      <Input
+                        id="scheduleName"
+                        value={scheduleName}
+                        onChange={(e) => setScheduleName(e.target.value)}
+                        placeholder="z.B. April 2026"
+                        disabled={submitting}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="startDate">Startdatum</Label>
                         <Input
-                          id={`role-${role.id}`}
-                          type="number"
-                          min="0"
-                          value={roleRequirements[role.id] || 0}
-                          onChange={(e) => handleRoleRequirementChange(role.id, parseInt(e.target.value) || 0)}
+                          id="startDate"
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
                           disabled={submitting}
                         />
                       </div>
-                    ))}
-                    {roles.length === 0 && (
-                      <p className="text-sm text-gray-500 col-span-2">Keine Rollen verfügbar. Bitte erstellen Sie zuerst Rollen.</p>
-                    )}
-                  </div>
-                </div>
+                      <div>
+                        <Label htmlFor="endDate">Enddatum</Label>
+                        <Input
+                          id="endDate"
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          disabled={submitting}
+                        />
+                      </div>
+                    </div>
 
-                <Button onClick={createAndSubmit} disabled={submitting || loading} className="w-full">
-                  {submitting ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Wird erstellt...</>
-                  ) : (
-                    <><Send className="h-4 w-4 mr-2" />Schichtplan erstellen & an TiTO senden</>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
+                    <div className="space-y-2">
+                      <Label>Rollenanforderungen pro Tag</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        {roles.map(role => (
+                          <div key={role.id}>
+                            <Label htmlFor={`role-${role.id}`} className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full"
+                                style={{ backgroundColor: role.color }}
+                              />
+                              {role.name}
+                            </Label>
+                            <Input
+                              id={`role-${role.id}`}
+                              type="number"
+                              min="0"
+                              value={roleRequirements[role.id] || 0}
+                              onChange={(e) => handleRoleRequirementChange(role.id, parseInt(e.target.value) || 0)}
+                              disabled={submitting}
+                            />
+                          </div>
+                        ))}
+                        {roles.length === 0 && (
+                          <p className="text-sm text-gray-500 col-span-2">Keine Rollen verfügbar. Bitte erstellen Sie zuerst Rollen.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <Button onClick={createAndSubmit} disabled={submitting || loading} className="w-full">
+                      {submitting ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Wird erstellt...</>
+                      ) : (
+                        <><Send className="h-4 w-4 mr-2" />Schichtplan erstellen & an TiTO senden</>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {creationMode === 'manual' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Manuelle Schichtplan-Erstellung</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="manualName">Plan-Name</Label>
+                      <Input
+                        id="manualName"
+                        value={manualName}
+                        onChange={(e) => setManualName(e.target.value)}
+                        placeholder="z.B. April 2026 (manuell)"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="manualStartDate">Startdatum</Label>
+                        <Input
+                          id="manualStartDate"
+                          type="date"
+                          value={manualStartDate}
+                          onChange={(e) => setManualStartDate(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="manualEndDate">Enddatum</Label>
+                        <Input
+                          id="manualEndDate"
+                          type="date"
+                          value={manualEndDate}
+                          onChange={(e) => setManualEndDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="manualWeekType">Wochen-Typ</Label>
+                      <select
+                        id="manualWeekType"
+                        className="w-full border rounded-md px-3 py-2"
+                        value={manualWeekType}
+                        onChange={(e) => setManualWeekType(e.target.value as WeekType)}
+                      >
+                        <option value="A">Woche A</option>
+                        <option value="B">Woche B</option>
+                      </select>
+                    </div>
+
+                    <Button onClick={createManual} className="w-full">
+                      <Pen className="h-4 w-4 mr-2" />
+                      Schichtplan manuell erstellen
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
 
-          {currentScheduleId && submitting && (
+          {currentScheduleId && submitting && currentScheduleStatus === 'submitted' && (
             <Card>
               <CardContent className="py-12 text-center">
                 <Loader2 className="h-12 w-12 mx-auto text-blue-600 mb-4 animate-spin" />
@@ -384,7 +546,101 @@ export function Schedule() {
             </>
           )}
 
-          {!currentScheduleId && !submitting && (
+          {currentScheduleId && currentScheduleStatus === 'failed' && pollResult && (
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>{pollResult.name}</CardTitle>
+                  <StatusBadge status="failed" />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-red-800 font-medium">
+                    <span className="text-lg">⚠️</span>
+                    <span>Berechnung fehlgeschlagen</span>
+                  </div>
+                  {pollResult.diagnostics && (
+                    <p className="text-red-700 text-sm">{pollResult.diagnostics.info}</p>
+                  )}
+                  {pollResult.metrics?.violations && pollResult.metrics.violations.length > 0 && (
+                    <details className="mt-2">
+                      <summary className="text-red-600 text-sm cursor-pointer hover:underline">
+                        Details ({pollResult.metrics.violations.length} Verletzungen)
+                      </summary>
+                      <ul className="mt-2 space-y-1">
+                        {pollResult.metrics.violations.map((v, i) => (
+                          <li key={i} className="text-red-600 text-xs flex items-start gap-1">
+                            <span className="mt-0.5 shrink-0">
+                              {v.severity === 'HARD' ? '🔴' : '🟡'}
+                            </span>
+                            <span>{v.message}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => handleRetry(pollResult)}>
+                    <RotateCcw className="h-4 w-4 mr-1" />
+                    Erneut an TiTO senden
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setCurrentScheduleId(null);
+                      setCurrentScheduleStatus(null);
+                      setPollResult(null);
+                      setScheduleName('');
+                      setStartDate('');
+                      setEndDate('');
+                      setRoleRequirements({});
+                    }}
+                  >
+                    Neu erstellen
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {manuallyCreatedSchedule && !currentScheduleId && (
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <CardTitle>{manuallyCreatedSchedule.name}</CardTitle>
+                    <StatusBadge status="draft" />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setManuallyCreatedSchedule(null);
+                      setManualName('');
+                      setManualStartDate('');
+                      setManualEndDate('');
+                      setManualWeekType('A');
+                    }}
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Verwerfen
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <EditableScheduleCalendar
+                  schedule={manuallyCreatedSchedule}
+                  currentWeek={currentWeek}
+                  onUpdateSchedule={(updated) => setManuallyCreatedSchedule(updated)}
+                  onSaveShifts={handleManualSave}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {!currentScheduleId && !submitting && !manuallyCreatedSchedule && creationMode === 'tito' && (
             <Card>
               <CardContent className="py-12 text-center">
                 <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-4" />
@@ -445,7 +701,7 @@ export function Schedule() {
                           {schedule.endDate ? new Date(schedule.endDate).toLocaleDateString('de-DE') : '-'}
                         </p>
                         <p>{schedule.shifts.length} Schichten</p>
-                        <StatusBadge status={schedule.id === currentScheduleId && currentScheduleStatus ? currentScheduleStatus : 'draft'} />
+                        <StatusBadge status={schedule.status || 'draft'} />
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Button
@@ -491,17 +747,19 @@ export function Schedule() {
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
                         <CardTitle>{selectedSchedule.name}</CardTitle>
-                        <StatusBadge status={selectedSchedule.id === currentScheduleId && currentScheduleStatus ? currentScheduleStatus : 'draft'} />
+                        <StatusBadge status={selectedSchedule.status} />
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleRetry(selectedSchedule)}
-                        >
-                          <RotateCcw className="h-4 w-4 mr-1" />
-                          Erneut senden
-                        </Button>
+                        {selectedSchedule.status === 'failed' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRetry(selectedSchedule)}
+                          >
+                            <RotateCcw className="h-4 w-4 mr-1" />
+                            Erneut senden
+                          </Button>
+                        )}
                         <Tabs value={currentWeek} onValueChange={(v) => setCurrentWeek(v as WeekType)}>
                           <TabsList>
                             <TabsTrigger value="A">Woche A</TabsTrigger>
@@ -511,18 +769,39 @@ export function Schedule() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    {selectedSchedule.shifts.length > 0 ? (
-                      <EditableScheduleCalendar
-                        schedule={selectedSchedule}
-                        currentWeek={currentWeek}
-                        onUpdateSchedule={handleUpdateSchedule}
-                      />
-                    ) : (
-                      <div className="py-12 text-center text-gray-500">
-                        <p>Noch keine Schichten vorhanden. Senden Sie den Plan an TiTO.</p>
+                  <CardContent className="space-y-4">
+                    {selectedSchedule.status === 'failed' && selectedSchedule.diagnostics && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+                        <div className="flex items-center gap-2 text-red-800 font-medium">
+                          <span className="text-lg">⚠️</span>
+                          <span>Berechnung fehlgeschlagen</span>
+                        </div>
+                        <p className="text-red-700 text-sm">{selectedSchedule.diagnostics.info}</p>
+                        {selectedSchedule.metrics?.violations && selectedSchedule.metrics.violations.length > 0 && (
+                          <details className="mt-2">
+                            <summary className="text-red-600 text-sm cursor-pointer hover:underline">
+                              Details ({selectedSchedule.metrics.violations.length} Verletzungen)
+                            </summary>
+                            <ul className="mt-2 space-y-1">
+                              {selectedSchedule.metrics.violations.map((v, i) => (
+                                <li key={i} className="text-red-600 text-xs flex items-start gap-1">
+                                  <span className="mt-0.5 shrink-0">
+                                    {v.severity === 'HARD' ? '🔴' : '🟡'}
+                                  </span>
+                                  <span>{v.message}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
                       </div>
                     )}
+                    <EditableScheduleCalendar
+                      schedule={selectedSchedule}
+                      currentWeek={currentWeek}
+                      onUpdateSchedule={handleUpdateSchedule}
+                      onSaveShifts={handleManageSave}
+                    />
                   </CardContent>
                 </Card>
               )}

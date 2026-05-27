@@ -10,6 +10,7 @@ from app.schemas.schedule import (
     ScheduleResponse,
     ScheduleSummary,
     ScheduleUpdate,
+    ShiftplanBatchReplace,
     ShiftplanResponse,
     ShiftplanUpdate,
 )
@@ -19,6 +20,7 @@ from app.services.schedule_service import (
     get_schedule_by_id,
     get_schedule_summary,
     list_schedules,
+    replace_all_shifts,
     retry_schedule,
     submit_schedule_to_tito,
     update_schedule,
@@ -161,3 +163,16 @@ def update_shiftplan(
     db.commit()
     db.refresh(shiftplan)
     return shiftplan
+
+
+@router.put("/{schedule_id}/shifts", response_model=ScheduleResponse)
+def replace_all_shifts_endpoint(
+    schedule_id: int,
+    data: ShiftplanBatchReplace,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    schedule = get_schedule_by_id(db, schedule_id)
+    if not schedule:
+        raise NotFoundException(detail="Schedule not found")
+    return replace_all_shifts(db, schedule, data.shiftplans)

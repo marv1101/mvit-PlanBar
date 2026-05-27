@@ -119,3 +119,8 @@ export async function updateShiftplan(scheduleId: number, shiftplanId: number, d
   const { data } = await api.put(`/schedules/${scheduleId}/shifts/${shiftplanId}`, dto);
   return data;
 }
+
+export async function replaceAllShifts(scheduleId: number, shifts: ShiftplanCreateDTO[]): Promise<ScheduleResponseDTO> {
+  const { data } = await api.put(`/schedules/${scheduleId}/shifts`, { shiftplans: shifts });
+  return data;
+}

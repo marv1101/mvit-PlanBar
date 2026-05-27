@@ -108,6 +108,31 @@ async def retry_schedule(db: Session, schedule: Schedule) -> Schedule:
     return schedule
 
 
+def replace_all_shifts(
+    db: Session,
+    schedule: Schedule,
+    shiftplans_data: list[ShiftplanCreate],
+) -> Schedule:
+    db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).delete()
+    for sp_data in shiftplans_data:
+        shiftplan = Shiftplan(
+            schedule_id=schedule.id,
+            employee_id=sp_data.employee_id,
+            date=sp_data.date,
+            shift_id=sp_data.shift_id,
+            start_time=sp_data.start_time,
+            end_time=sp_data.end_time,
+            week=sp_data.week,
+            break_start=sp_data.break_start,
+            break_end=sp_data.break_end,
+            notes=sp_data.notes,
+        )
+        db.add(shiftplan)
+    db.commit()
+    db.refresh(schedule)
+    return schedule
+
+
 def get_schedule_summary(db: Session, schedule: Schedule) -> dict[str, Any]:
     shiftplans = db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).all()
     employee_ids = set(sp.employee_id for sp in shiftplans)

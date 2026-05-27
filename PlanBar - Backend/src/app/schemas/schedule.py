@@ -32,6 +32,10 @@ class ShiftplanUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class ShiftplanBatchReplace(BaseModel):
+    shiftplans: list[ShiftplanCreate]
+
+
 class ShiftplanResponse(ShiftplanBase):
     id: int
     schedule_id: int
