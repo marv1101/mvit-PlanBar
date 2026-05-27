@@ -31,6 +31,7 @@ class UserResponse(BaseModel):
     username: str
     email: EmailStr
     role: str
+    must_change_password: bool = True
     created_at: datetime
     updated_at: datetime
     last_login: Optional[datetime] = None
@@ -42,3 +43,23 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+
+
+class LoginResponse(TokenResponse):
+    must_change_password: bool = True
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8)
+
+
+class AdminUserCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=64)
+    email: EmailStr
+    role: str = Field(default="user", pattern="^(admin|user)$")
+    employee_id: Optional[int] = None
+
+
+class AdminUserCreateResponse(UserResponse):
+    initial_password: str

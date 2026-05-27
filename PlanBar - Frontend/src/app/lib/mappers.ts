@@ -1,4 +1,4 @@
-import { Employee, Request, Role, Schedule, Shift, TiTODiagnostics, TiTOMetrics, WeekType } from '../types';
+import { AppUser, Employee, Request, Role, Schedule, Shift, TiTODiagnostics, TiTOMetrics, WeekType } from '../types';
 import type { EmployeeResponseDTO, EmployeeCreateDTO } from '../services/employeeService';
 import type { RoleResponseDTO, RoleCreateDTO } from '../services/roleService';
 import type { ShiftWishResponseDTO, ShiftWishCreateDTO, ShiftWishType } from '../services/requestService';
@@ -172,5 +172,18 @@ export function scheduleToCreate(schedule: Schedule, shiftplans: ShiftplanCreate
     end_date: schedule.endDate || undefined,
     role_requirements: schedule.roleRequirements,
     shiftplans,
+  };
+}
+
+import type { UserResponseDTO } from '../services/userService';
+
+export function userFromResponse(dto: UserResponseDTO): AppUser {
+  return {
+    id: String(dto.id),
+    username: dto.username,
+    email: dto.email,
+    role: dto.role === 'admin' ? 'admin' : 'employee',
+    mustChangePassword: dto.must_change_password,
+    lastLogin: dto.last_login,
   };
 }

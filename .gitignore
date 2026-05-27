@@ -22,3 +22,4 @@ planbar*.db
 PlanBar - Backend/src/app/middleware/__pycache__/*
 test_planbar.db
 PlanBar - Backend/test_planbar.db
+PlanBar - Frontend/.env

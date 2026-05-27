@@ -86,6 +86,15 @@ export interface TiTOMetrics {
   violations?: TiTOViolation[];
 }
 
+export interface AppUser {
+  id: string;
+  username: string;
+  email: string;
+  role: 'admin' | 'employee';
+  mustChangePassword: boolean;
+  lastLogin: string | null;
+}
+
 export interface Schedule {
   id: string;
   name: string;

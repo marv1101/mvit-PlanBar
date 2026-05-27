@@ -19,7 +19,7 @@ Die Priorisierung folgt dem Risiko für den Produktivbetrieb: **Security > Robus
 
 ### 0.1 Secrets aus git entfernen & `.gitignore` fixen
 
-**Status:** ❌ Offen  
+**Status:** erl
 **Dateien:**
 - `Infrastructure/.env` — committed mit DB-Passwörtern, JWT-Secret, API-Key
 - `PlanBar - Backend/.env` — committed mit `change_me`-Defaults

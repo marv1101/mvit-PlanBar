@@ -7,6 +7,7 @@ import { Employees } from './pages/Employees';
 import { Requests } from './pages/Requests';
 import { Schedule } from './pages/Schedule';
 import { Roles } from './pages/Roles';
+import { Users } from './pages/Users';
 import { EmployeeView } from './pages/EmployeeView';
 
 export const router = createBrowserRouter([
@@ -39,6 +40,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['admin']}>
             <Roles />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'users',
+        element: (
+          <ProtectedRoute allowedRoles={['admin']}>
+            <Users />
           </ProtectedRoute>
         ),
       },

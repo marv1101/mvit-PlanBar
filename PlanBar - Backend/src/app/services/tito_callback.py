@@ -1,12 +1,10 @@
 import logging
-from datetime import date, time
-from typing import Any
+from datetime import time
 
 from sqlalchemy.orm import Session
 
 from app.db.models.employee import Employee
 from app.db.models.schedule import Schedule, Shiftplan
-from app.db.models.shift_wish import ShiftWish
 from app.schemas.tito import TiTOCallbackPayload
 
 logger = logging.getLogger(__name__)

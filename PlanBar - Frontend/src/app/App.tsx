@@ -1,12 +1,14 @@
+import { useState } from 'react';
 import { RouterProvider } from 'react-router';
 import { router } from './routes';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import { Login } from './pages/Login';
+import { ChangePasswordDialog } from './components/ChangePasswordDialog';
 
 function AppContent() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, mustChangePassword } = useAuth();
 
   if (isLoading) {
     return (
@@ -25,6 +27,7 @@ function AppContent() {
 
   return (
     <AppProvider>
+      {mustChangePassword && <ChangePasswordDialog />}
       <RouterProvider router={router} />
       <Toaster />
     </AppProvider>

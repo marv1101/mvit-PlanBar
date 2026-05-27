@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db
-from app.db.models.schedule import Schedule, Shiftplan
+from app.db.models.schedule import Shiftplan
 from app.db.models.user import User
 from app.schemas.schedule import (
     ScheduleCreate,

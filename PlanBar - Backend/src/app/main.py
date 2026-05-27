@@ -11,6 +11,8 @@ from app.middleware.error_handler import http_error_handler, validation_exceptio
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.schemas.user import UserCreate
 from app.services.user_service import create_user
+from sqlalchemy import inspect, text
+
 from app.db.models.user import User
 
 
@@ -31,10 +33,20 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestLoggingMiddleware)
     app.include_router(api_router, prefix="/api/v1")
     create_database()
+    run_migrations()
     seed_initial_users()
     app.add_exception_handler(StarletteHTTPException, http_error_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     return app
+
+
+def run_migrations() -> None:
+    inspector = inspect(engine)
+    columns = [col["name"] for col in inspector.get_columns("users")]
+    if "must_change_password" not in columns:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT 1"))
+            conn.commit()
 
 
 def seed_initial_users() -> None:
