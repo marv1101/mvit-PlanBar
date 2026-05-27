@@ -1,0 +1,1279 @@
+# Go-Live Readiness Plan
+
+## Übersicht
+
+Dieser Plan beschreibt alle notwendigen Schritte, um die PlanBar/TiTO-Applikation production-ready zu machen.
+Die Priorisierung folgt dem Risiko für den Produktivbetrieb: **Security > Robustheit > Qualität > Komfort**.
+
+**Stand:** 27.05.2026  
+**Branches:** `bugfix-tito-callback` (HEAD), `dev`, `main`  
+**Codebase:** ~50 identifizierte Themen (7 kritisch, 10 hoch, 13 mittel, 20 niedrig)
+
+---
+
+## Phase 0 — Security Cleanup & Secrets Management
+
+> **Warum zuerst:** Kompromittierte Credentials und offene CORS sind die häufigste Einfallquelle für Angriffe.  
+> **Aufwand:** ~4-6 Stunden  
+> **Riskio bei Nichtumsetzung:** Sehr hoch
+
+### 0.1 Secrets aus git entfernen & `.gitignore` fixen
+
+**Status:** ❌ Offen  
+**Dateien:**
+- `Infrastructure/.env` — committed mit DB-Passwörtern, JWT-Secret, API-Key
+- `PlanBar - Backend/.env` — committed mit `change_me`-Defaults
+
+**Aufgaben:**
+1. `git rm --cached Infrastructure/.env`
+2. `git rm --cached "PlanBar - Backend/.env"`
+3. `git commit -m "chore: remove committed .env files"`
+4. `.gitignore` prüfen und ggf. ergänzen:
+   ```
+   # .env files
+   **/.env
+   **/.env.*
+   !.env.example
+   ```
+5. Prüfen, ob `Infrastructure/.env` bereits in `.gitignore` ist (Zeile 2) — ja, aber `PlanBar - Backend/.env` ist auch drin (Zeile 16). Trotzdem die Dateien aus git history entfernen (BFG Repo-Cleaner oder `git filter-branch`).
+
+**Verifikation:** `git status` zeigt keine `.env`-Dateien mehr an.
+
+### 0.2 `.env.example` für alle Komponenten anlegen
+
+**Status:** ❌ Offen (nur im Backend-Plan erwähnt, nicht existent)  
+**Dateien:**
+- `PlanBar - Backend/.env.example` — neu erstellen
+- `TiTO/.env.example` — neu erstellen
+- `Infrastructure/.env.example` — neu erstellen
+
+**Aufgaben:**
+1. Backend `.env.example`:
+   ```
+   DATABASE_URL=sqlite:///./planbar.db
+   SECRET_KEY=<generate-with: openssl rand -hex 32>
+   JWT_ALGORITHM=HS256
+   ACCESS_TOKEN_EXPIRE_MINUTES=15
+   REFRESH_TOKEN_EXPIRE_DAYS=7
+   TITO_API_URL=http://tito:5001
+   BACKEND_CALLBACK_URL=http://planbar_backend:8000
+   TITO_API_KEY=
+   ```
+2. Infrastructure `.env.example` analog
+3. TiTO `.env.example` analog
+
+### 0.3 Hardcodierte Passwörter aus `main.py` entfernen
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Backend/src/app/main.py:47-59`
+
+**Problem:** `seed_initial_users()` nutzt `password="Admin@123"` und `password="User@123"`.
+
+**Lösung:**
+```python
+admin_password = os.getenv("ADMIN_SEED_PASSWORD")
+test_password = os.getenv("TEST_SEED_PASSWORD")
+if not admin_password or not test_password:
+    logger.warning("Seed passwords not configured — skipping seed")
+    return
+```
+Nur in Dev/Staging seeden, nie in Production:
+```python
+if os.getenv("ENVIRONMENT", "development") == "production":
+    logger.info("Skipping seed in production")
+    return
+```
+
+**Verifikation:** `grep -r "Admin@123\|User@123" src/` findet nichts.
+
+### 0.4 Demo-Credentials aus Login.tsx entfernen
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Frontend/src/app/pages/Login.tsx:102-113`
+
+**Problem:** Die Login-Seite zeigt hardcodierte Demo-Zugangsdaten im UI an.
+
+**Lösung:**
+- Nur anzeigen, wenn `VITE_SHOW_DEMO_CREDENTIALS=true` in `.env`:
+  ```tsx
+  {import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === 'true' && (
+    <div className="text-sm text-muted-foreground mt-4 p-3 bg-muted rounded-md">
+      <p>Demo-Zugang: admin@demo.de / demo123</p>
+    </div>
+  )}
+  ```
+- In Production `.env`: `VITE_SHOW_DEMO_CREDENTIALS=false`
+
+**Verifikation:** Production-Build zeigt keine Credentials mehr.
+
+### 0.5 CORS konfigurieren
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Backend/src/app/main.py:26-29`
+
+**Problem:** `allow_origins=["*"]` mit `allow_credentials=True` — ungültige Kombination laut CORS-Spezifikation und unsicher.
+
+**Lösung:**
+```python
+allow_origins=settings.cors_origins.split(",") if settings.cors_origins else ["http://localhost:5173"],
+```
+In `config.py` ergänzen:
+```python
+cors_origins: str = "http://localhost:5173,http://localhost:3000"
+```
+In Production via Env: `CORS_ORIGINS=https://app.planbar.de`
+
+**Verifikation:** OPTIONS-Requests von nicht-erlaubten Origins werden abgewiesen.
+
+### 0.6 Default `SECRET_KEY` entfernen
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Backend/src/app/config.py:15`
+
+**Problem:** `secret_key: str = Field("change-me-in-production")` — in Production wird der Key schnell vergessen.
+
+**Lösung:**
+```python
+secret_key: str = Field(...)  # kein Default
+# + Validierung beim App-Start:
+if settings.secret_key == "change-me-in-production":
+    raise RuntimeError("SECRET_KEY must be changed in production")
+```
+
+### 0.7 Rate-Limiting auf Login-Endpoint
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Backend/src/app/api/v1/users.py:39-51`
+
+**Problem:** Kein Schutz vor Brute-Force-Angriffen.
+
+**Lösung:**
+- `slowapi` (FastAPI-kompatibel) oder manuelles In-Memory-Limiting:
+  ```python
+  from slowapi import Limiter
+  from slowapi.util import get_remote_address
+
+  limiter = Limiter(key_func=get_remote_address)
+  app.state.limiter = limiter
+
+  @router.post("/login")
+  @limiter.limit("5/minute")
+  async def login(...):
+  ```
+- Oder Redis-basiert für Production (mehrere Backend-Instanzen)
+
+**Verifikation:** 6+ Login-Versuche pro Minute → HTTP 429.
+
+### 0.8 Admin-Rollen-Check auf allen Admin-Endpoints
+
+**Status:** ❌ Offen  
+**Dateien:**
+- `PlanBar - Backend/src/app/api/v1/roles.py:34-36`
+- `PlanBar - Backend/src/app/api/v1/schedules.py:32-38`
+- Weitere Endpoints prüfen
+
+**Problem:** Viele Endpoints nutzen nur `get_current_user` statt `require_admin`.
+
+**Lösung:**
+```python
+# In dependencies.py
+async def require_admin(current_user: User = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
+# In endpoints:
+@router.delete("/{id}")
+async def delete_role(id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+```
+
+**Endpoints mit fehlendem Admin-Check:**
+- `roles.py`: POST, PUT, DELETE
+- `schedules.py`: POST, PUT, DELETE (submission to TiTO)
+- `employees.py`: DELETE
+- `users.py`: GET (alle User), DELETE
+
+**Verifikation:** Nicht-Admin-User erhalten 403 auf Admin-Endpoints.
+
+### 0.9 JWT-Tokens in HttpOnly-Cookies statt localStorage
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Frontend/src/app/lib/auth.ts`
+
+**Problem:** localStorage ist anfällig für XSS. HttpOnly-Cookies sind nicht per JavaScript lesbar.
+
+**Lösung:**
+- Backend: Set-Cookie-Header bei Login/Refresh:
+  ```python
+  from fastapi.responses import JSONResponse
+
+  response.set_cookie(
+      key="access_token",
+      value=access_token,
+      httponly=True,
+      secure=True,      # nur HTTPS
+      samesite="lax",   # oder "strict"
+      max_age=900       # 15 Minuten
+  )
+  ```
+- Frontend: `withCredentials: true` im Axios-Client, localStorage-Logik entfernen
+- Logout: Cookie löschen
+
+**Verifikation:** Token ist in devtools (Application > Cookies) sichtbar, nicht in localStorage.
+
+---
+
+## Phase 1 — Error Handling & Robustheit
+
+> **Warum:** Silent Failures führen zu Datenverlust und schwer diagnostizierbaren Bugs.  
+> **Aufwand:** ~6-8 Stunden  
+> **Risiko bei Nichtumsetzung:** Hoch
+
+### 1.1 Leere `catch {}` Blöcke im Frontend ersetzen
+
+**Status:** ❌ Offen  
+**Dateien:**
+- `PlanBar - Frontend/src/app/context/AuthContext.tsx:54`
+- `PlanBar - Frontend/src/app/lib/mappers.ts:31`
+- `PlanBar - Frontend/src/app/context/AppContext.tsx` — mehrfach
+
+**Problem:** Fehler werden geschluckt, keine User-Feedback, keine Error-Logs.
+
+**Lösung:**
+```typescript
+// AuthContext.tsx
+try {
+    const response = await api.post('/api/v1/users/login', { email, password });
+    // ...
+} catch (error) {
+    const message = axios.isAxiosError(error)
+        ? error.response?.data?.detail || 'Login fehlgeschlagen'
+        : 'Netzwerkfehler';
+    toast.error(message);
+    return false;
+}
+```
+
+```typescript
+// mappers.ts
+try {
+    return JSON.parse(jsonString);
+} catch (error) {
+    console.error('[Mapper] JSON parse failed:', error);
+    return null;
+}
+```
+
+**Verifikation:** Fehler werden im UI angezeigt und/oder in der Console geloggt.
+
+### 1.2 Exception-Details im Backend loggen
+
+**Status:** ❌ Offen  
+**Dateien:**
+- `PlanBar - Backend/src/app/services/schedule_service.py:84-100`
+- `PlanBar - Backend/src/app/services/tito_callback.py:56-58`
+
+**Problem:** `except Exception:` ohne `logger.exception()`.
+
+**Lösung:**
+```python
+try:
+    result = await tito_proxy.submit_job(payload)
+except Exception as e:
+    logger.exception("TiTO job submission failed for schedule %s", schedule_id)
+    schedule.status = "failed"
+    schedule.error_message = str(e)
+```
+`logger.exception()` logged automatisch den Stacktrace auf ERROR-Level.
+
+**Verifikation:** Fehler erscheinen mit Stacktrace im Log.
+
+### 1.3 Axios-Timeout und Retry konfigurieren
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Frontend/src/app/lib/api.ts`
+
+**Problem:** Kein Timeout → Requests hängen bei Netzwerkproblemen. Kein Retry → Transiente Fehler schlagen sofort fehl.
+
+**Lösung:**
+```typescript
+const api = axios.create({
+    baseURL: import.meta.env.VITE_API_URL || '/api',
+    timeout: 15000, // 15s
+    headers: { 'Content-Type': 'application/json' },
+});
+
+// Retry Interceptor
+api.interceptors.response.use(null, async (error) => {
+    const config = error.config;
+    if (!config || config._retryCount >= 3) return Promise.reject(error);
+    config._retryCount = (config._retryCount || 0) + 1;
+    await new Promise(r => setTimeout(r, 1000 * config._retryCount));
+    return api(config);
+});
+```
+
+**Verifikation:** Bei Timeout/Netzwerkfehler wird 3x retried, dann Fehler angezeigt.
+
+### 1.4 Token-Refresh-Interceptor verbessern
+
+**Status:** ⚠️ Teilweise vorhanden (Grundlogik existiert, aber fehlerhaft)  
+**Datei:** `PlanBar - Frontend/src/app/lib/api.ts`
+
+**Problem:** Der Refresh-Interceptor könnte bei parallelen 401ern mehrfach refreshen.
+
+**Lösung:**
+- Request-Queue während Refresh (Promise-basiert):
+  ```typescript
+  let isRefreshing = false;
+  let failedQueue: Array<{resolve: Function, reject: Function}> = [];
+
+  const processQueue = (error: any, token: string | null) => {
+      failedQueue.forEach(prom => {
+          if (error) prom.reject(error);
+          else prom.resolve(token);
+      });
+      failedQueue = [];
+  };
+  ```
+
+**Verifikation:** 5 parallele Requests mit abgelaufenem Token → nur 1 Refresh-Request.
+
+### 1.5 Polling-Interval sauber cleaen
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Frontend/src/app/pages/Schedule.tsx:77-106`
+
+**Problem:** Interval wird bei Unmount nicht gestoppt, setState auf unmounted Component.
+
+**Lösung:**
+```typescript
+useEffect(() => {
+    if (!currentScheduleId) return;
+    const interval = setInterval(pollSchedule, 5000);
+    return () => {
+        clearInterval(interval);
+    };
+}, [currentScheduleId]); // korrekt: cleanup bei dependency-change
+```
+
+**Verifikation:** Navigate away → kein `setState`-Warning in Console.
+
+### 1.6 DB Connection-Pooling konfigurieren
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Backend/src/app/db/database.py`
+
+**Problem:** Nur `create_engine(url)`, keine Pool-Konfiguration.
+
+**Lösung:**
+```python
+engine = create_engine(
+    settings.database_url,
+    pool_size=10,          # Standard: 5
+    max_overflow=20,       # zusätzliche Connections bei Spitzenlast
+    pool_pre_ping=True,    # Verbindung vor Nutzung prüfen
+    pool_recycle=3600,     # Connections nach 1h erneuern
+    echo=settings.debug_sql or False,
+)
+```
+
+**Verifikation:** Unter Last werden Connections aus dem Pool wiederverwendet.
+
+### 1.7 Request-Body-Größenlimit
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Backend/src/app/main.py`
+
+**Problem:** Kein Schutz vor zu großen Request-Bodies (Memory-Exhaustion).
+
+**Lösung:**
+```python
+app = FastAPI(
+    title="PlanBar API",
+    ...
+)
+app.add_middleware(
+    RequestSizeLimitMiddleware,
+    max_size=10 * 1024 * 1024,  # 10 MB
+)
+```
+
+**Verifikation:** Request > 10 MB → HTTP 413.
+
+---
+
+## Phase 2 — CI/CD & Code Quality
+
+> **Warum:** Ohne automatisierte Tests und Linting schleicht sich Qualitätsverlust ein.  
+> **Aufwand:** ~4-6 Stunden initial, ~2h/Woche Betrieb  
+> **Risiko bei Nichtumsetzung:** Mittel
+
+### 2.1 GitHub Actions für Tests
+
+**Status:** ❌ Offen  
+**Ziel:** `.github/workflows/ci.yml`
+
+**Aufgaben:**
+```yaml
+name: CI
+on: [push, pull_request]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: planbar_test
+          POSTGRES_USER: planbar
+          POSTGRES_PASSWORD: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install -r "PlanBar - Backend/requirements.txt"
+      - run: pip install pytest pytest-cov
+      - run: pytest
+        working-directory: "PlanBar - Backend"
+        env:
+          DATABASE_URL: postgresql://planbar:test@localhost/planbar_test
+
+  tito:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install -r TiTO/requirements.txt
+      - run: pytest
+        working-directory: TiTO
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm ci
+        working-directory: "PlanBar - Frontend"
+      - run: npm run build
+        working-directory: "PlanBar - Frontend"
+      # Optional: npm test wenn Tests vorhanden
+```
+
+### 2.2 ESLint + Prettier (Frontend)
+
+**Status:** ❌ Offen
+
+**Aufgaben:**
+```bash
+cd "PlanBar - Frontend"
+pnpm add -D eslint @eslint/js typescript-eslint prettier eslint-config-prettier
+```
+
+`eslint.config.js`:
+```javascript
+import eslint from '@eslint/js';
+import tseslint from 'typescript-eslint';
+
+export default tseslint.config(
+    eslint.configs.recommended,
+    ...tseslint.configs.recommended,
+    {
+        rules: {
+            '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+            '@typescript-eslint/no-explicit-any': 'warn',
+        },
+    },
+);
+```
+
+`package.json` Scripts:
+```json
+{
+    "lint": "eslint src/",
+    "format": "prettier --write src/",
+    "typecheck": "tsc --noEmit"
+}
+```
+
+### 2.3 ruff + mypy (Backend)
+
+**Status:** ❌ Offen
+
+**Aufgaben:**
+
+`pyproject.toml`:
+```toml
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "PL"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004"]
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+```
+
+Scripts:
+```bash
+ruff check src/
+ruff format --check src/
+mypy src/
+```
+
+### 2.4 TypeScript-Strict-Mode aktivieren
+
+**Status:** ❌ Offen  
+**Problem:** Kein `tsconfig.json` vorhanden, Vite nutzt Defaults (lax).
+
+**Lösung:**
+```json
+{
+    "compilerOptions": {
+        "target": "ES2020",
+        "lib": ["ES2020", "DOM", "DOM.Iterable"],
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "skipLibCheck": true,
+        "jsx": "react-jsx",
+        "baseUrl": ".",
+        "paths": { "@/*": ["./src/*"] }
+    },
+    "include": ["src"]
+}
+```
+
+- `tsconfig.node.json` für Vite-Config
+- `vite.config.ts` anpassen: `resolve: { alias: { '@': '/src' } }`
+
+### 2.5 Frontend-Tests aufsetzen
+
+**Status:** ❌ Offen
+
+**Setup:**
+```bash
+pnpm add -D vitest @testing-library/react @testing-library/jest-dom jsdom
+```
+
+`vite.config.ts`:
+```typescript
+test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+}
+```
+
+**Erste Test-Suite:** `src/app/components/__tests__/Login.test.tsx`
+- Rendert Login-Formular
+- Submit mit leeren Feldern → Validierung
+- Submit mit gültigen Credentials → `onLogin` wird gecalled
+
+**Ziel:** Kritische User-Flows (Login, Employee-CRUD, Schedule-Ansicht) abdecken.
+
+---
+
+## Phase 3 — Performance & Bundle-Optimierung
+
+> **Warum:** Langsame Ladezeiten und ruckelnde UI schrecken User ab.  
+> **Aufwand:** ~3-4 Stunden  
+> **Risiko bei Nichtumsetzung:** Mittel
+
+### 3.1 Code-Splitting mit `React.lazy()`
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Frontend/src/app/routes.tsx`
+
+**Lösung:**
+```typescript
+import { lazy, Suspense } from 'react';
+
+const Dashboard = lazy(() => import('../pages/Dashboard'));
+const Employees = lazy(() => import('../pages/Employees'));
+const Schedule = lazy(() => import('../pages/Schedule'));
+// ...
+
+<Routes>
+    <Route path="/" element={
+        <Suspense fallback={<FullPageSpinner />}>
+            <Dashboard />
+        </Suspense>
+    } />
+    // ...
+</Routes>
+```
+
+**Verifikation:** `npm run build` zeigt separate Chunks für jede Page.
+
+### 3.2 Unused Packages entfernen
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Frontend/package.json`
+
+**Zu prüfende (wahrscheinlich ungenutzte) Dependencies:**
+- `@mui/material`, `@emotion/react` (wird nirgends importiert)
+- `embla-carousel-react`
+- `input-otp`
+- `react-slick`, `slick-carousel`
+- `vaul`
+- `canvas-confetti`
+- `react-responsive-masonry`
+
+**Vorgehen:**
+```bash
+# Ungenutzte Pakete identifizieren
+npx depcheck
+
+# Entfernen
+pnpm remove @mui/material @emotion/react embla-carousel-react input-otp react-slick slick-carousel vaul canvas-confetti react-responsive-masonry
+```
+
+**Verifikation:** `npm run build` läuft ohne Fehler durch.
+
+### 3.3 Unused UI-Komponenten aufräumen
+
+**Status:** ❌ Offen  
+**Verzeichnis:** `PlanBar - Frontend/src/app/components/ui/`
+
+**Problem:** ~20 von ~45 shadcn/ui-Komponenten werden vermutlich nicht genutzt.
+
+**Vorgehen:**
+1. Pro Komponente prüfen: `grep -r "from.*ui/<komponente>" src/`
+2. Unbenutzte löschen (carousel, chart, calendar, drawer, hover-card, menubar, navigation-menu, pagination, resizable, scroll-area, sheet, sidebar, slider, toggle, tooltip)
+
+**Verifikation:** `npm run build` ohne Fehler.
+
+### 3.4 React.memo + useMemo im Calendar
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Frontend/src/app/components/EditableScheduleCalendar.tsx` (854 Zeilen)
+
+**Problem:** Der Kalender rendert bei jeder Interaktion alle Zellen neu.
+
+**Lösung:**
+```typescript
+const DayColumn = React.memo(({ day, shifts, employees, ... }: DayColumnProps) => {
+    // ...
+});
+
+// useMemo für berechnete Werte:
+const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
+const days = useMemo(() => getDaysInWeek(weekStart), [weekStart]);
+```
+
+**Grobe Analyse der Re-Render-Ketten:**
+- `DayColumn` wird bei jedem `selectedDate`-Change neu gerendert → `React.memo` hilft
+- `ShiftBar` bei jedem Drag/Hover → Callback-Stabilisierung mit `useCallback`
+
+### 3.5 Bundle-Analyse
+
+**Status:** ❌ Offen
+
+**Aufgaben:**
+```bash
+pnpm add -D vite-bundle-analyzer
+```
+
+`vite.config.ts`:
+```typescript
+import { bundleAnalyzer } from 'vite-bundle-analyzer';
+export default defineConfig({
+    plugins: [react(), bundleAnalyzer()],
+});
+```
+
+`npm run build -- --analyze` → Report zeigen große Dependencies auf.
+
+### 3.6 Pagination für Employee/Schedule-Listen
+
+**Status:** ❌ Offen  
+**Problem:** `AppContext` lädt alle Daten auf einmal. Bei 100+ Mitarbeitern oder mehrwöchigen Plänen wird das langsam.
+
+**Lösung:**
+- Backend: Bereits `pagination.py` vorhanden, aber ungenutzt → in Endpoints einbauen
+- `GET /api/v1/employees?page=1&page_size=25`
+- `GET /api/v1/schedules?page=1&page_size=10`
+- Frontend: Scroll-basiertes Laden oder "Load More"-Button
+
+---
+
+## Phase 4 — Accessibility & UX
+
+> **Warum:** Barrierefreiheit ist nicht nur gesetzlich relevant (BITV/BGG), sondern verbessert UX für alle.  
+> **Aufwand:** ~4-6 Stunden  
+> **Risiko bei Nichtumsetzung:** Mittel (rechtlich), Niedrig (funktional)
+
+### 4.1 ARIA-Attribute auf interaktiven Elementen
+
+**Status:** ❌ Offen  
+**Dateien:** Gesamtes Frontend, insb. Calendar-Komponenten
+
+**Checkliste:**
+- `ShiftBar`-Edit/Delete-Buttons: `aria-label="Schicht bearbeiten"`
+- `DayColumn`-Drop-Zones: `role="gridcell" aria-label="Montag 08:00"`
+- `EmployeeForm`-Farb-Swatches: `aria-label="Farbe Blau"`
+- Navigation: `aria-current="page"` auf aktivem Link
+- `button` ohne Text: immer `aria-label`
+
+### 4.2 Keyboard-Support für den Kalender
+
+**Status:** ❌ Offen  
+**Datei:** `EditableScheduleCalendar.tsx`
+
+**Problem:** Drag&Drop ist Mouse-only.
+
+**Lösung (Minimum):**
+- Tab-Reihenfolge durch die Schichten
+- Enter/Space zum Öffnen des Edit-Dialogs
+- Pfeiltasten zum Navigieren zwischen Schichten
+- Oder: "Schicht verschieben"-Dialog mit Datum/Zeit-Auswahl als Alternative zu DnD
+
+```typescript
+// Key-Handler auf ShiftBar:
+<div
+    role="button"
+    tabIndex={0}
+    aria-label={`Schicht: ${shift.employeeId} ${shift.startTime}-${shift.endTime}`}
+    onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onEdit(shift);
+        }
+        if (e.key === 'Delete') {
+            e.preventDefault();
+            onDelete(shift);
+        }
+    }}
+>
+```
+
+### 4.3 Focus-Management für Dialoge
+
+**Status:** ❌ Offen
+
+**Problem:** Beim Öffnen von Modals/Sheets wird der Focus nicht ins Modal gesetzt, beim Schließen nicht zurück zum Trigger.
+
+**Lösung:**
+- shadcn/ui `Dialog` hat `autoFocus` bereits teilweise integriert
+- Prüfen: `focus-trap`-Package oder `@radix-ui/react-focus-scope`
+- Nach Dialog-Schließen: `triggerRef.current?.focus()`
+
+### 4.4 Alert-Dialog statt `confirm()`
+
+**Status:** ❌ Offen  
+**Problem:** Native `confirm('...')`-Dialoge sind nicht stylbar und nicht barrierefrei.
+
+**Lösung:**
+```tsx
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
+<AlertDialog>
+    <AlertDialogTrigger asChild>
+        <Button variant="destructive">Löschen</Button>
+    </AlertDialogTrigger>
+    <AlertDialogContent>
+        <AlertDialogHeader>
+            <AlertDialogTitle>Mitarbeiter löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+                Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirm}>Löschen</AlertDialogAction>
+        </AlertDialogFooter>
+    </AlertDialogContent>
+</AlertDialog>
+```
+
+**Dateien mit `confirm()`:**
+- `Employees.tsx`
+- `Requests.tsx`
+- `Roles.tsx`
+- `Schedule.tsx`
+
+### 4.5 Skeleton-Screens einbauen
+
+**Status:** ❌ Offen  
+**Problem:** `skeleton.tsx` existiert, wird aber nicht verwendet. Stattdessen `Loader2`-Spinner.
+
+**Lösung:**
+```tsx
+// Statt:
+{loading && <Loader2 className="animate-spin" />}
+
+// Besser:
+{loading && (
+    <div className="space-y-3">
+        <Skeleton className="h-8 w-[250px]" />
+        <Skeleton className="h-4 w-[200px]" />
+        <Skeleton className="h-12 w-full" />
+    </div>
+)}
+```
+
+### 4.6 `'#gray'`-Fallback fixen
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Frontend/src/app/pages/Requests.tsx:73`
+
+```typescript
+// Falsch:
+return employee?.color || '#gray';
+
+// Richtig:
+const FALLBACK_COLOR = '#6b7280'; // tailwind gray-500
+return employee?.color || FALLBACK_COLOR;
+```
+
+---
+
+## Phase 5 — Infrastruktur & Deployment
+
+> **Warum:** Ohne saubere Infrastruktur ist Deployment fehleranfällig und nicht reproduzierbar.  
+> **Aufwand:** ~4-6 Stunden  
+> **Risiko bei Nichtumsetzung:** Mittel
+
+### 5.1 Alembic-Migrationen finalisieren
+
+**Status:** ⚠️ Teilweise vorhanden  
+**Dateien:**
+- `alembic.ini` — existiert, aber hardcodiert auf SQLite
+- `migrations/versions/0001_initial.py` — existiert (laut Plan)
+- `main.py` nutzt `Base.metadata.create_all()` — unsicher für Production
+
+**Aufgaben:**
+1. `alembic.ini` auf Env-Variable umstellen:
+   ```
+   sqlalchemy.url = %(DATABASE_URL)s
+   ```
+2. Prüfen, ob `migrations/env.py` korrekt die Models importiert
+3. Migration erstellen: `alembic revision --autogenerate -m "initial"`
+4. `main.py`: `create_all()` durch `alembic upgrade head` ersetzen (oder in Startup prüfen)
+
+**Verifikation:** Migration läuft auf frischer PostgreSQL ohne Fehler.
+
+### 5.2 Dockerfile-Pfadkorrektur (Backend)
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Backend/Dockerfile`
+
+**Problem:** `COPY src/app ./app` → würde zu `/app/app/` führen.
+
+**Lösung prüfen:**
+```dockerfile
+# Aktuell vermutlich:
+COPY src/app /app
+
+# Nötig:
+COPY src/app /app/app
+# Oder im WORKDIR:
+WORKDIR /app
+COPY src/app .
+```
+Je nachdem, wie der Pfad in `CMD` referenziert wird (`app.main:app` vs `main:app`).
+
+### 5.3 compose.yaml finalisieren
+
+**Status:** ⚠️ Prüfbar  
+**Datei:** `Infrastructure/compose.yaml`
+
+**Checkliste:**
+- `db_backend` Service: `init-db-backend.sql` wird gemountet? (laut Analyse nicht)
+- Healthchecks für alle Services
+- Restart-Policy: `unless-stopped` oder `always`
+- Resource-Limits (memory, cpu)
+- Logging-Konfiguration (json-file mit Rotation)
+- Networks korrekt konfiguriert
+
+### 5.4 nginx Security Headers
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Frontend/nginx.conf`
+
+**Lösung:**
+```nginx
+add_header X-Frame-Options "SAMEORIGIN" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-XSS-Protection "0" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';" always;
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+```
+
+### 5.5 Healthcheck-Aggregation
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Backend/src/app/api/v1/health.py`
+
+**Ziel:** Ein aggregierter `/health`-Endpoint:
+```python
+@router.get("/health")
+async def health():
+    db_ok = await check_db()
+    tito_ok = await check_tito()
+    return {
+        "status": "healthy" if (db_ok and tito_ok) else "degraded",
+        "checks": {
+            "database": "healthy" if db_ok else "unhealthy",
+            "tito": "healthy" if tito_ok else "unhealthy",
+        },
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+```
+
+### 5.6 Structured Logging (JSON)
+
+**Status:** ❌ Offen  
+**Datei:** `PlanBar - Backend/src/app/core/logging.py`
+
+**Lösung:**
+```python
+import structlog
+
+structlog.configure(
+    processors=[
+        structlog.stdlib.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer(),
+    ],
+    context_class=dict,
+    logger_factory=structlog.PrintLoggerFactory(),
+    cache_logger_on_first_use=True,
+)
+```
+
+Oder einfacher: `python-json-logger`:
+```python
+from pythonjsonlogger import jsonlogger
+
+handler = logging.StreamHandler()
+formatter = jsonlogger.JsonFormatter(
+    fmt="%(asctime)s %(name)s %(levelname)s %(message)s"
+)
+handler.setFormatter(formatter)
+```
+
+### 5.7 Environment-Trennung dev/staging/prod
+
+**Status:** ❌ Offen
+
+**Lösung:**
+- `.env.development` — lokale Entwicklung
+- `.env.staging` — Staging-Umgebung
+- `.env.production` — Production (nie in git)
+
+Start-Scripte:
+```bash
+# development
+ENVIRONMENT=development uvicorn app.main:app --reload
+
+# production
+ENVIRONMENT=production gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
+```
+
+Im Code:
+```python
+settings.environment = os.getenv("ENVIRONMENT", "development")
+if settings.environment == "production":
+    # Strengere Checks
+    assert settings.secret_key not in ("change-me-in-production", ""), "..."
+```
+
+---
+
+## Phase 6 — Accessibility (Detail) & i18n
+
+> **Warum:** Rechtliche Anforderungen (BITV 2.0 ab 2025 für öffentliche Stellen) und internationale Kunden.  
+> **Aufwand:** ~8-12 Stunden  
+> **Risiko bei Nichtumsetzung:** Niedrig (funktional), aber strategisch wichtig
+
+### 6.1 i18n-Grundlage schaffen
+
+**Status:** ❌ Offen
+
+**Vorschlag:** `react-i18next` (leichtgewichtig, gut mit React kombinierbar)
+
+```bash
+pnpm add react-i18next i18next
+```
+
+**Struktur:**
+```
+src/app/locales/
+├── de/
+│   ├── common.json
+│   ├── employees.json
+│   ├── schedule.json
+│   └── ...
+└── en/
+    └── ...
+```
+
+**Migration:** Strings nach und nach aus den Komponenten in JSON-Dateien extrahieren.
+- **Prio 1:** Alle User-facing Strings (Button-Labels, Fehlermeldungen, Dialog-Texte)
+- **Prio 2:** Formular-Validierung
+- **Prio 3:** Dashboard-Beschreibungen
+
+**Mindestens für Go-Live:** i18n-Infrastruktur + deutsche Locale (Bestand). Englisch kann später folgen.
+
+### 6.2 Responsive Design für Kalender
+
+**Status:** ❌ Offen  
+**Datei:** `EditableScheduleCalendar.tsx`, `ScheduleCalendar.tsx`
+
+**Minimum für Go-Live:**
+- Touch-Unterstützung für DnD: `react-dnd` Touch Backend installieren
+  ```bash
+  pnpm add react-dnd-touch-backend
+  ```
+  ```typescript
+  import { TouchTransition } from 'react-dnd-multi-backend';
+  import { HTML5Backend } from 'react-dnd-html5-backend';
+  import { TouchBackend } from 'react-dnd-touch-backend';
+  ```
+- Mobile: Alternative Listen-Ansicht statt Grid
+  ```tsx
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  if (isMobile) return <ShiftListView shifts={shifts} />;
+  return <CalendarGridView ... />;
+  ```
+
+---
+
+## Phase 7 — Testing & Qualitätssicherung
+
+> **Warum:** Ohne Tests keine sicheren Refactorings.  
+> **Aufwand:** ~8-16 Stunden initial  
+> **Risiko bei Nichtumsetzung:** Mittel (Refactoring-Risiko)
+
+### 7.1 Test-Coverage-Ziele definieren
+
+**Status:** ❌ Offen
+
+| Komponente | Ziel | Priorität |
+|-----------|------|-----------|
+| Backend Auth (JWT, Passwort) | 90% | Hoch |
+| Backend CRUD Endpoints | 80% | Hoch |
+| Backend TiTO-Proxy/Callback | 85% | Hoch |
+| Frontend Login/Auth | 80% | Hoch |
+| Frontend Schedule-Ansicht | 60% | Mittel |
+| Frontend Employee-CRUD | 70% | Mittel |
+
+### 7.2 Fehlende Integration-Tests ergänzen
+
+**Status:** ⚠️ Lücken vorhanden
+
+**Prioritäre Tests:**
+- `test_user_endpoints.py` — CRUD + Rollen-basierte Zugriffskontrolle
+- `test_auth_flow.py` — Login → Token → Refresh → Logout → Unauthorized
+- `test_schedule_crud.py` — Schedule anlegen, TiTO submit simulieren, Status verfolgen
+
+### 7.3 Frontend-Komponententests
+
+**Status:** ❌ Offen
+
+**Erste Suites:**
+```
+tests/components/
+├── Login.test.tsx
+├── ProtectedRoute.test.tsx
+├── EmployeeForm.test.tsx
+├── ScheduleCalendar.test.tsx
+└── Layout.test.tsx
+```
+
+**Pro Test:**
+- Rendert Komponente mit verschiedenen Props
+- Simuliert User-Interaktionen (Klick, Tastatur, Form-Submit)
+- Prüft auf korrekte Darstellung (Snapshot oder Assertion)
+
+---
+
+## Phase 8 — Monitoring & Observability
+
+> **Warum:** Ohne Monitoring sieht man Production-Probleme erst, wenn der User sie meldet.  
+> **Aufwand:** ~3-4 Stunden  
+> **Risiko bei Nichtumsetzung:** Mittel (blinder Flug)
+
+### 8.1 Log-Level-Konfiguration
+
+**Status:** ❌ Offen
+
+**Datei:** `PlanBar - Backend/src/app/core/logging.py`
+
+```python
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=log_level,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+```
+
+### 8.2 Request-ID / Correlation-ID
+
+**Status:** ❌ Offen
+
+**Middleware:**
+```python
+import uuid
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    with logger.bind(request_id=request_id):
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+```
+
+### 8.3 Sentry / Error-Tracking
+
+**Status:** ❌ Offen
+
+**Backend:**
+```bash
+pip install sentry-sdk
+```
+```python
+import sentry_sdk
+sentry_sdk.init(
+    dsn=os.getenv("SENTRY_DSN"),
+    environment=os.getenv("ENVIRONMENT", "development"),
+    traces_sample_rate=0.1,
+)
+```
+
+**Frontend:**
+```bash
+pnpm add @sentry/react
+```
+```typescript
+import * as Sentry from '@sentry/react';
+Sentry.init({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.VITE_ENVIRONMENT,
+});
+```
+
+---
+
+## Zusammenfassung: Priorisierte Roadmap
+
+```
+Woche 1 (Security & Grundlagen)     ████████████████████████████░
+  Phase 0: Security Cleanup         ████████████████████████████
+  Phase 1: Error Handling           ████████████████░░░░░░░░░░░░
+
+Woche 2 (Qualität & CI)             ░░░█████████████████████████
+  Phase 2: CI/CD & Code Quality     ░░░█████████████████████████
+  Phase 7: Testing                  ░░░░░░░░░░██████████████████
+
+Woche 3 (Performance & UX)          ░░░░░░░░░░░░░░█████████████
+  Phase 3: Performance              ░░░░░░░░░░░░░░█████████████
+  Phase 4: Accessibility & UX       ░░░░░░░░░░░░░░░░░░█████████
+
+Woche 4 (Infrastruktur & Finale)    ░░░░░░░░░░░░░░░░░░░░███████
+  Phase 5: Infrastruktur            ░░░░░░░░░░░░░░░░░░░░███████
+  Phase 6: i18n                     ░░░░░░░░░░░░░░░░░░░░░░░░███
+  Phase 8: Monitoring               ░░░░░░░░░░░░░░░░░░░░░░░░░░██
+```
+
+### Must-Have vor Go-Live (K.O.-Kriterien)
+
+1. ❌ Keine Secrets in git → Phase 0.1-0.4
+2. ❌ CORS nicht `*` → Phase 0.5
+3. ❌ `SECRET_KEY` nicht default → Phase 0.6
+4. ❌ Admin-Endpoints geschützt → Phase 0.8
+5. ❌ CI/CD läuft Tests → Phase 2.1
+6. ❌ Error-Handling logged Fehler → Phase 1.1-1.2
+7. ❌ Alembic-Migrationen statt `create_all()` → Phase 5.1
+8. ❌ Rate-Limiting auf Login → Phase 0.7
+
+### Nice-to-Have vor Go-Live
+
+- Code-Splitting (Phase 3.1)
+- Skeleton-Screens (Phase 4.5)
+- Structured Logging (Phase 5.6)
+- Sentry (Phase 8.3)
+- i18n (Phase 6.1)
+
+### Nach Go-Live (Phase 2)
+
+- Frontend-Tests (Phase 2.5)
+- Unused Packages entfernen (Phase 3.2)
+- Alert-Dialog statt `confirm()` (Phase 4.4)
+- Keyboard-Support Calendar (Phase 4.2)
+- Bundle-Analyse (Phase 3.5)
+- PWA/Offline-Support
+- E2E-Tests mit Playwright/Cypress
+
+---
+
+## Anhang: Betroffene Dateien pro Phase
+
+| Phase | Datei(en) |
+|-------|-----------|
+| 0.1 | `.gitignore`, `Infrastructure/.env`, `PlanBar - Backend/.env` |
+| 0.2 | `**/.env.example` (neu) |
+| 0.3 | `PlanBar - Backend/src/app/main.py` |
+| 0.4 | `PlanBar - Frontend/src/app/pages/Login.tsx` |
+| 0.5 | `PlanBar - Backend/src/app/main.py`, `PlanBar - Backend/src/app/config.py` |
+| 0.6 | `PlanBar - Backend/src/app/config.py` |
+| 0.7 | `PlanBar - Backend/src/app/api/v1/users.py` |
+| 0.8 | `PlanBar - Backend/src/app/dependencies.py`, `roles.py`, `schedules.py`, `employees.py`, `users.py` |
+| 0.9 | `PlanBar - Frontend/src/app/lib/auth.ts`, `PlanBar - Backend/src/app/api/v1/users.py` |
+| 1.1 | `AuthContext.tsx`, `mappers.ts`, `AppContext.tsx` |
+| 1.2 | `schedule_service.py`, `tito_callback.py` |
+| 1.3 | `PlanBar - Frontend/src/app/lib/api.ts` |
+| 1.4 | `PlanBar - Frontend/src/app/lib/api.ts` |
+| 1.5 | `PlanBar - Frontend/src/app/pages/Schedule.tsx` |
+| 1.6 | `PlanBar - Backend/src/app/db/database.py` |
+| 1.7 | `PlanBar - Backend/src/app/main.py` |
+| 2.1 | `.github/workflows/ci.yml` (neu) |
+| 2.2 | `PlanBar - Frontend/` (ESLint/Prettier-Config) |
+| 2.3 | `PlanBar - Backend/pyproject.toml` |
+| 2.4 | `PlanBar - Frontend/tsconfig.json` (neu), `vite.config.ts` |
+| 2.5 | `PlanBar - Frontend/` (Vitest-Setup) |
+| 3.1 | `PlanBar - Frontend/src/app/routes.tsx` |
+| 3.2 | `PlanBar - Frontend/package.json` |
+| 3.3 | `PlanBar - Frontend/src/app/components/ui/` |
+| 3.4 | `PlanBar - Frontend/src/app/components/EditableScheduleCalendar.tsx` |
+| 3.5 | `PlanBar - Frontend/vite.config.ts` |
+| 3.6 | `PlanBar - Backend/src/app/api/v1/employees.py`, `schedules.py`, Frontend-Services |
+| 4.1 | Gesamtes Frontend (Calendar, Buttons, Navigation) |
+| 4.2 | `EditableScheduleCalendar.tsx` |
+| 4.3 | Dialog-Komponenten |
+| 4.4 | `Employees.tsx`, `Requests.tsx`, `Roles.tsx`, `Schedule.tsx` |
+| 4.5 | Alle Pages (Dashboard, Employees, Schedule, etc.) |
+| 4.6 | `Requests.tsx` |
+| 5.1 | `alembic.ini`, `migrations/env.py`, `main.py` |
+| 5.2 | `PlanBar - Backend/Dockerfile` |
+| 5.3 | `Infrastructure/compose.yaml` |
+| 5.4 | `PlanBar - Frontend/nginx.conf` |
+| 5.5 | `PlanBar - Backend/src/app/api/v1/health.py` |
+| 5.6 | `PlanBar - Backend/src/app/core/logging.py` |
+| 5.7 | `PlanBar - Backend/src/app/config.py`, .env-Dateien |
+| 6.1 | Gesamtes Frontend |
+| 6.2 | `EditableScheduleCalendar.tsx`, package.json |
+| 7.1 | - |
+| 7.2 | `PlanBar - Backend/tests/integration/` |
+| 7.3 | `PlanBar - Frontend/tests/` (neu) |
+| 8.1 | `PlanBar - Backend/src/app/core/logging.py` |
+| 8.2 | `PlanBar - Backend/src/app/main.py` |
+| 8.3 | `PlanBar - Backend/src/app/main.py`, `PlanBar - Frontend/src/main.tsx` |
+
+---
+
+*Erstellt am 27.05.2026 — Basierend auf Codebase-Analyse mit 50 identifizierten Themen.*
