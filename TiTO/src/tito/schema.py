@@ -157,7 +157,7 @@ class Config(BaseModel):
 
 class JobPayload(BaseModel):
     """Main job payload with full validation."""
-    model_config = ConfigDict(extra='forbid')  # Reject unknown fields
+    model_config = ConfigDict(extra='ignore')  # Ignore unknown fields (e.g. tenant_id from backend)
     
     metadata: Metadata
     config: Config

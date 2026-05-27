@@ -80,7 +80,7 @@ async def submit_schedule_to_tito(db: Session, schedule: Schedule, callback_url:
     try:
         result = await tito_proxy.submit_job(payload)
         schedule.status = "submitted"
-        schedule.tito_job_id = result.get("job_id")
+        schedule.tito_job_id = result.get("jobId") or result.get("job_id")
     except Exception:
         schedule.status = "failed"
         raise

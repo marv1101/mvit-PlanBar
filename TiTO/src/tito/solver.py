@@ -145,39 +145,24 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             has_required_skills = all(
                 skill in employee_skills for skill in needed_skills.keys()
             )
-            
-        # Rollentrennung: Wenn das Requirement eine bestimmte Rolle erfordert,
-        # darf nur ein Mitarbeiter mit dieser Rolle zugewiesen werden.
-        # (Hier wird davon ausgegangen, dass 'neededSkills' auch Rollen enthalten kann 
-        # oder wir eine separate Logik für 'role' im Employee-Objekt nutzen)
-        # Da wir 'role' in Employee hinzugefügt haben, prüfen wir hier die Übereinstimmung,
-        # falls das Requirement eine spezifische Rolle verlangt (z.B. über ein Skill-Key 'ROLE_')
-        
-        # Wir implementieren eine einfache Rollenprüfung: 
-        # Wenn ein Skill mit "ROLE_" beginnt, wird er als Rollenanforderung gewertet.
-        role_required = None
-        for skill in needed_skills.keys():
-            if skill.startswith("ROLE_"):
-                role_required = skill.replace("ROLE_", "")
-                break
-        
-        if role_required:
-            employee_role = employee.get("role")
-            if employee_role != role_required:
-                # Mitarbeiter hat nicht die erforderliche Rolle
-                # Wir setzen dies später in der Schleife über valid_employees
-                pass
+            if not has_required_skills:
+                continue
 
-        if has_required_skills:
-            # Zusätzliche Prüfung für die Rolle
+            # Rollentrennung: Wenn ein Skill mit "ROLE_" beginnt, wird er als Rollenanforderung gewertet.
+            role_required = None
+            for skill in needed_skills.keys():
+                if skill.startswith("ROLE_"):
+                    role_required = skill.replace("ROLE_", "")
+                    break
+
             if role_required and employee.get("role") != role_required:
-                pass # Nicht valid
-            else:
-                valid_employees.append(emp_idx)
-        # WICHTIG: Jedes Requirement MUSS erfüllt werden (Hard Constraint)
+                continue
+
+            valid_employees.append(emp_idx)
+
         requirement_assignments = [
-            assignments[(emp_idx, req_idx)]
-            for emp_idx in valid_employees
+            assignments[(ei, req_idx)]
+            for ei in valid_employees
         ]
         if requirement_assignments:
             cp_model.add(LinearExpr.sum(requirement_assignments) >= 1)

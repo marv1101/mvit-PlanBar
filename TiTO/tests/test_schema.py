@@ -181,12 +181,13 @@ def test_schema_rejects_invalid_time_format():
         validate_job_payload(payload)
 
 
-def test_schema_rejects_unknown_fields():
-    """Test that unknown fields are rejected."""
+def test_schema_ignores_unknown_fields():
+    """Test that unknown fields are silently ignored (extra='ignore')."""
     payload = {
         "metadata": {
             "jobId": "job-schema-5",
-            "tenantId": 1
+            "tenantId": 1,
+            "tenant_id": 1,
         },
         "config": {
             "schemaVersion": "1.0",
@@ -196,11 +197,12 @@ def test_schema_rejects_unknown_fields():
         "shiftTemplates": [],
         "requirements": [],
         "employees": [],
-        "unknown_field": "should_be_rejected"
+        "unknown_field": "should_be_ignored"
     }
     
-    with pytest.raises(Exception):
-        validate_job_payload(payload)
+    result = validate_job_payload(payload)
+    assert result is not None
+    assert result.metadata.tenantId == 1
 
 
 def test_schema_validates_date_range():

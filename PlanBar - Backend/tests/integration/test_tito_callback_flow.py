@@ -19,6 +19,8 @@ def test_schedule(db_session: Session) -> Schedule:
         name="Test Schedule",
         week_type="A",
         status="draft",
+        start_date=date(2026, 5, 24),
+        end_date=date(2026, 5, 30),
     )
     db_session.add(schedule)
     db_session.commit()
@@ -71,7 +73,7 @@ async def test_submit_schedule_includes_callback_url(
     db_session: Session, test_schedule: Schedule, test_employee: Employee, test_shift_wish: ShiftWish
 ):
     """Test that submitted job includes callback_url in metadata."""
-    mock_response = {"job_id": 123}
+    mock_response = {"jobId": 123, "status": "queued"}
 
     with patch("app.services.tito_proxy.tito_proxy.submit_job", new_callable=AsyncMock) as mock_submit:
         mock_submit.return_value = mock_response
@@ -154,6 +156,67 @@ def test_callback_endpoint_processes_results(client, db_session: Session, test_s
     assert len(shiftplans) == 1
     assert shiftplans[0].employee_id == alice.id
     assert shiftplans[0].shift_id == "morning"
+
+
+def test_callback_endpoint_with_feasible_status(client, db_session: Session, test_schedule: Schedule, test_employees_two: dict[str, Employee]):
+    """Test that FEASIBLE solver status is treated as completed."""
+    alice = test_employees_two["001"]
+    bob = test_employees_two["002"]
+    test_schedule.status = "submitted"
+    test_schedule.tito_job_id = 127
+    db_session.add(test_schedule)
+    db_session.commit()
+
+    callback_payload = {
+        "job_id": 127,
+        "status": "FEASIBLE",
+        "metadata": {
+            "status": "feasible",
+            "solveTimeSeconds": 5.0,
+            "timestamp": "2026-05-24T12:40:00",
+        },
+        "solution": {
+            "assignments": [
+                {
+                    "employeeId": f"emp_{alice.id:03d}",
+                    "date": "2026-05-24",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                {
+                    "employeeId": f"emp_{bob.id:03d}",
+                    "date": "2026-05-24",
+                    "shiftId": "evening",
+                    "startTime": "16:00",
+                    "endTime": "23:00",
+                },
+            ],
+            "unassignedRequirements": [],
+        },
+        "metrics": {
+            "wishFulfillmentRate": 0.85,
+            "totalObjectiveScore": 750.0,
+            "employeeUtilization": {f"emp_{alice.id:03d}": 0.90, f"emp_{bob.id:03d}": 0.80},
+            "violations": None,
+        },
+        "diagnostics": {
+            "isOptimal": False,
+            "info": "Feasible solution found (not optimal)",
+        },
+    }
+
+    response = client.post("/api/v1/callbacks/tito", json=callback_payload)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "processed"
+
+    # Verify schedule was marked as completed despite FEASIBLE status
+    db_session.refresh(test_schedule)
+    assert test_schedule.status == "completed"
+
+    shiftplans = db_session.query(Shiftplan).filter(Shiftplan.schedule_id == test_schedule.id).all()
+    assert len(shiftplans) == 2
 
 
 def test_callback_endpoint_with_multiple_assignments(client, db_session: Session, test_schedule: Schedule, test_employees_two: dict[str, Employee]):
