@@ -100,6 +100,7 @@ export function Employees() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleEdit(employee)}
+                    aria-label="Mitarbeiter bearbeiten"
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
@@ -107,6 +108,7 @@ export function Employees() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleDelete(employee.id)}
+                    aria-label="Mitarbeiter löschen"
                   >
                     <Trash2 className="h-4 w-4 text-red-600" />
                   </Button>

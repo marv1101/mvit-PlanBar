@@ -104,6 +104,7 @@ export function Users() {
                   variant="outline"
                   size="sm"
                   onClick={() => handleDelete(user.id)}
+                  aria-label="Benutzer löschen"
                 >
                   <Trash2 className="h-4 w-4 text-red-600" />
                 </Button>
@@ -205,7 +206,7 @@ function UserCreateForm({ onSuccess }: UserCreateFormProps) {
             <code className="flex-1 p-2 bg-white border rounded text-sm font-mono">
               {result.initial_password}
             </code>
-            <Button variant="outline" size="sm" onClick={handleCopy}>
+            <Button variant="outline" size="sm" onClick={handleCopy} aria-label={copied ? 'Kopiert' : 'Passwort kopieren'}>
               {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>

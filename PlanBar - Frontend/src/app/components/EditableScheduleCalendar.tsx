@@ -154,12 +154,14 @@ function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) 
         <button
           onClick={(e) => { e.stopPropagation(); onEdit(shift); }}
           className="p-0.5 hover:bg-gray-200 rounded bg-white/80"
+          aria-label={`Schicht ${employee.name} ${shift.startTime}–${shift.endTime} bearbeiten`}
         >
           <Pencil className="h-2.5 w-2.5" />
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(shift); }}
           className="p-0.5 hover:bg-red-100 rounded text-red-600 bg-white/80"
+          aria-label={`Schicht ${employee.name} ${shift.startTime}–${shift.endTime} löschen`}
         >
           <Trash2 className="h-2.5 w-2.5" />
         </button>
@@ -250,7 +252,7 @@ function DayColumn({
   const isToday = date.toDateString() === new Date().toDateString();
 
   return (
-    <div className="flex-1 min-w-[100px] flex flex-col">
+    <div className="flex-1 min-w-[100px] flex flex-col" role="gridcell" aria-label={date.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}>
       <div
         className={`sticky top-0 z-20 text-center py-2 text-sm font-medium border-b ${
           isToday ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'

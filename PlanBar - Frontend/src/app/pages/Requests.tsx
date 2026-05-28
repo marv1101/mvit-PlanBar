@@ -208,6 +208,7 @@ export function Requests() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleEdit(request)}
+                      aria-label="Wunsch bearbeiten"
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -215,6 +216,7 @@ export function Requests() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleDelete(request.id)}
+                      aria-label="Wunsch löschen"
                     >
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </Button>

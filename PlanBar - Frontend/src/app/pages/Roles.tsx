@@ -97,6 +97,7 @@ export function Roles() {
                   variant="outline"
                   size="sm"
                   onClick={() => handleEdit(role)}
+                  aria-label="Rolle bearbeiten"
                 >
                   <Edit className="h-4 w-4" />
                 </Button>
@@ -104,6 +105,7 @@ export function Roles() {
                   variant="destructive"
                   size="sm"
                   onClick={() => handleDelete(role.id)}
+                  aria-label="Rolle löschen"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

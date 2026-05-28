@@ -154,7 +154,7 @@ export function EmployeeForm({ employee, onClose }: EmployeeFormProps) {
 
         <div>
           <Label>Farbe</Label>
-          <div className="flex gap-2 mt-2">
+          <div className="flex gap-2 mt-2" role="radiogroup" aria-label="Farbe auswählen">
             {colors.map((color) => (
               <button
                 key={color}
@@ -164,6 +164,9 @@ export function EmployeeForm({ employee, onClose }: EmployeeFormProps) {
                 }`}
                 style={{ backgroundColor: color }}
                 onClick={() => setFormData({ ...formData, color })}
+                aria-label={`Farbe ${color}`}
+                aria-checked={formData.color === color}
+                role="radio"
               />
             ))}
           </div>

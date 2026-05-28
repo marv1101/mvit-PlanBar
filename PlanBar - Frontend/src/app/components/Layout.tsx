@@ -71,6 +71,7 @@ export function Layout() {
                         ? 'bg-blue-50 text-blue-700'
                         : 'text-gray-700 hover:bg-gray-50'
                     )}
+                    aria-current={isActive ? 'page' : undefined}
                   >
                     <Icon className="h-5 w-5" />
                     <span>{item.label}</span>

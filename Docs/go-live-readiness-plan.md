@@ -5,7 +5,7 @@
 Dieser Plan beschreibt alle notwendigen Schritte, um die PlanBar/TiTO-Applikation production-ready zu machen.
 Die Priorisierung folgt dem Risiko für den Produktivbetrieb: **Security > Robustheit > Qualität > Komfort**.
 
-**Stand:** 28.05.2026 (Update: 0.3, 0.4, 3.1, 3.2)  
+**Stand:** 28.05.2026 (Update: 0.3, 0.4, 3.1, 3.2, 4.1)  
 **Branches:** `bugfix-tito-callback` (HEAD), `dev`, `main`  
 **Codebase:** ~50 identifizierte Themen (5 kritisch, 1 hoch, 13 mittel, 27 niedrig)
 
@@ -637,15 +637,18 @@ export default defineConfig({
 
 ### 4.1 ARIA-Attribute auf interaktiven Elementen
 
-**Status:** ❌ Offen  
-**Dateien:** Gesamtes Frontend, insb. Calendar-Komponenten
+**Status:** ✅ Erledigt  
+**Dateien:** `EditableScheduleCalendar.tsx`, `EmployeeForm.tsx`, `Layout.tsx`, `Schedule.tsx`, `Requests.tsx`, `Employees.tsx`, `Roles.tsx`, `Users.tsx`
 
-**Checkliste:**
-- `ShiftBar`-Edit/Delete-Buttons: `aria-label="Schicht bearbeiten"`
-- `DayColumn`-Drop-Zones: `role="gridcell" aria-label="Montag 08:00"`
-- `EmployeeForm`-Farb-Swatches: `aria-label="Farbe Blau"`
-- Navigation: `aria-current="page"` auf aktivem Link
-- `button` ohne Text: immer `aria-label`
+**Umgesetzt:**
+
+| Komponente | Attribute | Datei |
+|---|---|---|
+| `ShiftBar` Edit/Delete | `aria-label="Schicht {name} {zeit} bearbeiten/löschen"` | `EditableScheduleCalendar.tsx:156,162` |
+| `DayColumn` | `role="gridcell" aria-label="{Datum}"` | `EditableScheduleCalendar.tsx:253` |
+| `EmployeeForm` Farb-Swatches | `role="radio" aria-checked aria-label="Farbe {hex}"` + Container `role="radiogroup"` | `EmployeeForm.tsx:159,167` |
+| Navigation | `aria-current="page"` auf aktivem Link | `Layout.tsx:80` |
+| Icon-Buttons (10x) | `aria-label="Bearbeiten/Löschen/Exportieren/Kopieren"` | alle Pages |
 
 ### 4.2 Keyboard-Support für den Kalender
 

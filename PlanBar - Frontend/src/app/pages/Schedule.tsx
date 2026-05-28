@@ -761,6 +761,7 @@ export function Schedule() {
                           size="sm"
                           variant="outline"
                           onClick={() => exportShifts(schedule.shifts, schedule.name)}
+                          aria-label="Schichtplan exportieren"
                         >
                           <Download className="h-4 w-4" />
                         </Button>
@@ -768,6 +769,7 @@ export function Schedule() {
                           size="sm"
                           variant="destructive"
                           onClick={() => handleDeleteSchedule(schedule)}
+                          aria-label="Schichtplan löschen"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
