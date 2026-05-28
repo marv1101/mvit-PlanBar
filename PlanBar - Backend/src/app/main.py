@@ -11,6 +11,7 @@ from app.api.v1.router import api_router
 from app.core.logging import configure_logging
 from app.db.base import Base
 from app.db.database import SessionLocal, engine
+from app.config import settings
 from app.middleware.error_handler import http_error_handler, validation_exception_handler
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
@@ -32,7 +33,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.cors_origins.split(",") if settings.cors_origins else ["http://localhost:5173"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

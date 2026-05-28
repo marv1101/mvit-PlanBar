@@ -108,7 +108,7 @@ if os.getenv("ENVIRONMENT", "development") == "production":
 
 ### 0.5 CORS konfigurieren
 
-**Status:** ❌ Offen  
+**Status:** ✅ Erledigt  
 **Datei:** `PlanBar - Backend/src/app/main.py:26-29`
 
 **Problem:** `allow_origins=["*"]` mit `allow_credentials=True` — ungültige Kombination laut CORS-Spezifikation und unsicher.

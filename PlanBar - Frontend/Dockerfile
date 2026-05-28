@@ -1,11 +1,11 @@
-# Multi-stage Dockerfile: build mit pnpm, ausliefern mit nginx
-FROM node:18-alpine AS build
+FROM node:22-alpine AS build
+ENV CI=true
 WORKDIR /app
-# Verwende npm, da im Repo `package-lock.json` vorhanden ist
-COPY package*.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm install -g pnpm
+COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 FROM nginx:stable-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
