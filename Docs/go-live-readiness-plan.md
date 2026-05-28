@@ -7,7 +7,7 @@ Die Priorisierung folgt dem Risiko für den Produktivbetrieb: **Security > Robus
 
 **Stand:** 28.05.2026  
 **Branches:** `bugfix-tito-callback` (HEAD), `dev`, `main`  
-**Codebase:** ~50 identifizierte Themen (5 kritisch, 3 hoch, 13 mittel, 25 niedrig)
+**Codebase:** ~50 identifizierte Themen (5 kritisch, 1 hoch, 13 mittel, 27 niedrig)
 
 ---
 
@@ -292,45 +292,37 @@ async def delete_role(id: int, db: Session = Depends(get_db), admin: User = Depe
 
 ### 1.6 DB Connection-Pooling konfigurieren
 
-**Status:** ❌ Offen  
+**Status:** ✅ Erledigt  
 **Datei:** `PlanBar - Backend/src/app/db/database.py`
-
-**Problem:** Nur `create_engine(url)`, keine Pool-Konfiguration.
 
 **Lösung:**
 ```python
 engine = create_engine(
     settings.database_url,
-    pool_size=10,          # Standard: 5
-    max_overflow=20,       # zusätzliche Connections bei Spitzenlast
-    pool_pre_ping=True,    # Verbindung vor Nutzung prüfen
-    pool_recycle=3600,     # Connections nach 1h erneuern
-    echo=settings.debug_sql or False,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+    future=True,
 )
 ```
 
-**Verifikation:** Unter Last werden Connections aus dem Pool wiederverwendet.
+**Verifikation:** Unter Last werden Connections aus dem Pool wiederverwendet. Tests weiterhin grün (150/150).
 
 ### 1.7 Request-Body-Größenlimit
 
-**Status:** ❌ Offen  
-**Datei:** `PlanBar - Backend/src/app/main.py`
-
-**Problem:** Kein Schutz vor zu großen Request-Bodies (Memory-Exhaustion).
+**Status:** ✅ Erledigt  
+**Dateien:**
+- `PlanBar - Backend/src/app/middleware/request_size_limit.py` — neu erstellt
+- `PlanBar - Backend/src/app/main.py` — Middleware registriert
 
 **Lösung:**
 ```python
-app = FastAPI(
-    title="PlanBar API",
-    ...
-)
-app.add_middleware(
-    RequestSizeLimitMiddleware,
-    max_size=10 * 1024 * 1024,  # 10 MB
-)
+# Neue Middleware: prüft Content-Length-Header vor Body-Verarbeitung
+app.add_middleware(RequestSizeLimitMiddleware, max_size=10 * 1024 * 1024)
 ```
 
-**Verifikation:** Request > 10 MB → HTTP 413.
+**Verifikation:** Request > 10 MB → HTTP 413. Tests weiterhin grün (150/150).
 
 ---
 
@@ -1172,7 +1164,7 @@ Woche 4 (Infrastruktur & Finale)    ░░░░░░░░░░░░░░�
 | 1.4 | `PlanBar - Frontend/src/app/lib/api.ts` |
 | 1.5 | `PlanBar - Frontend/src/app/pages/Schedule.tsx` |
 | 1.6 | `PlanBar - Backend/src/app/db/database.py` |
-| 1.7 | `PlanBar - Backend/src/app/main.py` |
+| 1.7 | `PlanBar - Backend/src/app/middleware/request_size_limit.py` (neu), `PlanBar - Backend/src/app/main.py` |
 | 2.1 | `.github/workflows/ci.yml` (neu) |
 | 2.2 | `PlanBar - Frontend/` (ESLint/Prettier-Config) |
 | 2.3 | `PlanBar - Backend/pyproject.toml` |
