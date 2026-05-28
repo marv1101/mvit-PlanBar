@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 from typing import Any
 
@@ -9,6 +10,8 @@ from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
 from app.services.tito_proxy import tito_proxy
+
+logger = logging.getLogger(__name__)
 
 
 def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = None) -> Schedule:
@@ -82,6 +85,7 @@ async def submit_schedule_to_tito(db: Session, schedule: Schedule, callback_url:
         schedule.status = "submitted"
         schedule.tito_job_id = result.get("jobId") or result.get("job_id")
     except Exception:
+        logger.exception("TiTO job submission failed for schedule %s", schedule.id)
         schedule.status = "failed"
         raise
     finally:
@@ -98,6 +102,7 @@ async def retry_schedule(db: Session, schedule: Schedule) -> Schedule:
             await tito_proxy.retry_job(schedule.tito_job_id)
             schedule.status = "submitted"
         except Exception:
+            logger.exception("TiTO job retry failed for schedule %s (job %s)", schedule.id, schedule.tito_job_id)
             schedule.status = "failed"
             raise
         finally:

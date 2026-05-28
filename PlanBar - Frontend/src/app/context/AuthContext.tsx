@@ -1,5 +1,6 @@
 import axios from 'axios';
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import api from '../lib/api';
 import { changePassword as changePasswordApi } from '../services/userService';
 
@@ -44,7 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setMustChangePassword(true);
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        if (import.meta.env.DEV) console.error('[Auth] /users/me failed:', err);
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -56,7 +59,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const mustChange = data.must_change_password ?? me.data.must_change_password ?? false;
       setMustChangePassword(mustChange);
       return { success: true, mustChangePassword: mustChange };
-    } catch {
+    } catch (err) {
+      const msg = axios.isAxiosError(err)
+        ? err.response?.data?.detail || 'Login fehlgeschlagen'
+        : 'Netzwerkfehler';
+      toast.error(msg);
       return { success: false, mustChangePassword: false };
     }
   };
@@ -66,7 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await changePasswordApi(oldPassword, newPassword);
       setMustChangePassword(false);
       return true;
-    } catch {
+    } catch (err) {
+      const msg = axios.isAxiosError(err)
+        ? err.response?.data?.detail || 'Passwort ändern fehlgeschlagen'
+        : 'Netzwerkfehler';
+      toast.error(msg);
       return false;
     }
   };
@@ -74,7 +85,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setUser(null);
     setMustChangePassword(false);
-    api.post('/users/logout').catch(() => {});
+    api.post('/users/logout').catch((err) => {
+      if (import.meta.env.DEV) console.error('[Auth] logout error:', err);
+    });
   };
 
   return (

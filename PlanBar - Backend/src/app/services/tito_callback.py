@@ -53,5 +53,5 @@ def _extract_employee_id(employee_id_str: str) -> int:
     try:
         return int(employee_id_str.replace("emp_", ""))
     except (ValueError, AttributeError):
-        logger.warning("Could not extract employee ID from '%s'", employee_id_str)
+        logger.exception("Could not extract employee ID from '%s'", employee_id_str)
         return 0

@@ -28,7 +28,9 @@ export function employeeFromResponse(dto: EmployeeResponseDTO): Employee {
     if (dto.working_hours_json) {
       workingHours = JSON.parse(dto.working_hours_json);
     }
-  } catch { }
+  } catch (e) {
+    console.error('[Mapper] working_hours_json parse failed:', e);
+  }
 
   const breakDuration = dto.break_start && dto.break_end
     ? (() => {

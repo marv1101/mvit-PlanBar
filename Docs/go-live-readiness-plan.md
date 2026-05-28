@@ -7,7 +7,7 @@ Die Priorisierung folgt dem Risiko für den Produktivbetrieb: **Security > Robus
 
 **Stand:** 28.05.2026  
 **Branches:** `bugfix-tito-callback` (HEAD), `dev`, `main`  
-**Codebase:** ~50 identifizierte Themen (5 kritisch, 8 hoch, 13 mittel, 20 niedrig)
+**Codebase:** ~50 identifizierte Themen (5 kritisch, 3 hoch, 13 mittel, 25 niedrig)
 
 ---
 
@@ -236,133 +236,59 @@ async def delete_role(id: int, db: Session = Depends(get_db), admin: User = Depe
 
 ### 1.1 Leere `catch {}` Blöcke im Frontend ersetzen
 
-**Status:** ❌ Offen  
+**Status:** ✅ Erledigt  
 **Dateien:**
-- `PlanBar - Frontend/src/app/context/AuthContext.tsx:54`
-- `PlanBar - Frontend/src/app/lib/mappers.ts:31`
-- `PlanBar - Frontend/src/app/context/AppContext.tsx` — mehrfach
-
-**Problem:** Fehler werden geschluckt, keine User-Feedback, keine Error-Logs.
-
-**Lösung:**
-```typescript
-// AuthContext.tsx
-try {
-    const response = await api.post('/api/v1/users/login', { email, password });
-    // ...
-} catch (error) {
-    const message = axios.isAxiosError(error)
-        ? error.response?.data?.detail || 'Login fehlgeschlagen'
-        : 'Netzwerkfehler';
-    toast.error(message);
-    return false;
-}
-```
-
-```typescript
-// mappers.ts
-try {
-    return JSON.parse(jsonString);
-} catch (error) {
-    console.error('[Mapper] JSON parse failed:', error);
-    return null;
-}
-```
+- `PlanBar - Frontend/src/app/context/AuthContext.tsx` — `.catch(() => {})` → console.error in DEV, Login-Fehler → toast, Passwort-Fehler → toast, Logout-Fehler → console.error
+- `PlanBar - Frontend/src/app/lib/mappers.ts` — working_hours_json parse → `console.error`
+- `PlanBar - Frontend/src/app/context/AppContext.tsx` — bereits mit toast.error (keine Änderung nötig)
 
 **Verifikation:** Fehler werden im UI angezeigt und/oder in der Console geloggt.
 
 ### 1.2 Exception-Details im Backend loggen
 
-**Status:** ❌ Offen  
+**Status:** ✅ Erledigt  
 **Dateien:**
-- `PlanBar - Backend/src/app/services/schedule_service.py:84-100`
-- `PlanBar - Backend/src/app/services/tito_callback.py:56-58`
+- `PlanBar - Backend/src/app/services/schedule_service.py` — `logger.exception()` in `submit_schedule_to_tito` und `retry_schedule`
+- `PlanBar - Backend/src/app/services/tito_callback.py` — `logger.warning` → `logger.exception` in `_extract_employee_id`
 
-**Problem:** `except Exception:` ohne `logger.exception()`.
-
-**Lösung:**
-```python
-try:
-    result = await tito_proxy.submit_job(payload)
-except Exception as e:
-    logger.exception("TiTO job submission failed for schedule %s", schedule_id)
-    schedule.status = "failed"
-    schedule.error_message = str(e)
-```
-`logger.exception()` logged automatisch den Stacktrace auf ERROR-Level.
-
-**Verifikation:** Fehler erscheinen mit Stacktrace im Log.
+**Verifikation:** Fehler erscheinen mit Stacktrace im Log. Tests weiterhin grün (150/150).
 
 ### 1.3 Axios-Timeout und Retry konfigurieren
 
-**Status:** ❌ Offen  
+**Status:** ✅ Erledigt (zusammen mit 1.4)  
 **Datei:** `PlanBar - Frontend/src/app/lib/api.ts`
 
-**Problem:** Kein Timeout → Requests hängen bei Netzwerkproblemen. Kein Retry → Transiente Fehler schlagen sofort fehl.
-
 **Lösung:**
-```typescript
-const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || '/api',
-    timeout: 15000, // 15s
-    headers: { 'Content-Type': 'application/json' },
-});
-
-// Retry Interceptor
-api.interceptors.response.use(null, async (error) => {
-    const config = error.config;
-    if (!config || config._retryCount >= 3) return Promise.reject(error);
-    config._retryCount = (config._retryCount || 0) + 1;
-    await new Promise(r => setTimeout(r, 1000 * config._retryCount));
-    return api(config);
-});
-```
+- `timeout: 15000` in axios.create()
+- Retry-Interceptor: bei Netzwerkfehler/Timeout bis zu 3 Versuche mit exponentiell ansteigendem Delay (1s, 2s, 3s)
 
 **Verifikation:** Bei Timeout/Netzwerkfehler wird 3x retried, dann Fehler angezeigt.
 
 ### 1.4 Token-Refresh-Interceptor verbessern
 
-**Status:** ⚠️ Teilweise vorhanden (Grundlogik existiert, aber fehlerhaft)  
+**Status:** ✅ Erledigt (zusammen mit 1.3)  
 **Datei:** `PlanBar - Frontend/src/app/lib/api.ts`
 
-**Problem:** Der Refresh-Interceptor könnte bei parallelen 401ern mehrfach refreshen.
-
 **Lösung:**
-- Request-Queue während Refresh (Promise-basiert):
-  ```typescript
-  let isRefreshing = false;
-  let failedQueue: Array<{resolve: Function, reject: Function}> = [];
+- Promise-basierte `failedQueue` mit `resolve`/`reject` statt einfachem Callback-Array
+- `processQueue(error, token)` — bei Refresh-Erfolg resolved, bei Fehler rejected
+- Parallel-Requests werden korrekt gewartet und bei Refresh-Fehler abgewiesen (hängen nicht mehr)
 
-  const processQueue = (error: any, token: string | null) => {
-      failedQueue.forEach(prom => {
-          if (error) prom.reject(error);
-          else prom.resolve(token);
-      });
-      failedQueue = [];
-  };
-  ```
-
-**Verifikation:** 5 parallele Requests mit abgelaufenem Token → nur 1 Refresh-Request.
+**Verifikation:** 5 parallele Requests mit abgelaufenem Token → nur 1 Refresh-Request; bei Refresh-Fehler werden alle queued Requests rejected.
 
 ### 1.5 Polling-Interval sauber cleaen
 
-**Status:** ❌ Offen  
+**Status:** ✅ Erledigt  
 **Datei:** `PlanBar - Frontend/src/app/pages/Schedule.tsx:77-106`
 
-**Problem:** Interval wird bei Unmount nicht gestoppt, setState auf unmounted Component.
+**Problem:** Interval wurde bei Dependency-Wechsel nicht gestoppt, potenzielles setState auf unmounted Component.
 
 **Lösung:**
-```typescript
-useEffect(() => {
-    if (!currentScheduleId) return;
-    const interval = setInterval(pollSchedule, 5000);
-    return () => {
-        clearInterval(interval);
-    };
-}, [currentScheduleId]); // korrekt: cleanup bei dependency-change
-```
+- `pollRef`/`stopPolling` entfernt (überflüssig geworden)
+- `useEffect` für Polling returned direkt `clearInterval(interval)` als cleanup
+- Interval wird bei Unmount, bei Status- oder ID-Wechsel sauber gestoppt
 
-**Verifikation:** Navigate away → kein `setState`-Warning in Console.
+**Verifikation:** Navigate away → kein `setState`-Warning in Console; cleanup läuft bei jedem Dependency-Wechsel.
 
 ### 1.6 DB Connection-Pooling konfigurieren
 
@@ -1179,7 +1105,7 @@ Sentry.init({
 ```
 Woche 1 (Security & Grundlagen)     █████████████████████████████
   Phase 0: Security Cleanup         █████████████████████████████
-  Phase 1: Error Handling           ████████████████░░░░░░░░░░░░
+  Phase 1: Error Handling           █████████████████████████████
 
 Woche 2 (Qualität & CI)             ░░░█████████████████████████
   Phase 2: CI/CD & Code Quality     ░░░█████████████████████████
@@ -1202,7 +1128,7 @@ Woche 4 (Infrastruktur & Finale)    ░░░░░░░░░░░░░░�
 3. ❌ `SECRET_KEY` nicht default → Phase 0.6
 4. ✅ Admin-Endpoints geschützt → Phase 0.8
 5. ❌ CI/CD läuft Tests → Phase 2.1
-6. ❌ Error-Handling logged Fehler → Phase 1.1-1.2
+6. ✅ Error-Handling logged Fehler → Phase 1.1-1.2
 7. ❌ Alembic-Migrationen statt `create_all()` → Phase 5.1
 8. ✅ Rate-Limiting auf Login → Phase 0.7
 9. ✅ JWT-Tokens in HttpOnly-Cookies → Phase 0.9
@@ -1240,8 +1166,8 @@ Woche 4 (Infrastruktur & Finale)    ░░░░░░░░░░░░░░�
 | 0.7 | `PlanBar - Backend/src/app/api/v1/users.py` |
 | 0.8 | `PlanBar - Backend/src/app/dependencies.py`, `roles.py`, `schedules.py`, `employees.py`, `users.py` |
 | 0.9 | `PlanBar - Backend/src/app/dependencies.py`, `PlanBar - Backend/src/app/api/v1/users.py`, `PlanBar - Backend/src/app/schemas/user.py`, `PlanBar - Frontend/src/app/lib/auth.ts`, `PlanBar - Frontend/src/app/lib/api.ts`, `PlanBar - Frontend/src/app/context/AuthContext.tsx`, `PlanBar - Backend/tests/conftest.py` |
-| 1.1 | `AuthContext.tsx`, `mappers.ts`, `AppContext.tsx` |
-| 1.2 | `schedule_service.py`, `tito_callback.py` |
+| 1.1 | `PlanBar - Frontend/src/app/context/AuthContext.tsx`, `PlanBar - Frontend/src/app/lib/mappers.ts` |
+| 1.2 | `PlanBar - Backend/src/app/services/schedule_service.py`, `PlanBar - Backend/src/app/services/tito_callback.py` |
 | 1.3 | `PlanBar - Frontend/src/app/lib/api.ts` |
 | 1.4 | `PlanBar - Frontend/src/app/lib/api.ts` |
 | 1.5 | `PlanBar - Frontend/src/app/pages/Schedule.tsx` |

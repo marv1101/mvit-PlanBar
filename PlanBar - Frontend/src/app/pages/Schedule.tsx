@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -61,48 +61,37 @@ export function Schedule() {
   const [manualWeekType, setManualWeekType] = useState<WeekType>('A');
   const [manuallyCreatedSchedule, setManuallyCreatedSchedule] = useState<ScheduleType | null>(null);
 
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }, []);
-
   useEffect(() => {
-    return stopPolling;
-  }, [stopPolling]);
+    if (!currentScheduleId || currentScheduleStatus !== 'submitted') return;
 
-  useEffect(() => {
-    if (currentScheduleId && currentScheduleStatus === 'submitted') {
-      pollRef.current = setInterval(async () => {
-        try {
-          const res = await scheduleService.getSchedule(Number(currentScheduleId));
-          setCurrentScheduleStatus(res.status);
-          if (res.status === 'completed') {
-            stopPolling();
-            setSubmitting(false);
-            setPollResult(scheduleFromResponse(res));
-            toast.success('Schichtplan wurde von TiTO berechnet');
-            refresh();
-          } else if (res.status === 'failed') {
-            stopPolling();
-            setSubmitting(false);
-            setPollResult(scheduleFromResponse(res));
-            const diagnostics = res.diagnostics_json as { info?: string } | null;
-            const msg = diagnostics?.info || 'TiTO-Berechnung fehlgeschlagen';
-            toast.error(msg, { duration: 8000 });
-            refresh();
-          }
-        } catch {
-          stopPolling();
+    const interval = setInterval(async () => {
+      try {
+        const res = await scheduleService.getSchedule(Number(currentScheduleId));
+        setCurrentScheduleStatus(res.status);
+        if (res.status === 'completed') {
+          clearInterval(interval);
           setSubmitting(false);
-          toast.error('Fehler beim Abrufen des Status');
+          setPollResult(scheduleFromResponse(res));
+          toast.success('Schichtplan wurde von TiTO berechnet');
+          refresh();
+        } else if (res.status === 'failed') {
+          clearInterval(interval);
+          setSubmitting(false);
+          setPollResult(scheduleFromResponse(res));
+          const diagnostics = res.diagnostics_json as { info?: string } | null;
+          const msg = diagnostics?.info || 'TiTO-Berechnung fehlgeschlagen';
+          toast.error(msg, { duration: 8000 });
+          refresh();
         }
-      }, 3000);
-    }
-  }, [currentScheduleId, currentScheduleStatus, stopPolling, refresh]);
+      } catch {
+        clearInterval(interval);
+        setSubmitting(false);
+        toast.error('Fehler beim Abrufen des Status');
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [currentScheduleId, currentScheduleStatus, refresh]);
 
   const handleRoleRequirementChange = (roleId: string, value: number) => {
     setRoleRequirements(prev => ({ ...prev, [roleId]: value }));
