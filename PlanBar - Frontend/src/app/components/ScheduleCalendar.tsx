@@ -1,8 +1,9 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { Shift, WeekType } from '../types';
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, startOfWeek, endOfWeek } from 'date-fns';
+import { format, parseISO, eachDayOfInterval } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { useMediaQuery } from '../lib/useMediaQuery';
 
 interface ScheduleCalendarProps {
   shifts: Shift[];
@@ -13,14 +14,13 @@ interface ScheduleCalendarProps {
 
 export function ScheduleCalendar({ shifts, startDate, endDate, currentWeek }: ScheduleCalendarProps) {
   const { employees } = useApp();
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   const start = parseISO(startDate);
   const end = parseISO(endDate);
   
-  // Get all days in the range
   const days = eachDayOfInterval({ start, end });
   
-  // Filter shifts for current week type
   const filteredShifts = shifts.filter(s => s.week === currentWeek);
 
   const getShiftsForDate = (date: Date) => {
@@ -32,8 +32,11 @@ export function ScheduleCalendar({ shifts, startDate, endDate, currentWeek }: Sc
     return employees.find(e => e.id === employeeId);
   };
 
+  const cols = isMobile ? 'grid-cols-1' : 'grid-cols-7';
+
   return (
     <div className="space-y-4">
+      {!isMobile && (
       <div className="grid grid-cols-7 gap-2">
         {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(day => (
           <div key={day} className="text-center font-medium text-sm text-gray-600 py-2">
@@ -41,8 +44,9 @@ export function ScheduleCalendar({ shifts, startDate, endDate, currentWeek }: Sc
           </div>
         ))}
       </div>
+      )}
       
-      <div className="grid grid-cols-7 gap-2">
+      <div className={`grid ${cols} gap-2`}>
         {days.map((day, index) => {
           const dayShifts = getShiftsForDate(day);
           const isWeekend = day.getDay() === 0 || day.getDay() === 6;

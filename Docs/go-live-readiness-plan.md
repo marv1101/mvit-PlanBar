@@ -5,7 +5,7 @@
 Dieser Plan beschreibt alle notwendigen Schritte, um die PlanBar/TiTO-Applikation production-ready zu machen.
 Die Priorisierung folgt dem Risiko für den Produktivbetrieb: **Security > Robustheit > Qualität > Komfort**.
 
-**Stand:** 28.05.2026 (Update: 0.3, 0.4, 3.1, 3.2, 4.1)  
+**Stand:** 28.05.2026 (Update: 0.3, 0.4, 3.1, 3.2, 4.1, 6.2, 7.2)  
 **Branches:** `bugfix-tito-callback` (HEAD), `dev`, `main`  
 **Codebase:** ~50 identifizierte Themen (5 kritisch, 1 hoch, 13 mittel, 27 niedrig)
 
@@ -954,25 +954,22 @@ src/app/locales/
 
 ### 6.2 Responsive Design für Kalender
 
-**Status:** ❌ Offen  
-**Datei:** `EditableScheduleCalendar.tsx`, `ScheduleCalendar.tsx`
+**Status:** ✅ Erledigt  
+**Dateien:** `EditableScheduleCalendar.tsx`, `ScheduleCalendar.tsx`, `ShiftListView.tsx` (neu), `useMediaQuery.ts` (neu)
 
-**Minimum für Go-Live:**
-- Touch-Unterstützung für DnD: `react-dnd` Touch Backend installieren
-  ```bash
-  pnpm add react-dnd-touch-backend
-  ```
-  ```typescript
-  import { TouchTransition } from 'react-dnd-multi-backend';
-  import { HTML5Backend } from 'react-dnd-html5-backend';
-  import { TouchBackend } from 'react-dnd-touch-backend';
-  ```
-- Mobile: Alternative Listen-Ansicht statt Grid
-  ```tsx
-  const isMobile = useMediaQuery('(max-width: 768px)');
-  if (isMobile) return <ShiftListView shifts={shifts} />;
-  return <CalendarGridView ... />;
-  ```
+**Umgesetzt:**
+- `react-dnd-touch-backend` installiert, `HTML5Backend` durch `TouchBackend` mit `enableMouseEvents: true` ersetzt
+- `ShiftListView.tsx` → mobile Listen-Ansicht für Schichten
+- `useMediaQuery`-Hook neu für Breakpoint-Erkennung
+- `ScheduleCalendar.tsx` → `grid-cols-1` statt `grid-cols-7` auf mobil
+- `EditableScheduleCalendar.tsx` → Switch zwischen Grid und Liste basierend auf `isMobile`
+
+**Technik:**
+```tsx
+const isMobile = useMediaQuery('(max-width: 768px)');
+if (isMobile) return <ShiftListView shifts={shifts} employees={employees} />;
+return <CalendarGridView ... />;
+```
 
 ---
 
@@ -997,12 +994,13 @@ src/app/locales/
 
 ### 7.2 Fehlende Integration-Tests ergänzen
 
-**Status:** ⚠️ Lücken vorhanden
+**Status:** ✅ Erledigt  
 
-**Prioritäre Tests:**
-- `test_user_endpoints.py` — CRUD + Rollen-basierte Zugriffskontrolle
-- `test_auth_flow.py` — Login → Token → Refresh → Logout → Unauthorized
-- `test_schedule_crud.py` — Schedule anlegen, TiTO submit simulieren, Status verfolgen
+**Neue Testdateien:**
+- `test_auth_flow.py` (11 Tests) — Login (success/wrong/nonexistent), Token-geschützte Endpoints (mit/ohne/ungültig), Refresh-Token (gültig/ungültig), Logout, `must_change_password`-Flag nach Passwortänderung, Login nach PW-Änderung
+- `test_role_access.py` (10 Tests) — Non-Admin kann nicht: User listen/löschen/admin-create/andere User lesen/andere User updaten. Non-Admin kann: sich selbst lesen/updaten. Admin kann: User löschen/listen/jeden User lesen.
+
+**Verifikation:** `pytest tests -q` → 171 passed (vorher 150).
 
 ### 7.3 Frontend-Komponententests
 
@@ -1116,13 +1114,13 @@ Woche 4 (Infrastruktur & Finale)    ░░░░░░░░░░░░░░�
 
 ### Must-Have vor Go-Live (K.O.-Kriterien)
 
-1. ❌ Keine Secrets in git → Phase 0.1-0.4
-2. ❌ CORS nicht `*` → Phase 0.5
-3. ❌ `SECRET_KEY` nicht default → Phase 0.6
+1. ✅  Keine Secrets in git → Phase 0.1-0.4
+2. ✅  CORS nicht `*` → Phase 0.5
+3. Skipped  `SECRET_KEY` nicht default → Phase 0.6
 4. ✅ Admin-Endpoints geschützt → Phase 0.8
 5. ✅ CI/CD läuft Tests → Phase 2.1
 6. ✅ Error-Handling logged Fehler → Phase 1.1-1.2
-7. ❌ Alembic-Migrationen statt `create_all()` → Phase 5.1
+7. Skipped Alembic-Migrationen statt `create_all()` → Phase 5.1
 8. ✅ Rate-Limiting auf Login → Phase 0.7
 9. ✅ JWT-Tokens in HttpOnly-Cookies → Phase 0.9
 
@@ -1191,9 +1189,9 @@ Woche 4 (Infrastruktur & Finale)    ░░░░░░░░░░░░░░�
 | 5.6 | `PlanBar - Backend/src/app/core/logging.py` |
 | 5.7 | `PlanBar - Backend/src/app/config.py`, .env-Dateien |
 | 6.1 | Gesamtes Frontend |
-| 6.2 | `EditableScheduleCalendar.tsx`, package.json |
+| 6.2 | `EditableScheduleCalendar.tsx`, `ScheduleCalendar.tsx`, `ShiftListView.tsx` (neu), `useMediaQuery.ts` (neu), `package.json` |
 | 7.1 | - |
-| 7.2 | `PlanBar - Backend/tests/integration/` |
+| 7.2 | `PlanBar - Backend/tests/integration/test_auth_flow.py` (neu), `test_role_access.py` (neu) |
 | 7.3 | `PlanBar - Frontend/tests/` (neu) |
 | 8.1 | `PlanBar - Backend/src/app/core/logging.py` |
 | 8.2 | `PlanBar - Backend/src/app/main.py` |

@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef } from 'react';
 import { useDrag, useDrop, DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+import { TouchBackend } from 'react-dnd-touch-backend';
 import { useApp } from '../context/AppContext';
 import { Shift, Schedule, WeekType } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
@@ -9,6 +9,8 @@ import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { getWeekType } from '../lib/week';
+import { useMediaQuery } from '../lib/useMediaQuery';
+import { ShiftListView } from './ShiftListView';
 import { Pencil, Trash2, Users, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Employee } from '../types';
@@ -593,6 +595,7 @@ export function EditableScheduleCalendar({
   const [showSunday, setShowSunday] = useState(true);
   const [showEmployeePanel, setShowEmployeePanel] = useState(true);
   const [saving, setSaving] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   const handleDrop = (shift: Shift, newDate: string) => {
     const updatedShifts = schedule.shifts.map(s =>
@@ -696,8 +699,19 @@ export function EditableScheduleCalendar({
     }
   });
 
+  const weekLabel = currentWeek === 'A' ? 'Woche A' : 'Woche B';
+
   return (
-    <DndProvider backend={HTML5Backend}>
+    <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
+      {isMobile ? (
+        <ShiftListView
+          shifts={schedule.shifts.filter(s => s.week === currentWeek)}
+          employees={employees}
+          weekLabel={weekLabel}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      ) : (
       <div className="space-y-4">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-800">
@@ -830,6 +844,7 @@ export function EditableScheduleCalendar({
           })}
         </div>
       </div>
+      )}
 
       <EditShiftDialog
         shift={editingShift}
