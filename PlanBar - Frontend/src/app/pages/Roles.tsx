@@ -42,7 +42,7 @@ export function Roles() {
 
   if (loading) {
     return (
-      <div className="container mx-auto py-8 px-4">
+      <div className="space-y-6">
         <Card>
           <CardContent className="py-12 text-center">
             <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
@@ -54,8 +54,8 @@ export function Roles() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex justify-between items-center mb-6">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Rollenverwaltung</h1>
           <p className="text-gray-600 mt-1">Verwalten Sie die verfügbaren Rollen/Fähigkeiten</p>

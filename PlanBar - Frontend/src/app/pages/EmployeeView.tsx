@@ -347,8 +347,9 @@ export function EmployeeView() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="border rounded-lg overflow-hidden">
-                    <div className="grid grid-cols-7 bg-gray-100 border-b">
+                  <div className="border rounded-lg overflow-x-auto">
+                    <div className="min-w-[700px]">
+                      <div className="grid grid-cols-7 bg-gray-100 border-b">
                       {weekDays.map(day => (
                         <div key={day} className="p-2 text-center font-medium text-sm">
                           {day}
@@ -419,6 +420,7 @@ export function EmployeeView() {
                       );
                     })}
                   </div>
+                </div>
                 </CardContent>
               </Card>
 

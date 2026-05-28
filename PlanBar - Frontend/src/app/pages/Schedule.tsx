@@ -351,7 +351,7 @@ export function Schedule() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="startDate">Startdatum</Label>
                         <Input
@@ -376,7 +376,7 @@ export function Schedule() {
 
                     <div className="space-y-2">
                       <Label>Rollenanforderungen pro Tag</Label>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {roles.map(role => (
                           <div key={role.id}>
                             <Label htmlFor={`role-${role.id}`} className="flex items-center gap-2">
@@ -429,7 +429,7 @@ export function Schedule() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="manualStartDate">Startdatum</Label>
                         <Input
@@ -488,12 +488,12 @@ export function Schedule() {
             <>
               <Card>
                 <CardHeader>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <CardTitle>{pollResult.name}</CardTitle>
                       <StatusBadge status="completed" />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <Button
                         variant="outline"
                         size="sm"
@@ -549,7 +549,7 @@ export function Schedule() {
           {currentScheduleId && currentScheduleStatus === 'failed' && pollResult && (
             <Card>
               <CardHeader>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-wrap items-start gap-2">
                   <CardTitle>{pollResult.name}</CardTitle>
                   <StatusBadge status="failed" />
                 </div>
@@ -608,7 +608,7 @@ export function Schedule() {
           {manuallyCreatedSchedule && !currentScheduleId && (
             <Card>
               <CardHeader>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-3">
                   <div className="flex items-center gap-3 flex-wrap">
                     <CardTitle>{manuallyCreatedSchedule.name}</CardTitle>
                     <StatusBadge status={manuallyCreatedSchedule.status} />
@@ -782,7 +782,7 @@ export function Schedule() {
               {selectedSchedule && (
                 <Card>
                   <CardHeader>
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col lg:flex-row lg:items-center gap-3">
                       <div className="flex items-center gap-3 flex-wrap">
                         <CardTitle>{selectedSchedule.name}</CardTitle>
                         <StatusBadge status={selectedSchedule.status} />
@@ -832,7 +832,7 @@ export function Schedule() {
                           </Button>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {selectedSchedule.status === 'failed' && (
                           <Button
                             size="sm"

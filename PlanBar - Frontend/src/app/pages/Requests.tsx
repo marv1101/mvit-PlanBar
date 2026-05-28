@@ -95,14 +95,12 @@ export function Requests() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="font-semibold text-2xl mb-2">
-              {isAdmin ? 'Mitarbeiterwünsche' : 'Meine Wünsche'}
-            </h2>
-            <p className="text-gray-600">Lade Wünsche...</p>
-          </div>
-        </div>
+      <div>
+        <h2 className="font-semibold text-2xl mb-2">
+          {isAdmin ? 'Mitarbeiterwünsche' : 'Meine Wünsche'}
+        </h2>
+        <p className="text-gray-600">Lade Wünsche...</p>
+      </div>
         <Card>
           <CardContent className="py-12 text-center">
             <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
@@ -115,7 +113,7 @@ export function Requests() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h2 className="font-semibold text-2xl mb-2">
             {isAdmin ? 'Mitarbeiterwünsche' : 'Meine Wünsche'}
@@ -152,7 +150,7 @@ export function Requests() {
         </Dialog>
       </div>
 
-      <div className="flex gap-4 items-end">
+      <div className="flex flex-col sm:flex-row sm:items-end gap-4">
         <div>
           <Label htmlFor="filterStartDate">Von</Label>
           <Input

@@ -52,7 +52,7 @@ export function Employees() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h2 className="font-semibold text-2xl mb-2">Mitarbeiter</h2>
           <p className="text-gray-600">Verwalten Sie Ihre Mitarbeiter und deren Arbeitszeiten</p>
@@ -149,7 +149,7 @@ export function Employees() {
                 )}
                 <div>
                   <p className="text-sm font-medium mb-2">Arbeitszeiten Woche A</p>
-                  <div className="grid grid-cols-7 gap-1 text-xs">
+                  <div className="grid grid-cols-3 sm:grid-cols-7 gap-1 text-xs">
                     {Object.entries(employee.workingHours.weekA).map(([day, hours]) => (
                       <div
                         key={day}
