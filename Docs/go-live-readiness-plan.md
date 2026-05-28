@@ -334,7 +334,7 @@ app.add_middleware(RequestSizeLimitMiddleware, max_size=10 * 1024 * 1024)
 
 ### 2.1 GitHub Actions für Tests
 
-**Status:** ❌ Offen  
+**Status:** ✅ Erledigt  
 **Ziel:** `.github/workflows/ci.yml`
 
 **Aufgaben:**
@@ -1119,7 +1119,7 @@ Woche 4 (Infrastruktur & Finale)    ░░░░░░░░░░░░░░�
 2. ❌ CORS nicht `*` → Phase 0.5
 3. ❌ `SECRET_KEY` nicht default → Phase 0.6
 4. ✅ Admin-Endpoints geschützt → Phase 0.8
-5. ❌ CI/CD läuft Tests → Phase 2.1
+5. ✅ CI/CD läuft Tests → Phase 2.1
 6. ✅ Error-Handling logged Fehler → Phase 1.1-1.2
 7. ❌ Alembic-Migrationen statt `create_all()` → Phase 5.1
 8. ✅ Rate-Limiting auf Login → Phase 0.7
