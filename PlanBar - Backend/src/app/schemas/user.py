@@ -16,7 +16,7 @@ class UserLogin(BaseModel):
 
 
 class TokenRefreshRequest(BaseModel):
-    refresh_token: str = Field(..., min_length=10)
+    refresh_token: str | None = Field(None, min_length=10)
 
 
 class UserUpdate(BaseModel):

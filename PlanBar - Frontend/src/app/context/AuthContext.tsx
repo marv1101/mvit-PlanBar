@@ -1,6 +1,6 @@
+import axios from 'axios';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../lib/api';
-import { getAccessToken, getRefreshToken, setTokens, clearTokens } from '../lib/auth';
 import { changePassword as changePasswordApi } from '../services/userService';
 
 interface User {
@@ -37,26 +37,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [mustChangePassword, setMustChangePassword] = useState(false);
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token) {
-      setIsLoading(false);
-      return;
-    }
-    api.get('/users/me')
+    axios.get('/api/v1/users/me', { withCredentials: true })
       .then(res => {
         setUser(mapBackendUser(res.data));
         if (res.data.must_change_password) {
           setMustChangePassword(true);
         }
       })
-      .catch(() => clearTokens())
+      .catch(() => {})
       .finally(() => setIsLoading(false));
   }, []);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; mustChangePassword: boolean }> => {
     try {
       const { data } = await api.post('/users/login', { email, password });
-      setTokens(data.access_token, data.refresh_token);
       const me = await api.get('/users/me');
       setUser(mapBackendUser(me.data));
       const mustChange = data.must_change_password ?? me.data.must_change_password ?? false;
@@ -80,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setUser(null);
     setMustChangePassword(false);
-    clearTokens();
+    api.post('/users/logout').catch(() => {});
   };
 
   return (

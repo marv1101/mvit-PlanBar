@@ -1,26 +1,19 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { getAccessToken, getRefreshToken, setTokens, clearTokens } from './auth';
+import { clearTokens } from './auth';
 
 const api = axios.create({
   baseURL: '/api/v1',
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
 let isRefreshing = false;
-let pendingRequests: Array<(token: string) => void> = [];
+let pendingRequests: Array<() => void> = [];
 
-function onRefreshed(token: string): void {
-  pendingRequests.forEach(cb => cb(token));
+function onRefreshed(): void {
+  pendingRequests.forEach(cb => cb());
   pendingRequests = [];
 }
-
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = getAccessToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 api.interceptors.response.use(
   response => response,
@@ -33,8 +26,7 @@ api.interceptors.response.use(
 
     if (isRefreshing) {
       return new Promise(resolve => {
-        pendingRequests.push(token => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
+        pendingRequests.push(() => {
           resolve(api(originalRequest));
         });
       });
@@ -43,24 +35,15 @@ api.interceptors.response.use(
     originalRequest._retry = true;
     isRefreshing = true;
 
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) {
-      clearTokens();
-      isRefreshing = false;
-      return Promise.reject(error);
-    }
-
     try {
-      const { data } = await axios.post('/api/v1/users/refresh-token', {
-        refresh_token: refreshToken,
-      });
-      setTokens(data.access_token, data.refresh_token);
-      onRefreshed(data.access_token);
-      originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+      await axios.post('/api/v1/users/refresh-token', {}, { withCredentials: true });
+      onRefreshed();
       return api(originalRequest);
     } catch {
       clearTokens();
-      window.location.href = '/';
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
       return Promise.reject(error);
     } finally {
       isRefreshing = false;

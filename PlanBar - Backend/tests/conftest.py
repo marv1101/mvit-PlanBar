@@ -1,15 +1,21 @@
+import os
+
+# Must be set before any app imports so the engine uses SQLite
+TEST_DATABASE_URL = "sqlite:///./test_planbar.db"
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.config import settings
 from app.core.rate_limit import limiter
 from app.db.base import Base
-from app.db.database import engine
 from app.dependencies import get_db
 from app.main import create_app
 
-TEST_DATABASE_URL = "sqlite:///./test_planbar.db"
+settings.database_url = TEST_DATABASE_URL
 
 _test_engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
 TestSessionLocal = sessionmaker(bind=_test_engine, autoflush=False, autocommit=False)

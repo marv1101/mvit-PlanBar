@@ -5,9 +5,9 @@
 Dieser Plan beschreibt alle notwendigen Schritte, um die PlanBar/TiTO-Applikation production-ready zu machen.
 Die Priorisierung folgt dem Risiko für den Produktivbetrieb: **Security > Robustheit > Qualität > Komfort**.
 
-**Stand:** 27.05.2026  
+**Stand:** 28.05.2026  
 **Branches:** `bugfix-tito-callback` (HEAD), `dev`, `main`  
-**Codebase:** ~50 identifizierte Themen (7 kritisch, 10 hoch, 13 mittel, 20 niedrig)
+**Codebase:** ~50 identifizierte Themen (5 kritisch, 8 hoch, 13 mittel, 20 niedrig)
 
 ---
 
@@ -197,27 +197,32 @@ async def delete_role(id: int, db: Session = Depends(get_db), admin: User = Depe
 
 ### 0.9 JWT-Tokens in HttpOnly-Cookies statt localStorage
 
-**Status:** ❌ Offen  
-**Datei:** `PlanBar - Frontend/src/app/lib/auth.ts`
+**Status:** ✅ Erledigt  
+**Dateien:**
+- `PlanBar - Backend/src/app/dependencies.py` — `get_current_user` liest Token aus Cookie oder Authorization-Header
+- `PlanBar - Backend/src/app/api/v1/users.py` — Login/Refresh setzen HttpOnly-Cookies, `/logout` löscht sie
+- `PlanBar - Backend/src/app/schemas/user.py` — `TokenRefreshRequest.refresh_token` optional
+- `PlanBar - Frontend/src/app/lib/auth.ts` — localStorage-Funktionen durch No-Ops ersetzt
+- `PlanBar - Frontend/src/app/lib/api.ts` — `withCredentials: true`, kein Bearer-Header mehr, Refresh cookie-basiert
+- `PlanBar - Frontend/src/app/context/AuthContext.tsx` — initialer `/users/me`-Call via raw axios (kein Interceptor-Loop), Logout ruft `/users/logout`
+- `PlanBar - Backend/tests/conftest.py` — `DATABASE_URL`-Override vor App-Imports
 
 **Problem:** localStorage ist anfällig für XSS. HttpOnly-Cookies sind nicht per JavaScript lesbar.
 
 **Lösung:**
 - Backend: Set-Cookie-Header bei Login/Refresh:
   ```python
-  from fastapi.responses import JSONResponse
-
   response.set_cookie(
       key="access_token",
       value=access_token,
       httponly=True,
-      secure=True,      # nur HTTPS
-      samesite="lax",   # oder "strict"
+      secure=False,     # true in Production (HTTPS)
+      samesite="lax",
       max_age=900       # 15 Minuten
   )
   ```
-- Frontend: `withCredentials: true` im Axios-Client, localStorage-Logik entfernen
-- Logout: Cookie löschen
+- Frontend: `withCredentials: true` im Axios-Client, localStorage-Logik entfernt
+- Logout: Cookie löschen via `/users/logout`-Endpoint
 
 **Verifikation:** Token ist in devtools (Application > Cookies) sichtbar, nicht in localStorage.
 
@@ -1172,8 +1177,8 @@ Sentry.init({
 ## Zusammenfassung: Priorisierte Roadmap
 
 ```
-Woche 1 (Security & Grundlagen)     ████████████████████████████░
-  Phase 0: Security Cleanup         ████████████████████████████
+Woche 1 (Security & Grundlagen)     █████████████████████████████
+  Phase 0: Security Cleanup         █████████████████████████████
   Phase 1: Error Handling           ████████████████░░░░░░░░░░░░
 
 Woche 2 (Qualität & CI)             ░░░█████████████████████████
@@ -1200,6 +1205,7 @@ Woche 4 (Infrastruktur & Finale)    ░░░░░░░░░░░░░░�
 6. ❌ Error-Handling logged Fehler → Phase 1.1-1.2
 7. ❌ Alembic-Migrationen statt `create_all()` → Phase 5.1
 8. ✅ Rate-Limiting auf Login → Phase 0.7
+9. ✅ JWT-Tokens in HttpOnly-Cookies → Phase 0.9
 
 ### Nice-to-Have vor Go-Live
 
@@ -1233,7 +1239,7 @@ Woche 4 (Infrastruktur & Finale)    ░░░░░░░░░░░░░░�
 | 0.6 | `PlanBar - Backend/src/app/config.py` |
 | 0.7 | `PlanBar - Backend/src/app/api/v1/users.py` |
 | 0.8 | `PlanBar - Backend/src/app/dependencies.py`, `roles.py`, `schedules.py`, `employees.py`, `users.py` |
-| 0.9 | `PlanBar - Frontend/src/app/lib/auth.ts`, `PlanBar - Backend/src/app/api/v1/users.py` |
+| 0.9 | `PlanBar - Backend/src/app/dependencies.py`, `PlanBar - Backend/src/app/api/v1/users.py`, `PlanBar - Backend/src/app/schemas/user.py`, `PlanBar - Frontend/src/app/lib/auth.ts`, `PlanBar - Frontend/src/app/lib/api.ts`, `PlanBar - Frontend/src/app/context/AuthContext.tsx`, `PlanBar - Backend/tests/conftest.py` |
 | 1.1 | `AuthContext.tsx`, `mappers.ts`, `AppContext.tsx` |
 | 1.2 | `schedule_service.py`, `tito_callback.py` |
 | 1.3 | `PlanBar - Frontend/src/app/lib/api.ts` |

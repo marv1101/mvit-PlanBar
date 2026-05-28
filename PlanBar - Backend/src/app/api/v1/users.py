@@ -1,8 +1,10 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.dependencies import get_current_user, get_db, require_admin
 from app.core.auth import create_access_token, create_refresh_token, verify_token
 from app.core.rate_limit import limiter
@@ -35,6 +37,30 @@ from app.services.user_service import (
 router = APIRouter()
 
 
+def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: str) -> None:
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=settings.access_token_expire_minutes * 60,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=settings.refresh_token_expire_days * 24 * 3600,
+    )
+
+
+def _clear_auth_cookies(response: JSONResponse) -> None:
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
+
+
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
     existing = db.query(User).filter((User.email == user_in.email) | (User.username == user_in.username)).first()
@@ -57,11 +83,14 @@ def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db))
 
     access_token = create_access_token(subject=str(user.id))
     refresh_token = create_refresh_token(subject=str(user.id))
-    return LoginResponse(
+    body = LoginResponse(
         access_token=access_token,
         refresh_token=refresh_token,
         must_change_password=user.must_change_password,
     )
+    response = JSONResponse(content=body.model_dump())
+    _set_auth_cookies(response, access_token, refresh_token)
+    return response
 
 
 @router.get("/me", response_model=UserResponse)
@@ -70,9 +99,13 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/refresh-token", response_model=TokenResponse)
-def refresh_token(token_data: TokenRefreshRequest, db: Session = Depends(get_db)):
+def refresh_token(request: Request, token_data: TokenRefreshRequest, db: Session = Depends(get_db)):
+    refresh_token_str = token_data.refresh_token or request.cookies.get("refresh_token")
+    if not refresh_token_str:
+        raise UnauthorizedException(detail="No refresh token provided")
+
     try:
-        payload = verify_token(token_data.refresh_token)
+        payload = verify_token(refresh_token_str)
     except ValueError:
         raise UnauthorizedException(detail="Invalid refresh token")
 
@@ -85,8 +118,18 @@ def refresh_token(token_data: TokenRefreshRequest, db: Session = Depends(get_db)
         raise NotFoundException(detail="User not found")
 
     access_token = create_access_token(subject=str(user.id))
-    refresh_token = create_refresh_token(subject=str(user.id))
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+    new_refresh_token = create_refresh_token(subject=str(user.id))
+    body = TokenResponse(access_token=access_token, refresh_token=new_refresh_token)
+    response = JSONResponse(content=body.model_dump())
+    _set_auth_cookies(response, access_token, new_refresh_token)
+    return response
+
+
+@router.post("/logout")
+def logout():
+    response = JSONResponse(content={"message": "Logged out"})
+    _clear_auth_cookies(response)
+    return response
 
 
 @router.get("", response_model=list[UserResponse])
