@@ -1,0 +1,2 @@
+[console_scripts]
+planbar-backend = app.main:app
