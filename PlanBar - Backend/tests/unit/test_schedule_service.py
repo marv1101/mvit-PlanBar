@@ -56,7 +56,6 @@ def test_create_schedule_with_shiftplans(db_session):
                 shift_id="früh",
                 start_time=time(6, 0),
                 end_time=time(14, 0),
-                week=23,
             ),
         ],
     )
@@ -85,9 +84,9 @@ def test_list_schedules(db_session):
 
 def test_update_schedule(db_session):
     schedule = create_schedule(db_session, ScheduleCreate(name="Old", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)))
-    updated = update_schedule(db_session, schedule, ScheduleUpdate(name="New", week_type="even"))
+    updated = update_schedule(db_session, schedule, ScheduleUpdate(name="New", week_type="A"))
     assert updated.name == "New"
-    assert updated.week_type == "even"
+    assert updated.week_type == "A"
 
 
 def test_delete_schedule(db_session):
@@ -106,7 +105,6 @@ def test_replace_all_shifts(db_session):
             shift_id="spät",
             start_time=time(14, 0),
             end_time=time(22, 0),
-            week=23,
         ),
     ]
     replaced = replace_all_shifts(db_session, schedule, new_shifts)
@@ -120,8 +118,8 @@ def test_get_schedule_summary_with_shifts(db_session):
         start_date=date(2026, 6, 1),
         end_date=date(2026, 6, 7),
         shiftplans=[
-            ShiftplanCreate(employee_id=1, date=date(2026, 6, 1), shift_id="früh", start_time=time(6, 0), end_time=time(14, 0), week=23),
-            ShiftplanCreate(employee_id=2, date=date(2026, 6, 1), shift_id="spät", start_time=time(14, 0), end_time=time(22, 0), week=23),
+            ShiftplanCreate(employee_id=1, date=date(2026, 6, 1), shift_id="früh", start_time=time(6, 0), end_time=time(14, 0)),
+            ShiftplanCreate(employee_id=2, date=date(2026, 6, 1), shift_id="spät", start_time=time(14, 0), end_time=time(22, 0)),
         ],
     )
     schedule = create_schedule(db_session, data)

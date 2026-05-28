@@ -30,7 +30,7 @@ def db_session():
 
 
 def test_create_user(db_session):
-    user_in = UserCreate(username="testuser", email="test@example.com", password="secret")
+    user_in = UserCreate(username="testuser", email="test@example.com", password="secret123")
     user = create_user(db_session, user_in)
     assert user.username == "testuser"
     assert user.email == "test@example.com"
@@ -39,7 +39,7 @@ def test_create_user(db_session):
 
 
 def test_create_user_admin_role(db_session):
-    user_in = UserCreate(username="admin", email="admin@example.com", password="secret")
+    user_in = UserCreate(username="admin01", email="admin@example.com", password="secret123")
     user = create_user(db_session, user_in, role="admin")
     assert user.role == "admin"
 
@@ -67,7 +67,7 @@ def test_authenticate_user_wrong_password(db_session):
 
 
 def test_get_user_by_id_found(db_session):
-    user_in = UserCreate(username="getuser", email="get@example.com", password="pw")
+    user_in = UserCreate(username="getuser", email="get@example.com", password="password123")
     created = create_user(db_session, user_in)
     user = get_user_by_id(db_session, created.id)
     assert user is not None
@@ -80,18 +80,18 @@ def test_get_user_by_id_not_found(db_session):
 
 
 def test_list_users(db_session):
-    create_user(db_session, UserCreate(username="u1", email="u1@example.com", password="pw"))
-    create_user(db_session, UserCreate(username="u2", email="u2@example.com", password="pw"))
+    create_user(db_session, UserCreate(username="usr01", email="u1@example.com", password="password123"))
+    create_user(db_session, UserCreate(username="usr02", email="u2@example.com", password="password123"))
     users = list_users(db_session)
     assert len(users) >= 2
 
 
 def test_update_user_all_fields(db_session):
-    created = create_user(db_session, UserCreate(username="oldname", email="old@example.com", password="oldpw"))
+    created = create_user(db_session, UserCreate(username="oldname", email="old@example.com", password="oldpassword"))
     updated = update_user(
         db_session,
         created,
-        UserUpdate(username="newname", email="new@example.com", password="newpw", role="admin"),
+        UserUpdate(username="newname", email="new@example.com", password="newpassword", role="admin"),
     )
     assert updated.username == "newname"
     assert updated.email == "new@example.com"
@@ -99,30 +99,30 @@ def test_update_user_all_fields(db_session):
 
 
 def test_update_user_partial(db_session):
-    created = create_user(db_session, UserCreate(username="partial", email="partial@example.com", password="pw"))
+    created = create_user(db_session, UserCreate(username="partial", email="partial@example.com", password="password123"))
     updated = update_user(db_session, created, UserUpdate(username="onlyname"))
     assert updated.username == "onlyname"
     assert updated.email == "partial@example.com"
 
 
 def test_delete_user(db_session):
-    created = create_user(db_session, UserCreate(username="deleteme", email="delete@example.com", password="pw"))
+    created = create_user(db_session, UserCreate(username="deleteme", email="delete@example.com", password="password123"))
     user_id = created.id
     delete_user(db_session, created)
     assert get_user_by_id(db_session, user_id) is None
 
 
 def test_change_password_success(db_session):
-    created = create_user(db_session, UserCreate(username="changepw", email="cpw@example.com", password="oldpw"))
-    user = change_password(db_session, created, "oldpw", "newpw")
+    created = create_user(db_session, UserCreate(username="changepw", email="cpw@example.com", password="oldpass123"))
+    user = change_password(db_session, created, "oldpass123", "newpass123")
     assert user.must_change_password is False
-    assert verify_password("newpw", user.password_hash) is True
+    assert verify_password("newpass123", user.password_hash) is True
 
 
 def test_change_password_wrong_old_password(db_session):
-    created = create_user(db_session, UserCreate(username="changepw2", email="cpw2@example.com", password="oldpw"))
+    created = create_user(db_session, UserCreate(username="changepw2", email="cpw2@example.com", password="oldpass123"))
     with pytest.raises(ValueError, match="Old password is incorrect"):
-        change_password(db_session, created, "wrongpw", "newpw")
+        change_password(db_session, created, "wrongpw", "newpass123")
 
 
 def test_admin_create_user(db_session):
@@ -146,4 +146,5 @@ def test_admin_create_user_with_employee(db_session):
         employee_id=employee.id,
     )
     user, password = admin_create_user(db_session, admin_in)
-    assert user.employee_id == employee.id
+    db_session.refresh(employee)
+    assert employee.user_id == user.id

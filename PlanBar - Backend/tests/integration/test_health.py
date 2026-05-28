@@ -16,3 +16,9 @@ def test_db_health(client):
     data = response.json()
     assert data["status"] == "ok"
     assert data["database"] == "connected"
+
+
+def test_tito_health(client):
+    response = client.get("/api/v1/health/tito")
+    assert response.status_code == 200
+    assert "status" in response.json()

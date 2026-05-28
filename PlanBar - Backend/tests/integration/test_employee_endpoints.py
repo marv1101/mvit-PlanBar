@@ -74,6 +74,82 @@ def test_get_employee_not_found(client, auth_headers):
     assert response.status_code == 404
 
 
+def test_update_employee_not_found(client, auth_headers):
+    response = client.put("/api/v1/employees/99999", json={"first_name": "Nope"}, headers=auth_headers)
+    assert response.status_code == 404
+
+
+def test_delete_employee_not_found(client, auth_headers):
+    response = client.delete("/api/v1/employees/99999", headers=auth_headers)
+    assert response.status_code == 404
+
+
+def test_get_contract_not_found(client, auth_headers):
+    response = client.get("/api/v1/contracts/99999", headers=auth_headers)
+    assert response.status_code == 404
+
+
+def test_update_contract_not_found(client, auth_headers):
+    response = client.put("/api/v1/contracts/99999", json={"weekly_working_hours": 35}, headers=auth_headers)
+    assert response.status_code == 404
+
+
+def test_get_timecard_not_found(client, auth_headers):
+    response = client.get("/api/v1/timecards/99999", headers=auth_headers)
+    assert response.status_code == 404
+
+
+def test_update_timecard(client, auth_headers):
+    emp_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "TCUpd", "last_name": "Test"},
+        headers=auth_headers,
+    )
+    emp_id = emp_resp.json()["id"]
+    create_resp = client.post(
+        "/api/v1/timecards",
+        json={"employee_id": emp_id, "week": 20, "year": 2026, "balance": 5.0},
+        headers=auth_headers,
+    )
+    tc_id = create_resp.json()["id"]
+
+    response = client.put(
+        f"/api/v1/timecards/{tc_id}",
+        json={"balance": 10.0},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["balance"] == 10.0
+
+
+def test_update_timecard_not_found(client, auth_headers):
+    response = client.put("/api/v1/timecards/99999", json={"balance": 10.0}, headers=auth_headers)
+    assert response.status_code == 404
+
+
+def test_update_contract(client, auth_headers):
+    emp_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "CUpdInt", "last_name": "Test"},
+        headers=auth_headers,
+    )
+    emp_id = emp_resp.json()["id"]
+    create_resp = client.post(
+        "/api/v1/contracts",
+        json={"employee_id": emp_id, "weekly_working_hours": 40, "break_time": 30},
+        headers=auth_headers,
+    )
+    contract_id = create_resp.json()["id"]
+
+    response = client.put(
+        f"/api/v1/contracts/{contract_id}",
+        json={"weekly_working_hours": 35, "hired_role": "supervisor"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["weekly_working_hours"] == 35
+
+
 def test_create_contract(client, auth_headers):
     emp_resp = client.post(
         "/api/v1/employees",

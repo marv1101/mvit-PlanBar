@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -13,9 +13,8 @@ def proxy():
 
 @pytest.mark.asyncio
 async def test_submit_job(proxy: TiTOProxy):
-    mock_response = AsyncMock()
+    mock_response = MagicMock()
     mock_response.json.return_value = {"jobId": 42}
-    mock_response.raise_for_status = AsyncMock()
 
     with patch.object(proxy.client, "post", AsyncMock(return_value=mock_response)):
         result = await proxy.submit_job({"key": "value"})
@@ -24,9 +23,8 @@ async def test_submit_job(proxy: TiTOProxy):
 
 @pytest.mark.asyncio
 async def test_get_job_status(proxy: TiTOProxy):
-    mock_response = AsyncMock()
+    mock_response = MagicMock()
     mock_response.json.return_value = {"status": "completed"}
-    mock_response.raise_for_status = AsyncMock()
 
     with patch.object(proxy.client, "get", AsyncMock(return_value=mock_response)):
         result = await proxy.get_job_status(1)
@@ -35,9 +33,8 @@ async def test_get_job_status(proxy: TiTOProxy):
 
 @pytest.mark.asyncio
 async def test_retry_job(proxy: TiTOProxy):
-    mock_response = AsyncMock()
+    mock_response = MagicMock()
     mock_response.json.return_value = {"status": "processing"}
-    mock_response.raise_for_status = AsyncMock()
 
     with patch.object(proxy.client, "post", AsyncMock(return_value=mock_response)):
         result = await proxy.retry_job(1)
@@ -46,7 +43,7 @@ async def test_retry_job(proxy: TiTOProxy):
 
 @pytest.mark.asyncio
 async def test_check_health_healthy(proxy: TiTOProxy):
-    mock_response = AsyncMock()
+    mock_response = MagicMock()
     mock_response.status_code = 200
 
     with patch.object(proxy.client, "get", AsyncMock(return_value=mock_response)):
@@ -55,7 +52,7 @@ async def test_check_health_healthy(proxy: TiTOProxy):
 
 @pytest.mark.asyncio
 async def test_check_health_unhealthy(proxy: TiTOProxy):
-    mock_response = AsyncMock()
+    mock_response = MagicMock()
     mock_response.status_code = 503
 
     with patch.object(proxy.client, "get", AsyncMock(return_value=mock_response)):
