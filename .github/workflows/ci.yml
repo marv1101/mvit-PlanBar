@@ -76,16 +76,16 @@ jobs:
         include:
           - name: frontend
             context: "PlanBar - Frontend"
-            dockerfile: Dockerfile
+            file: "PlanBar - Frontend/Dockerfile"
           - name: backend
             context: "PlanBar - Backend"
-            dockerfile: Dockerfile
+            file: "PlanBar - Backend/Dockerfile"
           - name: tito
             context: TiTO
-            dockerfile: Dockerfile
+            file: TiTO/Dockerfile
           - name: tito-worker
             context: TiTO
-            dockerfile: Dockerfile.worker
+            file: TiTO/Dockerfile.worker
     steps:
       - uses: actions/checkout@v4
 
@@ -110,7 +110,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
+          file: ${{ matrix.file }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
