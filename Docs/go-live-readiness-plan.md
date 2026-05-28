@@ -5,7 +5,7 @@
 Dieser Plan beschreibt alle notwendigen Schritte, um die PlanBar/TiTO-Applikation production-ready zu machen.
 Die Priorisierung folgt dem Risiko für den Produktivbetrieb: **Security > Robustheit > Qualität > Komfort**.
 
-**Stand:** 28.05.2026  
+**Stand:** 28.05.2026 (Update: 0.3, 0.4)  
 **Branches:** `bugfix-tito-callback` (HEAD), `dev`, `main`  
 **Codebase:** ~50 identifizierte Themen (5 kritisch, 1 hoch, 13 mittel, 27 niedrig)
 
@@ -41,7 +41,7 @@ Die Priorisierung folgt dem Risiko für den Produktivbetrieb: **Security > Robus
 
 ### 0.2 `.env.example` für alle Komponenten anlegen
 
-**Status:** ❌ Offen (nur im Backend-Plan erwähnt, nicht existent)  
+**Status:** erl  
 **Dateien:**
 - `PlanBar - Backend/.env.example` — neu erstellen
 - `TiTO/.env.example` — neu erstellen
@@ -64,47 +64,52 @@ Die Priorisierung folgt dem Risiko für den Produktivbetrieb: **Security > Robus
 
 ### 0.3 Hardcodierte Passwörter aus `main.py` entfernen
 
-**Status:** ❌ Offen  
-**Datei:** `PlanBar - Backend/src/app/main.py:47-59`
+**Status:** ✅ Erledigt  
+**Datei:** `PlanBar - Backend/src/app/main.py:65-97`
 
-**Problem:** `seed_initial_users()` nutzt `password="Admin@123"` und `password="User@123"`.
+**Problem:** `seed_initial_users()` nutzte `password="Admin@123"` und `password="User@123"`.
 
 **Lösung:**
+- Ersetzt durch `uuid.uuid4().hex[:12]` — zufälliges 12-Zeichen-Initialpasswort pro Backend-Start
+- Passwörter werden via `logger.info()` auf der Backend-Konsole ausgegeben
+- `must_change_password` (war bereits `True` via `create_user()`) zwingt User zu Passwort-Änderung beim ersten Login
+- Kein Production-Guard — UUID-Passwörter sind sicher genug, seeding ist idempotent (nur wenn User nicht existiert)
+
 ```python
-admin_password = os.getenv("ADMIN_SEED_PASSWORD")
-test_password = os.getenv("TEST_SEED_PASSWORD")
-if not admin_password or not test_password:
-    logger.warning("Seed passwords not configured — skipping seed")
-    return
-```
-Nur in Dev/Staging seeden, nie in Production:
-```python
-if os.getenv("ENVIRONMENT", "development") == "production":
-    logger.info("Skipping seed in production")
-    return
+admin_password = uuid.uuid4().hex[:12]
+create_user(db, UserCreate(..., password=admin_password), role="admin")
+logger.info("Initial-Passwort fuer admin@mphion.de: %s", admin_password)
 ```
 
-**Verifikation:** `grep -r "Admin@123\|User@123" src/` findet nichts.
+**Verifikation:** `grep -r "Admin@123\|User@123" src/` findet nichts. Backend-Konsole zeigt Initialpasswörter beim Start.
 
 ### 0.4 Demo-Credentials aus Login.tsx entfernen
 
-**Status:** ❌ Offen  
+**Status:** ✅ Erledigt  
 **Datei:** `PlanBar - Frontend/src/app/pages/Login.tsx:102-113`
 
-**Problem:** Die Login-Seite zeigt hardcodierte Demo-Zugangsdaten im UI an.
+**Problem:** Die Login-Seite zeigte hardcodierte Demo-Zugangsdaten im UI an (admin@mphion.de / Admin@123).
 
 **Lösung:**
-- Nur anzeigen, wenn `VITE_SHOW_DEMO_CREDENTIALS=true` in `.env`:
-  ```tsx
-  {import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === 'true' && (
-    <div className="text-sm text-muted-foreground mt-4 p-3 bg-muted rounded-md">
-      <p>Demo-Zugang: admin@demo.de / demo123</p>
-    </div>
-  )}
-  ```
-- In Production `.env`: `VITE_SHOW_DEMO_CREDENTIALS=false`
+- Demo-Credentials-Block in `{import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === 'true' && (...)}` gewrapped
+- Passwörter zusätzlich aus `VITE_DEMO_ADMIN_PASSWORD` / `VITE_DEMO_USER_PASSWORD` Env-Vars gelesen (mit Fallback)
+- `.env` (Default): `VITE_SHOW_DEMO_CREDENTIALS=false`, `.env.development`: `VITE_SHOW_DEMO_CREDENTIALS=true`
 
-**Verifikation:** Production-Build zeigt keine Credentials mehr.
+```tsx
+{import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === 'true' && (
+  <div className="mt-6 space-y-2 text-sm text-gray-600">
+    <p className="text-center font-medium">Demo-Zugangsdaten:</p>
+    <div className="bg-gray-50 p-3 rounded-md space-y-1">
+      <p><strong>Administrator:</strong></p>
+      <p className="text-xs">Email: admin@mphion.de</p>
+      <p className="text-xs">Passwort: {import.meta.env.VITE_DEMO_ADMIN_PASSWORD || 'Admin@123'}</p>
+    </div>
+    ...
+  </div>
+)}
+```
+
+**Verifikation:** Production-Build zeigt keine Credentials mehr. Dev-Build zeigt sie weiterhin.
 
 ### 0.5 CORS konfigurieren
 

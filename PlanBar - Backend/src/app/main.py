@@ -20,6 +20,10 @@ from app.services.user_service import create_user
 from sqlalchemy import inspect, text
 
 from app.db.models.user import User
+import logging
+import uuid
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -62,24 +66,33 @@ def seed_initial_users() -> None:
     db = SessionLocal()
     try:
         if db.query(User).filter(User.email == "admin@mphion.de").first() is None:
+            admin_password = uuid.uuid4().hex[:12]
             create_user(
                 db,
                 UserCreate(
                     username="admin",
                     email="admin@mphion.de",
-                    password="Admin@123",
+                    password=admin_password,
                 ),
                 role="admin",
             )
+            logger.info("=" * 60)
+            logger.info("Initial-Passwort fuer admin@mphion.de: %s", admin_password)
+            logger.info("=" * 60)
+
         if db.query(User).filter(User.email == "testuser@mphion.de").first() is None:
+            test_password = uuid.uuid4().hex[:12]
             create_user(
                 db,
                 UserCreate(
                     username="testuser",
                     email="testuser@mphion.de",
-                    password="User@123",
+                    password=test_password,
                 ),
             )
+            logger.info("=" * 60)
+            logger.info("Initial-Passwort fuer testuser@mphion.de: %s", test_password)
+            logger.info("=" * 60)
     finally:
         db.close()
 
