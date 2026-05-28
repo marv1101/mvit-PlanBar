@@ -981,7 +981,7 @@ return <CalendarGridView ... />;
 
 ### 7.1 Test-Coverage-Ziele definieren
 
-**Status:** ❌ Offen
+**Status:** ✅ Erledigt 
 
 | Komponente | Ziel | Priorität |
 |-----------|------|-----------|
