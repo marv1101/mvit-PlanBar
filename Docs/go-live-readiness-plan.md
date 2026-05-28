@@ -5,7 +5,7 @@
 Dieser Plan beschreibt alle notwendigen Schritte, um die PlanBar/TiTO-Applikation production-ready zu machen.
 Die Priorisierung folgt dem Risiko für den Produktivbetrieb: **Security > Robustheit > Qualität > Komfort**.
 
-**Stand:** 28.05.2026 (Update: 0.3, 0.4)  
+**Stand:** 28.05.2026 (Update: 0.3, 0.4, 3.1, 3.2)  
 **Branches:** `bugfix-tito-callback` (HEAD), `dev`, `main`  
 **Codebase:** ~50 identifizierte Themen (5 kritisch, 1 hoch, 13 mittel, 27 niedrig)
 
@@ -520,58 +520,51 @@ test: {
 
 ### 3.1 Code-Splitting mit `React.lazy()`
 
-**Status:** ❌ Offen  
-**Datei:** `PlanBar - Frontend/src/app/routes.tsx`
+**Status:** ✅ Erledigt  
+**Datei:** `PlanBar - Frontend/src/app/routes.tsx`, `FullPageSpinner.tsx` (neu)
 
 **Lösung:**
-```typescript
-import { lazy, Suspense } from 'react';
+- Alle Page-Imports (`Dashboard`, `Employees`, `Schedule`, `Requests`, `Roles`, `Users`, `EmployeeView`, `Home`) auf `lazy(() => import(...))` umgestellt
+- `FullPageSpinner`-Komponente als Suspense-Fallback erstellt (zentrierter `Loader2`-Spinner)
+- `Layout` und `ProtectedRoute` bleiben statisch (werden sofort benötigt)
 
-const Dashboard = lazy(() => import('../pages/Dashboard'));
-const Employees = lazy(() => import('../pages/Employees'));
-const Schedule = lazy(() => import('../pages/Schedule'));
+```typescript
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Employees = lazy(() => import('./pages/Employees'));
 // ...
 
-<Routes>
-    <Route path="/" element={
-        <Suspense fallback={<FullPageSpinner />}>
-            <Dashboard />
-        </Suspense>
-    } />
-    // ...
-</Routes>
+function LazyPage({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<FullPageSpinner />}>{children}</Suspense>;
+}
 ```
 
-**Verifikation:** `npm run build` zeigt separate Chunks für jede Page.
+**Verifikation:** `pnpm run build` erzeugt separate Chunks pro Page (z. B. `Schedule-LUMRjoIi.js` 115 kB, `Dashboard-sKOwS4JJ.js` 9 kB).
 
 ### 3.2 Unused Packages entfernen
 
-**Status:** ❌ Offen  
+**Status:** ✅ Erledigt  
 **Datei:** `PlanBar - Frontend/package.json`
 
-**Zu prüfende (wahrscheinlich ungenutzte) Dependencies:**
-- `@mui/material`, `@emotion/react` (wird nirgends importiert)
-- `embla-carousel-react`
-- `input-otp`
-- `react-slick`, `slick-carousel`
-- `vaul`
-- `canvas-confetti`
-- `react-responsive-masonry`
+**Entfernt (7 Pakete):**
+- `@mui/material`, `@mui/icons-material`, `@emotion/react`, `@emotion/styled` — MUI-Stack (nicht importiert)
+- `react-slick` — nicht importiert
+- `canvas-confetti` — nicht importiert
+- `react-responsive-masonry` — nicht importiert
 
-**Vorgehen:**
+**Behalten (werden von shadcn/ui-Komponenten verwendet):**
+- `embla-carousel-react` → `carousel.tsx`
+- `input-otp` → `input-otp.tsx`
+- `vaul` → `drawer.tsx`
+
 ```bash
-# Ungenutzte Pakete identifizieren
-npx depcheck
-
-# Entfernen
-pnpm remove @mui/material @emotion/react embla-carousel-react input-otp react-slick slick-carousel vaul canvas-confetti react-responsive-masonry
+pnpm remove @mui/material @mui/icons-material @emotion/react @emotion/styled react-slick canvas-confetti react-responsive-masonry
 ```
 
-**Verifikation:** `npm run build` läuft ohne Fehler durch.
+**Verifikation:** `pnpm run build` läuft ohne Fehler durch. Main-Bundle reduziert (371 kB gzip: 120 kB).
 
 ### 3.3 Unused UI-Komponenten aufräumen
 
-**Status:** ❌ Offen  
+**Status:** Abgeschlossen  
 **Verzeichnis:** `PlanBar - Frontend/src/app/components/ui/`
 
 **Problem:** ~20 von ~45 shadcn/ui-Komponenten werden vermutlich nicht genutzt.

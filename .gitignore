@@ -27,3 +27,4 @@ PlanBar - Backend/src/app/utils/__pycache__/helpers.cpython-314.pyc
 PlanBar - Backend/tests/unit/__pycache__/*
 PlanBar - Backend/src/app/middleware/__pycache__/*
 PlanBar - Backend/src/app/utils/__pycache__/*
+PlanBar - Frontend/dist/assets/*
