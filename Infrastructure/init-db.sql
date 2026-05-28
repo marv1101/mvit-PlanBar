@@ -1,0 +1,90 @@
+-- Initialize database for TiTO application
+-- Create tables based on the application schema
+
+-- Enable UUID extension if needed
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Create job queue table
+CREATE TABLE IF NOT EXISTS job_queue (
+                job_id SERIAL PRIMARY KEY,
+                payload JSONB NOT NULL,
+                status TEXT NOT NULL,
+                result JSONB,
+                priority INTEGER DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                attempts INTEGER DEFAULT 0,
+                max_retries INTEGER DEFAULT 3,
+                last_error TEXT,
+                failed_at TIMESTAMP WITH TIME ZONE,
+                scheduled_for TIMESTAMP WITH TIME ZONE,
+                callback_url TEXT,
+                idempotency_key TEXT UNIQUE,
+                timeout_at TIMESTAMP WITH TIME ZONE,
+                tenant_id TEXT
+            );
+
+-- Create callback queue table
+CREATE TABLE IF NOT EXISTS callback_queue (
+                callback_id SERIAL PRIMARY KEY,
+                job_id SERIAL NOT NULL,
+                callback_url TEXT NOT NULL,
+                callback_status TEXT DEFAULT 'pending',
+                result_payload JSONB,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                attempted_at TIMESTAMP WITH TIME ZONE,
+                attempts INTEGER DEFAULT 0,
+                max_attempts INTEGER DEFAULT 3,
+                tenant_id TEXT,
+                FOREIGN KEY(job_id) REFERENCES job_queue(job_id) ON DELETE CASCADE
+            );
+
+    CREATE TABLE IF NOT EXISTS workers (
+                worker_id TEXT PRIMARY KEY,
+                ip TEXT NOT NULL,
+                registered_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                last_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL,
+                cpu_usage REAL,
+                ram_usage REAL,
+                active_jobs INTEGER DEFAULT 0
+            );
+    
+    CREATE TABLE IF NOT EXISTS dead_letter_queue (
+                dlq_id SERIAL PRIMARY KEY,
+                job_id SERIAL NOT NULL,
+                original_payload JSONB NOT NULL,
+                failure_reason TEXT NOT NULL,
+                sent_to_dlq_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                attempts INTEGER NOT NULL,
+                tenant_id TEXT,
+                FOREIGN KEY(job_id) REFERENCES job_queue(job_id) ON DELETE CASCADE
+            );
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_job_queue_status ON job_queue(status);
+CREATE INDEX IF NOT EXISTS idx_job_queue_tenant_id ON job_queue(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_job_queue_priority ON job_queue(priority DESC);
+CREATE INDEX IF NOT EXISTS idx_job_queue_created_at ON job_queue(created_at);
+CREATE INDEX IF NOT EXISTS idx_callback_queue_status ON callback_queue(status);
+CREATE INDEX IF NOT EXISTS idx_callback_queue_job_id ON callback_queue(job_id);
+
+-- Create table for schema version tracking
+CREATE TABLE IF NOT EXISTS schema_version (
+    version VARCHAR(50) PRIMARY KEY,
+    applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create dedicated user for TiTO application
+CREATE USER tito WITH PASSWORD 'secure_password_123';
+
+-- Grant necessary permissions on all tables
+GRANT ALL PRIVILEGES ON job_queue TO tito;
+GRANT ALL PRIVILEGES ON callback_queue TO tito;
+GRANT ALL PRIVILEGES ON schema_version TO tito;
+
+-- Optional: Grant usage on schemas/extensions if needed
+GRANT USAGE ON SCHEMA public TO tito;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO tito;
+
+-- Update the schema_version table ownership (optional, but good practice)
+ALTER TABLE schema_version OWNER TO tito;

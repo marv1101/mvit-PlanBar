@@ -1,19 +1,31 @@
 from collections import defaultdict
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 from datetime import datetime, timedelta
 import math
+import logging
 from ortools.sat.python.cp_model import CpModel, CpSolver, CpSolverStatus, LinearExpr
 
+from .schema import JobPayload, ShiftTemplate, Requirement, Employee, Wish
 
-def build_model(payload: dict) -> dict:
-    """Übersetze das Eingabe-Payload in ein vorläufiges Modell."""
+
+def build_model(payload: Union[dict, JobPayload]) -> dict:
+    """
+    Übersetze das Eingabe-Payload in ein vorläufiges Modell.
+    Akzeptiert sowohl dict als auch JobPayload (Pydantic).
+    """
+    if isinstance(payload, JobPayload):
+        # Wenn Pydantic-Modell übergeben wird, use model_dump()
+        payload_dict = payload.model_dump()
+    else:
+        payload_dict = payload
+    
     model = {
-        "metadata": payload.get("metadata", {}),
-        "config": payload.get("config", {}),
-        "shiftTemplates": {item["id"]: item for item in payload.get("shiftTemplates", [])},
-        "requirements": payload.get("requirements", []),
-        "employees": payload.get("employees", []),
-        "wishes": payload.get("wishes", []),
+        "metadata": payload_dict.get("metadata", {}),
+        "config": payload_dict.get("config", {}),
+        "shiftTemplates": {item["id"]: item for item in (payload_dict.get("shiftTemplates") or [])},
+        "requirements": payload_dict.get("requirements", []),
+        "employees": payload_dict.get("employees", []),
+        "wishes": payload_dict.get("wishes") or [],
     }
     return model
 
@@ -84,7 +96,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     shift_templates = model["shiftTemplates"]
     employees = model.get("employees", [])
     requirements = model.get("requirements", [])
-    wishes = model.get("wishes", [])
+    wishes = model.get("wishes") or []
     
     start_date = config.get("startDate", "2026-01-01")
     end_date = config.get("endDate", "2026-01-31")
@@ -119,33 +131,38 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     
     # Constraint 1: Skill- und Verfügbarkeitsprüfung
     for req_idx, requirement in enumerate(requirements):
-        needed_skills = requirement.get("neededSkills", {})
+        needed_skills = requirement.get("neededSkills") or {}
         valid_employees = []
         
         for emp_idx, employee in enumerate(employees):
             date = requirement.get("date")
             # Prüfe ob Mitarbeiter verfügbar ist
-            if date in employee.get("forbiddenDates", []):
+            if date in (employee.get("forbiddenDates") or []):
                 continue
             
             # Prüfe Skills
-            employee_skills = set(employee.get("skills", []))
+            employee_skills = set(employee.get("skills") or [])
             has_required_skills = all(
                 skill in employee_skills for skill in needed_skills.keys()
             )
-            
-            if has_required_skills:
-                valid_employees.append(emp_idx)
-        
-        # Nur gültige Mitarbeiter können zugewiesen werden
-        for emp_idx in range(len(employees)):
-            if emp_idx not in valid_employees:
-                cp_model.add(assignments[(emp_idx, req_idx)] == 0)
-        
-        # WICHTIG: Jedes Requirement MUSS erfüllt werden (Hard Constraint)
+            if not has_required_skills:
+                continue
+
+            # Rollentrennung: Wenn ein Skill mit "ROLE_" beginnt, wird er als Rollenanforderung gewertet.
+            role_required = None
+            for skill in needed_skills.keys():
+                if skill.startswith("ROLE_"):
+                    role_required = skill.replace("ROLE_", "")
+                    break
+
+            if role_required and employee.get("role") != role_required:
+                continue
+
+            valid_employees.append(emp_idx)
+
         requirement_assignments = [
-            assignments[(emp_idx, req_idx)]
-            for emp_idx in valid_employees
+            assignments[(ei, req_idx)]
+            for ei in valid_employees
         ]
         if requirement_assignments:
             cp_model.add(LinearExpr.sum(requirement_assignments) >= 1)
@@ -258,14 +275,14 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                 window = unique_dates[index : index + max_consecutive_days + 1]
                 cp_model.add(
                     LinearExpr.sum(
-                        works_on_date[(emp_idx, date)] for date in window
+                        [works_on_date[(emp_idx, date)] for date in window]
                     )
                     <= max_consecutive_days
                 )
 
         # Wochenarbeitszeit basierend auf Vertrag
         weekly_hours = float(
-            employee.get("contract", {}).get("weeklyHours", default_weekly_hours)
+            (employee.get("contract") or {}).get("weeklyHours", default_weekly_hours)
         )
         weekly_limit_minutes = int(weekly_hours * 60)
         for week_key, req_indices in week_requirements.items():
@@ -278,6 +295,50 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                 )
             if weekly_minutes:
                 cp_model.add(LinearExpr.sum(weekly_minutes) <= weekly_limit_minutes)
+
+        # Rotationsregeln: Vermeidung von Monotonie (z.B. nicht mehr als 3 Tage hintereinander die gleiche Schicht)
+        # Wir implementieren eine einfache Regel: Max 3 gleiche Schichten in Folge
+        max_same_shift_consecutive = 3
+        for shift_id in shift_templates.keys():
+            # Finde alle Requirements für diese Schicht
+            shift_reqs = [i for i, r in enumerate(requirements) if r.get("shiftId") == shift_id]
+            if len(shift_reqs) > max_same_shift_consecutive:
+                # Wir müssen die Daten sortieren, um "aufeinanderfolgend" zu prüfen
+                # Da unique_dates bereits sortiert ist, nutzen wir das.
+                # Wir erstellen eine Liste von (datum, req_idx) für diese Schicht
+                shift_dates_reqs = []
+                for d in unique_dates:
+                    for r_idx in date_requirements[d]:
+                        if requirements[r_idx].get("shiftId") == shift_id:
+                            shift_dates_reqs.append(r_idx)
+                
+                # Prüfe Fenster von max_same_shift_consecutive + 1 Tagen
+                # Achtung: Das ist komplex, da ein Mitarbeiter an einem Tag mehrere Schichten haben könnte.
+                # Wir vereinfachen: Wenn er an X Tagen hintereinander die gleiche Schicht-ID hat.
+                for i in range(len(unique_dates) - max_same_shift_consecutive):
+                    window_dates = unique_dates[i : i + max_same_shift_consecutive + 1]
+                    window_assignments = []
+                    for d in window_dates:
+                        # Falls es mehrere Requirements der gleichen Schicht am selben Tag gibt,
+                        # nehmen wir die Summe der Zuweisungen für diesen Mitarbeiter
+                        day_reqs = [assignments[(emp_idx, r_idx)] for r_idx in date_requirements[d] 
+                                    if requirements[r_idx].get("shiftId") == shift_id]
+                        if day_reqs:
+                            # Wir brauchen eine Variable, die 1 ist, wenn er an diesem Tag diese Schicht macht
+                            # Da er pro Tag meist nur eine Schicht macht, ist die Summe okay, 
+                            # aber wir müssen sicherstellen, dass es ein Bool-Wert bleibt.
+                            # Wir nutzen eine Hilfsvariable.
+                            day_works_shift = cp_model.new_bool_var(f"emp{emp_idx}_date{d}_shift{shift_id}")
+                            cp_model.add(LinearExpr.sum(day_reqs) >= day_works_shift)
+                            for var in day_reqs:
+                                cp_model.add(var <= day_works_shift)
+                            window_assignments.append(day_works_shift)
+                        else:
+                            window_assignments.append(0)
+                    
+                    if len(window_assignments) > max_same_shift_consecutive:
+                        cp_model.add(LinearExpr.sum(window_assignments) <= max_same_shift_consecutive)
+
 
     # Constraint 4: Wünsche als weiche Constraints
     wish_penalty_vars = []
@@ -338,41 +399,90 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     # Extrahiere Lösung
     assignments_solution = []
     unassigned_requirements = []
+    violations = []
     
-    for req_idx, requirement in enumerate(requirements):
-        assigned = False
-        for emp_idx, employee in enumerate(employees):
-            if solver.Value(assignments[(emp_idx, req_idx)]) == 1:
-                shift_id = requirement.get("shiftId")
-                date = requirement.get("date")
-                shift = shift_templates.get(shift_id, {})
-                
-                assignments_solution.append({
-                    "employeeId": employee["id"],
-                    "date": date,
-                    "shiftId": shift_id,
-                    "startTime": shift.get("startTime", "00:00"),
-                    "endTime": shift.get("endTime", "00:00"),
+    try:
+        for req_idx, requirement in enumerate(requirements):
+            assigned = False
+            for emp_idx, employee in enumerate(employees):
+                if solver.Value(assignments[(emp_idx, req_idx)]) == 1:
+                    shift_id = requirement.get("shiftId")
+                    date = requirement.get("date")
+                    shift = shift_templates.get(shift_id, {})
+                    
+                    assignments_solution.append({
+                        "employeeId": employee["id"],
+                        "date": date,
+                        "shiftId": shift_id,
+                        "startTime": shift.get("startTime", "00:00"),
+                        "endTime": shift.get("endTime", "00:00"),
+                    })
+                    assigned = True
+                    break
+            
+            if not assigned:
+                unassigned_requirements.append(requirement)
+                violations.append({
+                    "type": "UNASSIGNED_REQUIREMENT",
+                    "severity": "HARD",
+                    "message": f"Requirement on {requirement.get('date')} with shift {requirement.get('shiftId')} could not be assigned",
+                    "details": requirement
                 })
-                assigned = True
-                break
-        
-        if not assigned:
-            unassigned_requirements.append(requirement)
+    except Exception as e:
+        # If no solution available (e.g., timeout without feasible solution)
+        assignments_solution = []
+        unassigned_requirements = requirements
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Could not extract solution: {e}")
     
     # Berechne Metriken
-    fulfilled_wishes = sum(
-        solver.Value(wish_var)
-        for wish_var, _ in wish_penalty_vars
-    )
-    total_wishes = len(wish_penalty_vars)
-    wish_rate = (
-        100.0 if total_wishes == 0
-        else round((fulfilled_wishes / total_wishes) * 100, 1)
-    )
+    try:
+        fulfilled_wishes = sum(
+            solver.Value(wish_var)
+            for wish_var, _ in wish_penalty_vars
+        )
+        total_wishes = len(wish_penalty_vars)
+        wish_rate = (
+            100.0 if total_wishes == 0
+            else round((fulfilled_wishes / total_wishes) * 100, 1)
+        )
+        
+        # Wünsche als Soft-Constraint-Verletzungen tracken
+        for wish in wishes:
+            wish_type = wish.get("type", "")
+            employee_id = wish.get("employeeId")
+            
+            emp_idx = next(
+                (i for i, e in enumerate(employees) if e.get("id") == employee_id),
+                None
+            )
+            if emp_idx is None: continue
+            
+            if wish_type == "PREFER_SHIFT":
+                date = wish.get("date")
+                shift_id = wish.get("shiftId")
+                matching_req = next(
+                    (i for i, r in enumerate(requirements)
+                     if r.get("date") == date and r.get("shiftId") == shift_id),
+                    None
+                )
+                if matching_req is not None:
+                    if solver.Value(assignments[(emp_idx, matching_req)]) == 0:
+                        violations.append({
+                            "type": "WISH_NOT_FULFILLED",
+                            "severity": "SOFT",
+                            "message": f"Wish for employee {employee_id} on {date} (shift {shift_id}) not fulfilled",
+                            "details": wish
+                        })
+    except Exception as e:
+        fulfilled_wishes = 0
+        wish_rate = 0.0
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Could not calculate wish metrics: {e}")
     
     # Bestimme Status
     if status == CpSolverStatus.OPTIMAL:  # OPTIMAL
+
         solver_status = "SUCCESS"
         is_optimal = True
         info = "Optimale Lösung gefunden."
@@ -380,6 +490,16 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         solver_status = "FEASIBLE"
         is_optimal = False
         info = "Zulässige Lösung gefunden, aber nicht optimal."
+    elif status == CpSolverStatus.UNKNOWN:  # UNKNOWN (timeout or interrupted)
+        # Check if we have a feasible solution despite timeout
+        if solver.BestObjectiveBound() > -float('inf'):
+            solver_status = "TIMEOUT"
+            is_optimal = False
+            info = "Timeout erreicht, aber zulässige Lösung gefunden."
+        else:
+            solver_status = "TIMEOUT"
+            is_optimal = False
+            info = "Timeout erreicht, keine Lösung gefunden."
     elif status == CpSolverStatus.MODEL_INVALID:  # MODEL_INVALID
         solver_status = "MODEL_INVALID"
         is_optimal = False
@@ -424,9 +544,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             "wishFulfillmentRate": wish_rate,
             "totalObjectiveScore": len(assignments_solution) * 100,
             "employeeUtilization": employee_utilization,
-            "violations": {
-                "softConstraints": []
-            }
+            "violations": violations,
         },
         "diagnostics": {
             "isOptimal": is_optimal,

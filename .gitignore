@@ -1,2 +1,31 @@
 mvit PlanBar.code-workspace
-TiTO/planning/plan-03.05.md
+Infrastructure/.env
+PlanBar - Frontend/ATTRIBUTIONS.md
+PlanBar - Frontend/node_modules/*
+.continue/prompts/new-prompt.md
+PlanBar - Backend/src/app/__pycache__/*
+PlanBar - Backend/src/app/api/__pycache__/*
+PlanBar - Backend/src/app/core/__pycache__/*
+PlanBar - Backend/src/app/api/v1/__pycache__/*
+PlanBar - Backend/src/app/db/models/__pycache__/*
+PlanBar - Backend/src/app/schemas/__pycache__/*
+PlanBar - Backend/src/app/services/__pycache__/*
+PlanBar - Backend/src/app/db/__pycache__/*
+PlanBar - Backend/tests/__pycache__/*
+PlanBar - Backend/tests/integration/__pycache__/*
+PlanBar - Backend/.env
+PlanBar - Backend/test_planbar.db
+PlanBar - Backend/src/app/middleware/__pycache__/__init__.cpython-314.pyc
+PlanBar - Backend/src/app/middleware/__pycache__/error_handler.cpython-314.pyc
+PlanBar - Backend/src/app/middleware/__pycache__/request_logging.cpython-314.pyc
+planbar*.db
+PlanBar - Backend/src/app/middleware/__pycache__/*
+test_planbar.db
+PlanBar - Backend/test_planbar.db
+PlanBar - Frontend/.env
+PlanBar - Backend/src/app/utils/__pycache__/helpers.cpython-314.pyc
+PlanBar - Backend/tests/unit/__pycache__/*
+PlanBar - Backend/src/app/middleware/__pycache__/*
+PlanBar - Backend/src/app/utils/__pycache__/*
+PlanBar - Frontend/dist/assets/*
+node_modules*

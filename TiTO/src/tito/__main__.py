@@ -87,6 +87,13 @@ def _seed_example_job(connection, queue_table: str) -> str:
     return example_payload["metadata"]["jobId"]
 
 
+def get_app():
+    """Initialisiert die Flask-App für Gunicorn."""
+    from .config import Settings
+    settings = Settings.from_env()
+    return create_app(settings)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="TiTO minimal runnable worker and API")
     parser.add_argument("--mode", choices=["api", "worker", "seed"], default="api")

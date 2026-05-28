@@ -1,0 +1,79 @@
+@startuml ER-Modell PlanBar Backend
+title ER-Modell für PlanBar Backend
+
+' User Management
+entity User {
+    userid: integer PK
+    username: varchar(64)
+    email: varchar(255)
+    password: varchar(255)
+    role: varchar(20)
+    lastlogin: timestamp
+    created: timestamp
+}
+
+' Mitarbeiter
+entity Employee {
+    employeeid: varchar(50) PK
+    userid: integer FK
+    contractid: varchar(50) FK
+    timecardid: varchar(50) FK
+    firstName: varchar(100)
+    lastName: varchar(100)
+    phone: varchar(20)
+    notes: text
+}
+
+' Arbeitsvertrag
+entity Contract {
+    contractid: varchar(50) PK
+    weeklyworkinghours: integer
+    breaktime: integer
+    hiredrole: varchar(100)
+    startDate: date
+    endDate: date
+}
+
+' Zeitkarte
+entity Timecard {
+    timecardid: varchar(50) PK
+    week: integer
+    year: integer
+    balance: decimal(10,2)
+    startDate: date
+    endDate: date
+}
+
+' Schichtwunsch
+entity ShiftWish {
+    wishid: varchar(50) PK
+    employeeid: varchar(50) FK
+    date: date
+    week: integer
+    type: varchar(20)
+    note: text
+}
+
+' Schichtplan (TiTO Ergebnis)
+entity Shiftplan {
+    planid: varchar(50) PK
+    employeeid: varchar(50) FK
+    date: date
+    shiftId: varchar(50)
+    startTime: time
+    endTime: time
+    notes: text
+}
+
+' Beziehungen
+User "1"--"0..*" Employee : hat
+Contract "1"--"0..*" Employee : hat
+Timecard "1"--"0..*" Employee : hat
+
+Employee "1"--"0..*" ShiftWish : hat Wünsche
+Employee "1"--"0..*" Shiftplan : hat Zuweisungen
+
+' Shiftplan ist das Ergebnis von TiTO
+' Es enthält die Zuweisungen aus dem TiTO Result
+
+@enduml

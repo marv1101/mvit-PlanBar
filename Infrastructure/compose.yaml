@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  # TiTO Application Service
+  tito:
+    build:
+      context: ../TiTO
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    env_file:
+    - .env
+    environment:
+      - DATABASE_URL=postgresql://tito:${TITO_DB_PASSWORD}@db:5432/tito
+      - QUEUE_TABLE=job_queue
+      - CALLBACK_QUEUE=callback_queue
+      - MAX_JOBS=20
+      - TIMEOUT_SECONDS=300
+      - SCHEMA_VERSION=1.0
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ../TiTO:/app:rw,z
+      - ../TiTO/data:/app/data:rw,z
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+  tito_worker:
+    build:
+      context: ../TiTO
+      dockerfile: Dockerfile.worker
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://tito:${TITO_DB_PASSWORD}@db:5432/tito
+      - API_URL=http://tito:5001
+      - QUEUE_TABLE=job_queue
+      - CALLBACK_QUEUE=callback_queue
+      - MAX_JOBS=10
+      - TIMEOUT_SECONDS=300
+      - SCHEMA_VERSION=1.0
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      mode: replicated
+      replicas: 2
+
+  # PostgreSQL Database Service
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=tito
+      - POSTGRES_PASSWORD=${TITO_DB_PASSWORD}
+      - POSTGRES_DB=tito
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro,z
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # PostgreSQL Database Service for PlanBar Backend
+  db_backend:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=planbar
+      - POSTGRES_PASSWORD=${PLANBAR_DB_PASSWORD}
+      - POSTGRES_DB=planbar_backend
+    volumes:
+      - planbar_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  planbar_backend:
+    build:
+      context: "../PlanBar - Backend"
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://planbar:${PLANBAR_DB_PASSWORD}@db_backend:5432/planbar_backend
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS}
+      - TITO_API_URL=http://tito:5001
+      - TITO_API_KEY=${TITO_API_KEY}
+      - BACKEND_CALLBACK_URL=http://planbar_backend:8000
+    depends_on:
+      db_backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # PlanBar Frontend Service (statisch, gebaut und von nginx ausgeliefert)
+  planbar_frontend:
+    build:
+      context: "../PlanBar - Frontend"
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    env_file:
+      - .env
+    environment:
+      # Backend URL für nginx proxy. Beim Endkunden: https://api.example.com
+      - BACKEND_URL=http://planbar_backend:8000
+    depends_on:
+      db_backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  postgres_data:
+  planbar_postgres_data:

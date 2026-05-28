@@ -24,11 +24,12 @@ def test_sqlite_job_lifecycle(tmp_path: Path):
     assert job is not None
     assert job["metadata"]["jobId"] == "job-test"
 
-    mark_job_processing(connection, "job-test")
+    db_job_id = job.pop("_db_job_id")  # Extract the database job ID
+    mark_job_processing(connection, db_job_id)
     result = {"status": "SUCCESS"}
-    store_result(connection, "job-test", result)
+    store_result(connection, db_job_id, result)
 
-    cursor = connection.execute("SELECT status, result FROM job_queue WHERE job_id = ?", ("job-test",))
+    cursor = connection.execute("SELECT status, result FROM job_queue WHERE job_id = ?", (db_job_id,))
     record = cursor.fetchone()
     assert record["status"] == "completed"
     assert json.loads(record["result"])["status"] == "SUCCESS"
