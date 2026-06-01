@@ -226,7 +226,7 @@ function DayColumn({
   date, weekType, shifts, onDrop, onEmployeeDrop, onClick, onEdit, onDelete
 }: DayColumnProps) {
   const dateStr = date.toISOString().split('T')[0];
-  const dayShifts = shifts.filter(s => s.date === dateStr && s.week === weekType);
+  const dayShifts = shifts.filter(s => s.date === dateStr);
   const lanes = useMemo(() => assignLanes(dayShifts), [dayShifts]);
 
   const onDropRef = useRef(onDrop);
@@ -599,8 +599,9 @@ export function EditableScheduleCalendar({
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   const handleDrop = (shift: Shift, newDate: string) => {
+    const newWeekType = getWeekType(new Date(newDate));
     const updatedShifts = schedule.shifts.map(s =>
-      s.id === shift.id ? { ...s, date: newDate } : s
+      s.id === shift.id ? { ...s, date: newDate, week: newWeekType } : s
     );
     onUpdateSchedule({ ...schedule, shifts: updatedShifts });
     toast.success('Schicht verschoben');
