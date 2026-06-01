@@ -47,6 +47,7 @@ def process_tito_callback(db: Session, payload: TiTOCallbackPayload) -> Schedule
 
     db.commit()
     db.refresh(schedule)
+    db.expire(schedule, ["shiftplans"])
     return schedule
 
 
