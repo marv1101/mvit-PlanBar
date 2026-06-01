@@ -39,6 +39,7 @@ def process_tito_callback(db: Session, payload: TiTOCallbackPayload) -> Schedule
                 employee_id=employee.id,
                 date=assignment.date,
                 shift_id=assignment.shiftId,
+                week=schedule.week_type,
                 start_time=time(int(start_parts[0]), int(start_parts[1])),
                 end_time=time(int(end_parts[0]), int(end_parts[1])),
             )

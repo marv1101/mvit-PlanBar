@@ -56,6 +56,7 @@ export function Schedule() {
   const [pollResult, setPollResult] = useState<ScheduleType | null>(null);
 
   const [creationMode, setCreationMode] = useState<'tito' | 'manual'>('tito');
+  const [titoWeekType, setTitoWeekType] = useState<WeekType>('A');
   const [manualName, setManualName] = useState('');
   const [manualStartDate, setManualStartDate] = useState('');
   const [manualEndDate, setManualEndDate] = useState('');
@@ -114,6 +115,7 @@ export function Schedule() {
         name: scheduleName,
         start_date: startDate,
         end_date: endDate,
+        week_type: titoWeekType,
         role_requirements: Object.keys(roleRequirements).length > 0 ? roleRequirements : undefined,
         shiftplans: [],
       });
@@ -403,6 +405,20 @@ export function Schedule() {
                       </div>
                     </div>
 
+                    <div>
+                      <Label htmlFor="titoWeekType">Wochen-Typ</Label>
+                      <select
+                        id="titoWeekType"
+                        className="w-full border rounded-md px-3 py-2"
+                        value={titoWeekType}
+                        onChange={(e) => setTitoWeekType(e.target.value as WeekType)}
+                        disabled={submitting}
+                      >
+                        <option value="A">Woche A</option>
+                        <option value="B">Woche B</option>
+                      </select>
+                    </div>
+
                     <Button onClick={createAndSubmit} disabled={submitting || loading} className="w-full">
                       {submitting ? (
                         <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Wird erstellt...</>
@@ -514,6 +530,7 @@ export function Schedule() {
                           setStartDate('');
                           setEndDate('');
                           setRoleRequirements({});
+                          setTitoWeekType('A');
                         }}
                       >
                         Neu erstellen
