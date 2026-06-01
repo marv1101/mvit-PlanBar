@@ -1,6 +1,7 @@
 import { Pencil, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Shift, Employee } from '../types';
+import { TIMEZONE } from '../lib/timezone';
 
 interface ShiftListViewProps {
   shifts: Shift[];
@@ -31,7 +32,7 @@ export function ShiftListView({ shifts, employees, weekLabel, onEdit, onDelete }
     <div className="space-y-3">
       {sortedDates.map(date => {
         const dateObj = new Date(date + 'T00:00:00');
-        const dayLabel = dateObj.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+        const dayLabel = dateObj.toLocaleDateString('de-DE', { timeZone: TIMEZONE, weekday: 'long', day: 'numeric', month: 'long' });
 
         return (
           <div key={date} className="border rounded-lg overflow-hidden">

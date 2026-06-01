@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { RequestForm } from '../components/RequestForm';
 import { Request } from '../types';
 import { Badge } from '../components/ui/badge';
+import { TIMEZONE } from '../lib/timezone';
 
 const requestTypeLabels = {
   'urlaubswunsch': 'Urlaubswunsch',
@@ -198,6 +199,7 @@ export function Requests() {
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-sm text-gray-600">
                         {new Date(request.date).toLocaleDateString('de-DE', {
+                          timeZone: TIMEZONE,
                           weekday: 'long',
                           year: 'numeric',
                           month: 'long',

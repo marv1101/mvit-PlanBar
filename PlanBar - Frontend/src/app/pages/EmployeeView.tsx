@@ -8,6 +8,7 @@ import { User, Calendar, Clock, Coffee, Download, Loader2 } from 'lucide-react';
 import { getWeekType } from '../lib/week';
 import { WeekType, Shift } from '../types';
 import { toast } from 'sonner';
+import { TIMEZONE } from '../lib/timezone';
 
 export function EmployeeView() {
   const { employees, schedules, roles, loading } = useApp();
@@ -142,7 +143,7 @@ export function EmployeeView() {
     const headers = ['Datum', 'Wochentag', 'Woche', 'Start', 'Ende', 'Pause Start', 'Pause Ende', 'Arbeitszeit (h)'];
     const rows = employeeShifts.map(shift => {
       const date = new Date(shift.date);
-      const weekday = date.toLocaleDateString('de-DE', { weekday: 'long' });
+      const weekday = date.toLocaleDateString('de-DE', { timeZone: TIMEZONE, weekday: 'long' });
       
       const [startH, startM] = shift.startTime.split(':').map(Number);
       const [endH, endM] = shift.endTime.split(':').map(Number);
@@ -158,7 +159,7 @@ export function EmployeeView() {
       const hours = (workMinutes / 60).toFixed(1);
 
       return [
-        date.toLocaleDateString('de-DE'),
+        date.toLocaleDateString('de-DE', { timeZone: TIMEZONE }),
         weekday,
         shift.week,
         shift.startTime,
@@ -239,7 +240,7 @@ export function EmployeeView() {
                 <option value="">Bitte wählen...</option>
                 {visibleSchedules.map(schedule => (
                   <option key={schedule.id} value={schedule.id}>
-                    {schedule.name} ({new Date(schedule.startDate).toLocaleDateString('de-DE')} - {new Date(schedule.endDate).toLocaleDateString('de-DE')})
+                    {schedule.name} ({new Date(schedule.startDate).toLocaleDateString('de-DE', { timeZone: TIMEZONE })} - {new Date(schedule.endDate).toLocaleDateString('de-DE', { timeZone: TIMEZONE })})
                   </option>
                 ))}
               </select>
@@ -437,7 +438,7 @@ export function EmployeeView() {
                     <div className="space-y-3">
                       {employeeShiftsByWeek.map(shift => {
                         const date = new Date(shift.date);
-                        const weekday = date.toLocaleDateString('de-DE', { weekday: 'long' });
+                        const weekday = date.toLocaleDateString('de-DE', { timeZone: TIMEZONE, weekday: 'long' });
                         
                         return (
                           <div
@@ -448,7 +449,7 @@ export function EmployeeView() {
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                               <div>
                                 <p className="font-semibold">
-                                  {date.toLocaleDateString('de-DE')} - {weekday}
+                                  {date.toLocaleDateString('de-DE', { timeZone: TIMEZONE })} - {weekday}
                                 </p>
                                 <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                                   <div className="flex items-center gap-1">

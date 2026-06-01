@@ -11,6 +11,7 @@ import { Plus, Loader2, Trash2, Copy, Check } from 'lucide-react';
 import { AppUser } from '../types';
 import { userFromResponse } from '../lib/mappers';
 import * as userService from '../services/userService';
+import { TIMEZONE } from '../lib/timezone';
 
 export function Users() {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -116,6 +117,7 @@ export function Users() {
                   <span className="text-gray-500">Letzte Anmeldung:</span>{' '}
                   {user.lastLogin
                     ? new Date(user.lastLogin).toLocaleDateString('de-DE', {
+                        timeZone: TIMEZONE,
                         day: '2-digit',
                         month: '2-digit',
                         year: 'numeric',

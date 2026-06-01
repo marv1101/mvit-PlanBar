@@ -13,6 +13,7 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import * as scheduleService from '../services/scheduleService';
 import { scheduleFromResponse, shiftplanToShift } from '../lib/mappers';
+import { TIMEZONE } from '../lib/timezone';
 
 const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   draft: { label: 'Entwurf', variant: 'secondary' },
@@ -270,7 +271,7 @@ export function Schedule() {
     const rows = shifts.map(shift => {
       const employee = employees.find(e => e.id === shift.employeeId);
       return [
-        new Date(shift.date).toLocaleDateString('de-DE'),
+        new Date(shift.date).toLocaleDateString('de-DE', { timeZone: TIMEZONE }),
         shift.week,
         employee?.name || '',
         shift.startTime,
@@ -732,9 +733,9 @@ export function Schedule() {
                     <CardContent>
                       <div className="space-y-2 text-sm text-gray-600 mb-4">
                         <p>
-                          {schedule.startDate ? new Date(schedule.startDate).toLocaleDateString('de-DE') : '-'}
+                          {schedule.startDate ? new Date(schedule.startDate).toLocaleDateString('de-DE', { timeZone: TIMEZONE }) : '-'}
                           {' - '}
-                          {schedule.endDate ? new Date(schedule.endDate).toLocaleDateString('de-DE') : '-'}
+                          {schedule.endDate ? new Date(schedule.endDate).toLocaleDateString('de-DE', { timeZone: TIMEZONE }) : '-'}
                         </p>
                         <p>{schedule.shifts.length} Schichten</p>
                         <StatusBadge status={schedule.status || 'draft'} />
