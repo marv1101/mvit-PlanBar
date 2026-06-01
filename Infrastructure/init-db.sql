@@ -74,12 +74,19 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create dedicated user for TiTO application
-CREATE USER tito WITH PASSWORD 'secure_password_123';
+-- Create dedicated user for TiTO application (if not already exists)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'tito') THEN
+        CREATE USER tito WITH PASSWORD 'secure_password_123';
+    END IF;
+END
+$$;
 
--- Grant necessary permissions on all tables
+-- Grant necessary permissions on all tables (idempotent)
 GRANT ALL PRIVILEGES ON job_queue TO tito;
 GRANT ALL PRIVILEGES ON callback_queue TO tito;
+GRANT ALL PRIVILEGES ON dead_letter_queue TO tito;
 GRANT ALL PRIVILEGES ON schema_version TO tito;
 
 -- Optional: Grant usage on schemas/extensions if needed
@@ -88,3 +95,6 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO tito;
 
 -- Update the schema_version table ownership (optional, but good practice)
 ALTER TABLE schema_version OWNER TO tito;
+
+-- Grant sequence permissions for serial columns
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO tito;
