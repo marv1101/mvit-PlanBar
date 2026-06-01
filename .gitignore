@@ -30,3 +30,14 @@ PlanBar - Backend/src/app/utils/__pycache__/*
 PlanBar - Frontend/dist/assets/*
 node_modules*
 Docs/github-issues-go-live.md
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.test
+
+# Keep example env files
+!.env.example
