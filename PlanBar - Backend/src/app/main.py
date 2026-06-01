@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
-    configure_logging()
+    configure_logging(settings.log_format)
     app = FastAPI(
         title="PlanBar Backend",
         description="Backend API für PlanBar mit TiTO-Integration",

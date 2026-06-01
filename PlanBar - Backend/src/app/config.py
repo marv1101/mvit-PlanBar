@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     backend_callback_url: str = Field("http://localhost:8000")
     cors_origins: str = Field("http://localhost:5173,http://localhost:3000")
     tito_api_key: str | None = Field(None)
+    log_format: str = Field("TEXT")
 
 
 settings = Settings()
