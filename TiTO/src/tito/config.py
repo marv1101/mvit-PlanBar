@@ -21,6 +21,8 @@ class Settings:
     jwt_audience: str | None = None
     jwt_issuer: str | None = None
 
+    timezone: str = "UTC"
+
     max_retries: int = 3
     retry_base_delay: int = 5  # seconds, exponential backoff: 5, 10, 20, ...
     callback_max_attempts: int = 3
@@ -51,6 +53,7 @@ class Settings:
         algorithms = [alg.strip() for alg in algorithms_string.split(",") if alg.strip()]
 
         return cls(
+            timezone=env_dict.get("TIMEZONE", "UTC"),
             database_url=env_dict.get("DATABASE_URL", "sqlite:///tito.db"),
             queue_table=env_dict.get("QUEUE_TABLE", "job_queue"),
             callback_queue=env_dict.get("CALLBACK_QUEUE", "callback_queue"),

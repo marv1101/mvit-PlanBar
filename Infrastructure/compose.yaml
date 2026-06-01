@@ -16,6 +16,7 @@ services:
     env_file:
     - .env
     environment:
+      - TZ=${TZ:-UTC}
       - DATABASE_URL=postgresql://tito:${TITO_DB_PASSWORD}@db:5432/tito
       - QUEUE_TABLE=job_queue
       - CALLBACK_QUEUE=callback_queue
@@ -43,6 +44,7 @@ services:
     env_file:
       - .env
     environment:
+      - TZ=${TZ:-UTC}
       - DATABASE_URL=postgresql://tito:${TITO_DB_PASSWORD}@db:5432/tito
       - API_URL=http://tito:5001
       - QUEUE_TABLE=job_queue
@@ -106,6 +108,7 @@ services:
     env_file:
       - .env
     environment:
+      - TZ=${TZ:-UTC}
       - DATABASE_URL=postgresql://planbar:${PLANBAR_DB_PASSWORD}@db_backend:5432/planbar_backend
       - SECRET_KEY=${SECRET_KEY}
       - JWT_ALGORITHM=${JWT_ALGORITHM}
@@ -135,6 +138,7 @@ services:
     env_file:
       - .env
     environment:
+      - TZ=${TZ:-UTC}
       # Backend URL für nginx proxy. Beim Endkunden: https://api.example.com
       - BACKEND_URL=http://planbar_backend:8000
     depends_on:

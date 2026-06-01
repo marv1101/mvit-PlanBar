@@ -17,6 +17,7 @@ EXPOSE 5001
 ENV NAME=TiTO
 ENV PORT=5001
 ENV PYTHONPATH=/app
+ENV TZ=UTC
 
 # Run main.py in worker mode when the container launches
 CMD ["python", "main.py", "--mode", "worker"]

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     tito_api_key: str | None = Field(None)
     log_level: str = Field("INFO")
     environment: str = Field("development")
+    timezone: str = Field("UTC")
 
 
 settings = Settings()
