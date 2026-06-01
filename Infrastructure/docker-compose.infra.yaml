@@ -1,0 +1,56 @@
+# Shared infrastructure for PlanBar multi-tenant deployment.
+# Starts two PostgreSQL instances that serve all tenants.
+# Caddy runs on the host for SSL termination and domain routing.
+#
+# Usage:
+#   docker compose -f docker-compose.infra.yaml --env-file .env.infra up -d
+
+services:
+  db_planbar:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: planbar
+      POSTGRES_PASSWORD: ${PLANBAR_SUPER_PASSWORD:?PlanBar DB password required}
+    volumes:
+      - planbar_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planbar"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - planbar_shared
+
+  db_tito:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tito
+      POSTGRES_PASSWORD: ${TITO_SUPER_PASSWORD:?TiTO DB password required}
+    volumes:
+      - tito_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tito"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - planbar_shared
+
+networks:
+  planbar_shared:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  planbar_postgres_data:
+  tito_postgres_data:

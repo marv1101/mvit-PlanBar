@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     )
 
     database_url: str = Field("sqlite:///./planbar.db")
-    secret_key: str = Field("change-me-in-production")
+    secret_key: str = Field(...)
     jwt_algorithm: str = Field("HS256")
     access_token_expire_minutes: int = Field(15)
     refresh_token_expire_days: int = Field(7)
@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     backend_callback_url: str = Field("http://localhost:8000")
     cors_origins: str = Field("http://localhost:5173,http://localhost:3000")
     tito_api_key: str | None = Field(None)
+    log_level: str = Field("INFO")
+    environment: str = Field("development")
 
 
 settings = Settings()

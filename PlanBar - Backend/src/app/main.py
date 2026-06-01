@@ -17,7 +17,8 @@ from app.middleware.request_logging import RequestLoggingMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.schemas.user import UserCreate
 from app.services.user_service import create_user
-from sqlalchemy import inspect, text
+from alembic.config import Config
+from alembic import command
 
 from app.db.models.user import User
 import logging
@@ -26,8 +27,23 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
+def _verify_production_settings():
+    if settings.environment in ("production", "demo", "staging"):
+        if settings.secret_key in ("change-me-in-production", "", None):
+            raise RuntimeError(
+                "SECRET_KEY must be set to a secure value in production. "
+                "Generate one with: openssl rand -hex 32"
+            )
+        if "sqlite" in settings.database_url:
+            raise RuntimeError(
+                "SQLite is not supported in production. "
+                "Set DATABASE_URL to a PostgreSQL connection string."
+            )
+
+
 def create_app() -> FastAPI:
     configure_logging()
+    _verify_production_settings()
     app = FastAPI(
         title="PlanBar Backend",
         description="Backend API für PlanBar mit TiTO-Integration",
@@ -45,21 +61,21 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware, max_size=10 * 1024 * 1024)
     app.include_router(api_router, prefix="/api/v1")
-    create_database()
-    run_migrations()
+    run_database_setup()
     seed_initial_users()
     app.add_exception_handler(StarletteHTTPException, http_error_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     return app
 
 
-def run_migrations() -> None:
-    inspector = inspect(engine)
-    columns = [col["name"] for col in inspector.get_columns("users")]
-    if "must_change_password" not in columns:
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT 1"))
-            conn.commit()
+def run_database_setup() -> None:
+    try:
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Alembic migrations applied successfully")
+    except Exception:
+        logger.warning("Alembic migration failed, falling back to create_all")
+        Base.metadata.create_all(bind=engine)
 
 
 def seed_initial_users() -> None:
@@ -95,10 +111,6 @@ def seed_initial_users() -> None:
             logger.info("=" * 60)
     finally:
         db.close()
-
-
-def create_database() -> None:
-    Base.metadata.create_all(bind=engine)
 
 
 app = create_app()

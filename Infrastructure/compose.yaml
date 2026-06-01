@@ -1,4 +1,9 @@
-version: '3.8'
+# Local development compose file.
+# For production multi-tenant deployment, use:
+#   docker-compose.infra.yaml  (shared PostgreSQL)
+#   docker-compose.customer.yaml (per-customer stack)
+#
+# See Docs/production-deployment-plan.md for details.
 
 services:
   # TiTO Application Service
