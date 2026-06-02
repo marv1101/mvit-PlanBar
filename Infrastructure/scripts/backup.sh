@@ -1,15 +1,18 @@
 #!/bin/bash
 # Daily database backup for all PlanBar customer databases.
 #
+# Environment:
+#   PLANBAR_BASE  - Base deployment directory (default: /opt/planbar)
+#
 # Configure cron:
-#   0 3 * * * /opt/planbar/scripts/backup.sh
+#   0 3 * * * PLANBAR_BASE=/opt/planbar /opt/planbar/scripts/backup.sh
 #
 # Optional: sync to S3-compatible storage via rclone:
 #   30 3 * * * rclone sync /opt/planbar/backups/ remote:planbar-backups/
 
 set -euo pipefail
 
-BACKUP_DIR="/opt/planbar/backups"
+BACKUP_DIR="${PLANBAR_BASE:-/opt/planbar}/backups"
 RETENTION_DAYS=30
 DATE=$(date +%Y%m%d-%H%M)
 LOG_FILE="${BACKUP_DIR}/backup-${DATE}.log"

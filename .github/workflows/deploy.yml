@@ -20,8 +20,9 @@ on:
 env:
   VPS_HOST: ${{ secrets.VPS1_HOST }}
   VPS_USER: ${{ secrets.VPS1_USER }}
-  COMPOSE_FILE: /opt/planbar/docker-compose.customer.yaml
-  INFRA_COMPOSE_FILE: /opt/planbar/docker-compose.infra.yaml
+  PLANBAR_BASE: ${{ vars.PLANBAR_BASE || '/opt/planbar' }}
+  COMPOSE_FILE: ${{ vars.PLANBAR_BASE || '/opt/planbar' }}/docker-compose.customer.yaml
+  INFRA_COMPOSE_FILE: ${{ vars.PLANBAR_BASE || '/opt/planbar' }}/docker-compose.infra.yaml
 
 jobs:
   deploy-infrastructure:
@@ -35,7 +36,7 @@ jobs:
           username: ${{ env.VPS_USER }}
           key: ${{ secrets.VPS1_SSH_KEY }}
           script: |
-            cd /opt/planbar
+            cd "${PLANBAR_BASE}"
             docker compose -f "${INFRA_COMPOSE_FILE}" pull
             docker compose -f "${INFRA_COMPOSE_FILE}" up -d
 
@@ -54,8 +55,8 @@ jobs:
           username: ${{ env.VPS_USER }}
           key: ${{ secrets.VPS1_SSH_KEY }}
           script: |
-            export COMPOSE_FILE="/opt/planbar/docker-compose.customer.yaml"
-            export ENV_FILE="/opt/planbar/customers/${{ matrix.customer }}/.env"
+            export COMPOSE_FILE="${PLANBAR_BASE}/docker-compose.customer.yaml"
+            export ENV_FILE="${PLANBAR_BASE}/customers/${{ matrix.customer }}/.env"
             if [ ! -f "${ENV_FILE}" ]; then
               echo "Error: Customer ${{ matrix.customer }} not initialized. Run deploy-customer.sh first."
               exit 1
@@ -84,7 +85,7 @@ jobs:
           username: ${{ env.VPS_USER }}
           key: ${{ secrets.VPS1_SSH_KEY }}
           script: |
-            cd /opt/planbar
+            cd "${PLANBAR_BASE}"
             # Deploy demo stack
             docker compose \
               -f "${COMPOSE_FILE}" \

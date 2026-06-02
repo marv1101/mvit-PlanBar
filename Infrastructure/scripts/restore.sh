@@ -6,6 +6,9 @@
 #
 # Example:
 #   ./restore.sh kunde1 /opt/planbar/backups/kunde1_planbar-20260601-030000.dump
+#
+# Environment:
+#   PLANBAR_BASE  - Base deployment directory (default: /opt/planbar)
 
 set -euo pipefail
 
@@ -34,9 +37,10 @@ docker exec db_planbar pg_restore -U planbar -d "${DB_NAME}" \
 
 docker exec db_planbar rm /tmp/restore.dump
 
+BASE_DIR="${PLANBAR_BASE:-/opt/planbar}"
 echo "Restore complete. Restarting customer stack..."
-docker compose -f /opt/planbar/docker-compose.customer.yaml \
-    --env-file "/opt/planbar/customers/${CUSTOMER}/.env" \
+docker compose -f "${BASE_DIR}/docker-compose.customer.yaml" \
+    --env-file "${BASE_DIR}/customers/${CUSTOMER}/.env" \
     -p "planbar-${CUSTOMER}" \
     restart planbar_backend
 

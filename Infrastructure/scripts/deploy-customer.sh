@@ -9,8 +9,15 @@
 #
 # Prerequisites:
 #   - docker-compose.infra.yaml must be running
-#   - Caddy must be installed on the host for SSL termination
+#   - Caddy must be installed on the host for SSL termination (optional)
 #   - The network planbar_shared must exist
+#
+# Environment variables (all optional):
+#   PLANBAR_BASE    - Base deployment directory (default: /opt/planbar)
+#   CADDYFILE       - Caddyfile path for automatic reverse proxy entry
+#                     (default: /etc/caddy/Caddyfile; set empty to skip)
+#   CADDY_RELOAD_CMD- Command to reload Caddy after config change
+#                     (default: "systemctl reload caddy"; set empty to skip)
 
 set -euo pipefail
 
@@ -20,7 +27,7 @@ TITO_PORT="${3:-5000}"
 BACKEND_PORT="${4:-8000}"
 DOMAIN="${CUSTOMER}.app.planbar.de"
 
-BASE_DIR="/opt/planbar"
+BASE_DIR="${PLANBAR_BASE:-/opt/planbar}"
 CUSTOMER_DIR="${BASE_DIR}/customers/${CUSTOMER}"
 COMPOSE_FILE="${BASE_DIR}/docker-compose.customer.yaml"
 
@@ -70,15 +77,24 @@ EOF
         docker exec -i db_tito psql -U tito -d "${TITO_DB_NAME}" < "${BASE_DIR}/Infrastructure/init-db.sql"
     fi
 
-    # Add Caddy entry
-    echo "Adding Caddy entry for ${DOMAIN}..."
-    cat >> /etc/caddy/Caddyfile << EOF
+    # Add Caddy entry (optional, skip when CADDYFILE is empty)
+    CADDYFILE="${CADDYFILE:-/etc/caddy/Caddyfile}"
+    if [ -n "${CADDYFILE}" ]; then
+        echo "Adding Caddy entry for ${DOMAIN} to ${CADDYFILE}..."
+        mkdir -p "$(dirname "${CADDYFILE}")"
+        cat >> "${CADDYFILE}" << EOF
 
 ${DOMAIN} {
     reverse_proxy localhost:${FRONTEND_PORT}
 }
 EOF
-    systemctl reload caddy || echo "Warning: could not reload Caddy"
+        CADDY_RELOAD_CMD="${CADDY_RELOAD_CMD:-systemctl reload caddy}"
+        if [ -n "${CADDY_RELOAD_CMD}" ]; then
+            ${CADDY_RELOAD_CMD} || echo "Warning: could not reload Caddy"
+        fi
+    else
+        echo "Skipping Caddy config (CADDYFILE is empty). Configure reverse proxy manually."
+    fi
 
     echo "Customer ${CUSTOMER} initialized."
 else
