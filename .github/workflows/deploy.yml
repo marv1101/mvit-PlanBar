@@ -1,0 +1,101 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      customers:
+        description: "Comma-separated list of customers to deploy (empty for all)"
+        required: false
+        type: string
+      ref:
+        description: "Git ref to deploy (branch or tag)"
+        required: false
+        default: "main"
+        type: string
+
+env:
+  VPS_HOST: ${{ secrets.VPS1_HOST }}
+  VPS_USER: ${{ secrets.VPS1_USER }}
+  COMPOSE_FILE: /opt/planbar/docker-compose.customer.yaml
+  INFRA_COMPOSE_FILE: /opt/planbar/docker-compose.infra.yaml
+
+jobs:
+  deploy-infrastructure:
+    if: ${{ github.event.workflow_run.conclusion != 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy shared infrastructure
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ env.VPS_HOST }}
+          username: ${{ env.VPS_USER }}
+          key: ${{ secrets.VPS1_SSH_KEY }}
+          script: |
+            cd /opt/planbar
+            docker compose -f "${INFRA_COMPOSE_FILE}" pull
+            docker compose -f "${INFRA_COMPOSE_FILE}" up -d
+
+  deploy-customers:
+    if: ${{ github.event.workflow_run.conclusion != 'failure' }}
+    needs: [deploy-infrastructure]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        customer: ${{ fromJSON(github.event.inputs.customers || secrets.CUSTOMER_LIST || '["demo"]') }}
+    steps:
+      - name: Deploy ${{ matrix.customer }}
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ env.VPS_HOST }}
+          username: ${{ env.VPS_USER }}
+          key: ${{ secrets.VPS1_SSH_KEY }}
+          script: |
+            export COMPOSE_FILE="/opt/planbar/docker-compose.customer.yaml"
+            export ENV_FILE="/opt/planbar/customers/${{ matrix.customer }}/.env"
+            if [ ! -f "${ENV_FILE}" ]; then
+              echo "Error: Customer ${{ matrix.customer }} not initialized. Run deploy-customer.sh first."
+              exit 1
+            fi
+            docker compose \
+              -f "${COMPOSE_FILE}" \
+              --env-file "${ENV_FILE}" \
+              -p "planbar-${{ matrix.customer }}" \
+              pull
+            docker compose \
+              -f "${COMPOSE_FILE}" \
+              --env-file "${ENV_FILE}" \
+              -p "planbar-${{ matrix.customer }}" \
+              up -d
+
+  deploy-demo:
+    if: ${{ github.event.workflow_run.conclusion != 'failure' }}
+    needs: [deploy-infrastructure]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy demo instance
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ env.VPS_HOST }}
+          username: ${{ env.VPS_USER }}
+          key: ${{ secrets.VPS1_SSH_KEY }}
+          script: |
+            cd /opt/planbar
+            # Deploy demo stack
+            docker compose \
+              -f "${COMPOSE_FILE}" \
+              --env-file "customers/demo/.env" \
+              -p "planbar-demo" \
+              pull
+            docker compose \
+              -f "${COMPOSE_FILE}" \
+              --env-file "customers/demo/.env" \
+              -p "planbar-demo" \
+              up -d
+            # Seed demo data (safe to run multiple times)
+            docker exec -i db_planbar psql -U planbar -d demo_planbar \
+              < Infrastructure/init-demo-data.sql || true

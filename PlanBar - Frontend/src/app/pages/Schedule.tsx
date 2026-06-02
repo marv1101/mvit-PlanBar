@@ -13,6 +13,7 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import * as scheduleService from '../services/scheduleService';
 import { scheduleFromResponse, shiftplanToShift } from '../lib/mappers';
+import { TIMEZONE } from '../lib/timezone';
 
 const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   draft: { label: 'Entwurf', variant: 'secondary' },
@@ -55,6 +56,7 @@ export function Schedule() {
   const [pollResult, setPollResult] = useState<ScheduleType | null>(null);
 
   const [creationMode, setCreationMode] = useState<'tito' | 'manual'>('tito');
+  const [titoWeekType, setTitoWeekType] = useState<WeekType>('A');
   const [manualName, setManualName] = useState('');
   const [manualStartDate, setManualStartDate] = useState('');
   const [manualEndDate, setManualEndDate] = useState('');
@@ -113,6 +115,7 @@ export function Schedule() {
         name: scheduleName,
         start_date: startDate,
         end_date: endDate,
+        week_type: titoWeekType,
         role_requirements: Object.keys(roleRequirements).length > 0 ? roleRequirements : undefined,
         shiftplans: [],
       });
@@ -270,7 +273,7 @@ export function Schedule() {
     const rows = shifts.map(shift => {
       const employee = employees.find(e => e.id === shift.employeeId);
       return [
-        new Date(shift.date).toLocaleDateString('de-DE'),
+        new Date(shift.date).toLocaleDateString('de-DE', { timeZone: TIMEZONE }),
         shift.week,
         employee?.name || '',
         shift.startTime,
@@ -402,6 +405,20 @@ export function Schedule() {
                       </div>
                     </div>
 
+                    <div>
+                      <Label htmlFor="titoWeekType">Wochen-Typ</Label>
+                      <select
+                        id="titoWeekType"
+                        className="w-full border rounded-md px-3 py-2"
+                        value={titoWeekType}
+                        onChange={(e) => setTitoWeekType(e.target.value as WeekType)}
+                        disabled={submitting}
+                      >
+                        <option value="A">Woche A</option>
+                        <option value="B">Woche B</option>
+                      </select>
+                    </div>
+
                     <Button onClick={createAndSubmit} disabled={submitting || loading} className="w-full">
                       {submitting ? (
                         <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Wird erstellt...</>
@@ -513,6 +530,7 @@ export function Schedule() {
                           setStartDate('');
                           setEndDate('');
                           setRoleRequirements({});
+                          setTitoWeekType('A');
                         }}
                       >
                         Neu erstellen
@@ -732,9 +750,9 @@ export function Schedule() {
                     <CardContent>
                       <div className="space-y-2 text-sm text-gray-600 mb-4">
                         <p>
-                          {schedule.startDate ? new Date(schedule.startDate).toLocaleDateString('de-DE') : '-'}
+                          {schedule.startDate ? new Date(schedule.startDate).toLocaleDateString('de-DE', { timeZone: TIMEZONE }) : '-'}
                           {' - '}
-                          {schedule.endDate ? new Date(schedule.endDate).toLocaleDateString('de-DE') : '-'}
+                          {schedule.endDate ? new Date(schedule.endDate).toLocaleDateString('de-DE', { timeZone: TIMEZONE }) : '-'}
                         </p>
                         <p>{schedule.shifts.length} Schichten</p>
                         <StatusBadge status={schedule.status || 'draft'} />

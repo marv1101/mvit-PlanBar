@@ -13,7 +13,6 @@ import {
   requestFromResponse,
   requestToCreate,
   scheduleFromResponse,
-  scheduleToCreate,
 } from '../lib/mappers';
 
 interface AppContextType {
@@ -151,13 +150,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addSchedule = useCallback((schedule: Schedule) => {
-    const dto = scheduleToCreate(schedule, []);
-    scheduleService.createSchedule(dto)
-      .then(res => {
-        setSchedules(prev => [...prev, scheduleFromResponse(res)]);
-        toast.success('Schichtplan erstellt');
-      })
-      .catch(() => toast.error('Fehler beim Erstellen des Schichtplans'));
+    setSchedules(prev => [...prev, schedule]);
   }, []);
 
   const updateSchedule = useCallback((id: string, schedule: Schedule) => {

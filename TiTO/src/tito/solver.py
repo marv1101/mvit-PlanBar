@@ -1,6 +1,6 @@
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple, Union
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import math
 import logging
 from ortools.sat.python.cp_model import CpModel, CpSolver, CpSolverStatus, LinearExpr
@@ -86,7 +86,7 @@ def _effective_shift_minutes(shift: dict, employee: dict) -> int:
 
 def solve_model(model: dict, timeout_seconds: int) -> dict:
     """Löse das Modell mit Google OR-Tools unter Berücksichtigung aller Constraints."""
-    start_time = datetime.now()
+    start_time = datetime.now(timezone.utc)
     
     cp_model = CpModel()
     
@@ -394,7 +394,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     
     status = solver.Solve(cp_model)
     
-    solve_time = (datetime.now() - start_time).total_seconds()
+    solve_time = (datetime.now(timezone.utc) - start_time).total_seconds()
     
     # Extrahiere Lösung
     assignments_solution = []
@@ -534,7 +534,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         "metadata": {
             "status": solver_status,
             "solveTimeSeconds": round(solve_time, 2),
-            "timestamp": datetime.now().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         },
         "solution": {
             "assignments": assignments_solution,

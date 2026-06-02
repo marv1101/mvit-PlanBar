@@ -1,5 +1,6 @@
 FROM node:22-alpine AS build
 ENV CI=true
+ENV TZ=UTC
 WORKDIR /app
 RUN npm install -g pnpm
 COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./

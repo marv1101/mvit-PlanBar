@@ -10,6 +10,7 @@ import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { getWeekType } from '../lib/week';
 import { useMediaQuery } from '../lib/useMediaQuery';
+import { TIMEZONE } from '../lib/timezone';
 import { ShiftListView } from './ShiftListView';
 import { Pencil, Trash2, Users, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -225,7 +226,7 @@ function DayColumn({
   date, weekType, shifts, onDrop, onEmployeeDrop, onClick, onEdit, onDelete
 }: DayColumnProps) {
   const dateStr = date.toISOString().split('T')[0];
-  const dayShifts = shifts.filter(s => s.date === dateStr && s.week === weekType);
+  const dayShifts = shifts.filter(s => s.date === dateStr);
   const lanes = useMemo(() => assignLanes(dayShifts), [dayShifts]);
 
   const onDropRef = useRef(onDrop);
@@ -254,15 +255,15 @@ function DayColumn({
   const isToday = date.toDateString() === new Date().toDateString();
 
   return (
-    <div className="flex-1 min-w-[100px] flex flex-col" role="gridcell" aria-label={date.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}>
+    <div className="flex-1 min-w-[100px] flex flex-col" role="gridcell" aria-label={date.toLocaleDateString('de-DE', { timeZone: TIMEZONE, weekday: 'long', day: 'numeric', month: 'long' })}>
       <div
         className={`sticky top-0 z-20 text-center py-2 text-sm font-medium border-b ${
           isToday ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'
         }`}
       >
-        {date.toLocaleDateString('de-DE', { weekday: 'short' })}
+        {date.toLocaleDateString('de-DE', { timeZone: TIMEZONE, weekday: 'short' })}
         <br />
-        <span className="text-xs">{date.toLocaleDateString('de-DE', { day: 'numeric', month: '2-digit' })}</span>
+        <span className="text-xs">{date.toLocaleDateString('de-DE', { timeZone: TIMEZONE, day: 'numeric', month: '2-digit' })}</span>
       </div>
       <div
         ref={drop}
@@ -499,7 +500,7 @@ function AddShiftDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            Schicht hinzufügen - {date?.toLocaleDateString('de-DE')}
+            Schicht hinzufügen - {date?.toLocaleDateString('de-DE', { timeZone: TIMEZONE })}
           </DialogTitle>
           <DialogDescription>
             Fügen Sie eine neue Schicht für den ausgewählten Tag hinzu.
@@ -598,8 +599,9 @@ export function EditableScheduleCalendar({
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   const handleDrop = (shift: Shift, newDate: string) => {
+    const newWeekType = getWeekType(new Date(newDate));
     const updatedShifts = schedule.shifts.map(s =>
-      s.id === shift.id ? { ...s, date: newDate } : s
+      s.id === shift.id ? { ...s, date: newDate, week: newWeekType } : s
     );
     onUpdateSchedule({ ...schedule, shifts: updatedShifts });
     toast.success('Schicht verschoben');

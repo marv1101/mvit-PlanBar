@@ -1,5 +1,5 @@
 import logging
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -155,6 +155,14 @@ def get_schedule_summary(db: Session, schedule: Schedule) -> dict[str, Any]:
     }
 
 
+def _get_week_type(dt: date) -> str:
+    """Determine if a date falls in week A or B based on reference date (Jan 1, 2024 = Week A, Monday)."""
+    monday = dt - timedelta(days=dt.weekday())
+    reference = date(2024, 1, 1)
+    weeks_diff = (monday - reference).days // 7
+    return "A" if weeks_diff % 2 == 0 else "B"
+
+
 def _build_tito_payload(
     schedule: Schedule,
     employees: list[Employee],
@@ -199,11 +207,15 @@ def _build_tito_payload(
             "comment": wish.note or "",
         })
 
-    # Expand role_requirements into per-date requirements
+    # Expand role_requirements into per-date requirements,
+    # filtering by week_type if the schedule is scoped to A or B
     requirements = []
     if schedule.role_requirements:
         current = schedule.start_date
         while current <= schedule.end_date:
+            if schedule.week_type and _get_week_type(current) != schedule.week_type:
+                current += timedelta(days=1)
+                continue
             for role_name, count in schedule.role_requirements.items():
                 if count and int(count) > 0:
                     requirements.append({

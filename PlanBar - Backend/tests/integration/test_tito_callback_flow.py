@@ -158,6 +158,49 @@ def test_callback_endpoint_processes_results(client, db_session: Session, test_s
     assert shiftplans[0].shift_id == "morning"
 
 
+def test_duplicate_callback_does_not_create_duplicate_shiftplans(client, db_session: Session, test_schedule: Schedule, test_employees_two: dict[str, Employee]):
+    """Simulate receiving the same callback twice (e.g., due to retry or idempotency logic)."""
+    alice = test_employees_two["001"]
+    test_schedule.status = "submitted"
+    test_schedule.tito_job_id = 128
+    db_session.add(test_schedule)
+    db_session.commit()
+
+    callback_payload = {
+        "job_id": 128,
+        "status": "SUCCESS",
+        "metadata": {"status": "success", "solveTimeSeconds": 1.0, "timestamp": "2026-05-24T12:30:00"},
+        "solution": {
+            "assignments": [
+                {
+                    "employeeId": f"emp_{alice.id:03d}",
+                    "date": "2026-05-24",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                }
+            ],
+            "unassignedRequirements": [],
+        },
+        "metrics": {"wishFulfillmentRate": 1.0, "totalObjectiveScore": 100.0, "employeeUtilization": {f"emp_{alice.id:03d}": 1.0}, "violations": None},
+        "diagnostics": {"isOptimal": True, "info": "Solution is optimal"},
+    }
+
+    # First callback
+    response1 = client.post("/api/v1/callbacks/tito", json=callback_payload)
+    assert response1.status_code == 200
+
+    # Second callback (same payload - simulates retry/duplicate)
+    response2 = client.post("/api/v1/callbacks/tito", json=callback_payload)
+    assert response2.status_code == 200
+
+    # Verify only ONE shiftplan exists (not two)
+    shiftplans = db_session.query(Shiftplan).filter(Shiftplan.schedule_id == test_schedule.id).all()
+    assert len(shiftplans) == 1, f"Expected 1 shiftplan, got {len(shiftplans)}"
+    assert shiftplans[0].employee_id == alice.id
+    assert shiftplans[0].shift_id == "morning"
+
+
 def test_callback_endpoint_with_feasible_status(client, db_session: Session, test_schedule: Schedule, test_employees_two: dict[str, Employee]):
     """Test that FEASIBLE solver status is treated as completed."""
     alice = test_employees_two["001"]

@@ -5,6 +5,7 @@ import { Users, ClipboardList, Calendar, Clock, TrendingUp, Briefcase, Loader2 }
 import { Button } from '../components/ui/button';
 import { useNavigate } from 'react-router';
 import { Shift } from '../types';
+import { TIMEZONE } from '../lib/timezone';
 
 export function Dashboard() {
   const { employees, requests, schedules, roles, loading } = useApp();
@@ -378,8 +379,8 @@ export function Dashboard() {
               <div className="flex justify-between">
                 <span className="text-gray-600">Zeitraum:</span>
                 <span className="font-medium">
-                  {new Date(latestSchedule.startDate).toLocaleDateString('de-DE')} - {' '}
-                  {new Date(latestSchedule.endDate).toLocaleDateString('de-DE')}
+                  {new Date(latestSchedule.startDate).toLocaleDateString('de-DE', { timeZone: TIMEZONE })} - {' '}
+                  {new Date(latestSchedule.endDate).toLocaleDateString('de-DE', { timeZone: TIMEZONE })}
                 </span>
               </div>
               <div className="flex justify-between">

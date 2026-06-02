@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, JSON, String, Text, Time
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, JSON, String, Text, Time, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -28,6 +28,9 @@ class Schedule(Base):
 
 class Shiftplan(Base):
     __tablename__ = "shiftplans"
+    __table_args__ = (
+        UniqueConstraint("schedule_id", "employee_id", "date", "shift_id", name="uq_shiftplan_schedule_employee_date_shift"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     schedule_id = Column(Integer, ForeignKey("schedules.id"), nullable=False, index=True)

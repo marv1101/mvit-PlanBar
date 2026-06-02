@@ -3,6 +3,8 @@ import os
 # Must be set before any app imports so the engine uses SQLite
 TEST_DATABASE_URL = "sqlite:///./test_planbar.db"
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
+os.environ["ENVIRONMENT"] = "test"
 
 import pytest
 from fastapi.testclient import TestClient

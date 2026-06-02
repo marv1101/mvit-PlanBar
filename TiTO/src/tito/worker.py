@@ -11,7 +11,7 @@ from .config import Settings
 from .db import (
     get_connection, fetch_next_job, mark_job_processing, store_result,
     mark_job_failed_with_retry, move_job_to_dlq, check_job_timeout,
-    enqueue_callback, check_idempotency, fetch_pending_callbacks, store_callback_result
+    enqueue_callback, fetch_pending_callbacks, store_callback_result
 )
 from .schema import validate_job_payload, JobPayload
 from .solver import build_model, solve_model
@@ -100,21 +100,6 @@ def run_worker(settings: Settings) -> None:
             worker_context.current_job_id = db_job_id
             
             try:
-                # check idempotency - prevent duplicate processing
-                idempotency_key = job.get("metadata", {}).get("idempotency_key")
-                if idempotency_key:
-                    existing_job = check_idempotency(connection, idempotency_key)
-                    if existing_job and existing_job["status"] == "completed":
-                        logger.info(f"Job {db_job_id}: Skipping duplicate (idempotency_key: {idempotency_key})")
-                        # Still enqueue callback for the duplicate
-                        if job.get("metadata", {}).get("callback_url"):
-                            enqueue_callback(
-                                connection, db_job_id,
-                                job["metadata"]["callback_url"],
-                                existing_job.get("result", {})
-                            )
-                        continue
-                
                 # Mark job as processing and set timeout
                 mark_job_processing(connection, db_job_id)
                 logger.info(f"Processing job ID: {db_job_id}")

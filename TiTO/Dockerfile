@@ -17,6 +17,7 @@ EXPOSE 5001
 ENV NAME=TiTO
 ENV PORT=5001
 ENV PYTHONPATH=/app
+ENV TZ=UTC
 
 # Run main.py when the container launches
 CMD ["gunicorn", "--pythonpath", "/app", "--chdir", "/app", "-b", "0.0.0.0:5001", "main:application"]
