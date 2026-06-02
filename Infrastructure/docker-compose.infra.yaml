@@ -46,6 +46,7 @@ services:
 
 networks:
   planbar_shared:
+    name: planbar_shared
     driver: bridge
     ipam:
       config:
