@@ -81,7 +81,7 @@ export function Requests() {
 
   const getEmployeeColor = (employeeId: string) => {
     const employee = employees.find(e => e.id === employeeId);
-    return employee?.color || '#gray';
+    return employee?.color || '#6b7280';
   };
 
   // Filter requests based on user role
