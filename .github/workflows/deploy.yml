@@ -36,9 +36,9 @@ jobs:
           username: ${{ env.VPS_USER }}
           key: ${{ secrets.VPS1_SSH_KEY }}
           script: |
-            cd "${PLANBAR_BASE}"
-            docker compose -f "${INFRA_COMPOSE_FILE}" pull
-            docker compose -f "${INFRA_COMPOSE_FILE}" up -d
+            cd "${{ env.PLANBAR_BASE }}"
+            docker compose -f "${{ env.INFRA_COMPOSE_FILE }}" pull
+            docker compose -f "${{ env.INFRA_COMPOSE_FILE }}" up -d
 
   deploy-customers:
     if: ${{ github.event.workflow_run.conclusion != 'failure' }}
@@ -55,8 +55,8 @@ jobs:
           username: ${{ env.VPS_USER }}
           key: ${{ secrets.VPS1_SSH_KEY }}
           script: |
-            export COMPOSE_FILE="${PLANBAR_BASE}/docker-compose.customer.yaml"
-            export ENV_FILE="${PLANBAR_BASE}/customers/${{ matrix.customer }}/.env"
+            export COMPOSE_FILE="${{ env.COMPOSE_FILE }}"
+            export ENV_FILE="${{ env.PLANBAR_BASE }}/customers/${{ matrix.customer }}/.env"
             if [ ! -f "${ENV_FILE}" ]; then
               echo "Error: Customer ${{ matrix.customer }} not initialized. Run deploy-customer.sh first."
               exit 1
@@ -85,15 +85,15 @@ jobs:
           username: ${{ env.VPS_USER }}
           key: ${{ secrets.VPS1_SSH_KEY }}
           script: |
-            cd "${PLANBAR_BASE}"
+            cd "${{ env.PLANBAR_BASE }}"
             # Deploy demo stack
             docker compose \
-              -f "${COMPOSE_FILE}" \
+              -f "${{ env.COMPOSE_FILE }}" \
               --env-file "customers/demo/.env" \
               -p "planbar-demo" \
               pull
             docker compose \
-              -f "${COMPOSE_FILE}" \
+              -f "${{ env.COMPOSE_FILE }}" \
               --env-file "customers/demo/.env" \
               -p "planbar-demo" \
               up -d

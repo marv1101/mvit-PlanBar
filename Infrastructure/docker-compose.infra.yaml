@@ -3,15 +3,16 @@
 # Caddy runs on the host for SSL termination and domain routing.
 #
 # Usage:
-#   docker compose -f docker-compose.infra.yaml --env-file .env.infra up -d
+#   docker compose -f docker-compose.infra.yaml --env-file .env.infra -p "planbar" up -d
 
 services:
   db_planbar:
+    container_name: db_planbar
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: planbar
-      POSTGRES_PASSWORD: ${PLANBAR_SUPER_PASSWORD:?PlanBar DB password required}
+      POSTGRES_PASSWORD: ${PLANBAR_DB_PASSWORD:?PlanBar DB password required}
     volumes:
       - planbar_postgres_data:/var/lib/postgresql/data
     ports:
@@ -26,11 +27,12 @@ services:
       - planbar_shared
 
   db_tito:
+    container_name: db_tito
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: tito
-      POSTGRES_PASSWORD: ${TITO_SUPER_PASSWORD:?TiTO DB password required}
+      POSTGRES_PASSWORD: ${TITO_DB_PASSWORD:?TiTO DB password required}
     volumes:
       - tito_postgres_data:/var/lib/postgresql/data
     ports:

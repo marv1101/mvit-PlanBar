@@ -246,11 +246,11 @@ git clone <repo> /opt/planbar
 cd /opt/planbar/Infrastructure
 
 # Passwörter generieren
-echo "PLANBAR_SUPER_PASSWORD=$(openssl rand -hex 32)" > .env.infra
-echo "TITO_SUPER_PASSWORD=$(openssl rand -hex 32)" >> .env.infra
+echo "PLANBAR_DB_PASSWORD=$(openssl rand -hex 32)" > .env.infra
+echo "TITO_DB_PASSWORD=$(openssl rand -hex 32)" >> .env.infra
 
 # Shared PostgreSQL starten (einmalig)
-docker compose -f docker-compose.infra.yaml --env-file .env.infra up -d
+docker compose -f docker-compose.infra.yaml --env-file .env.infra -p "planbar" up -d
 ```
 
 ### 2. Caddy Reverse Proxy einrichten
@@ -290,7 +290,8 @@ cd /opt/planbar/Infrastructure
 # Automatisch (empfohlen)
 ./scripts/deploy-customer.sh kunde1 8081 5001 8001
 
-# Oder manuell
+# Oder manuell (Passwörter müssen mit .env.infra übereinstimmen)
+set -a && source .env.infra && set +a
 export CUSTOMER=kunde1 \
   FRONTEND_PORT=8081 \
   TITO_PORT=5001 \
@@ -298,8 +299,8 @@ export CUSTOMER=kunde1 \
   DOMAIN=kunde1.app.planbar.de \
   PLANBAR_DB_NAME=kunde1_planbar \
   TITO_DB_NAME=kunde1_tito \
-  PLANBAR_DB_PASSWORD=$(openssl rand -hex 32) \
-  TITO_DB_PASSWORD=$(openssl rand -hex 32) \
+  PLANBAR_DB_PASSWORD="${PLANBAR_DB_PASSWORD}" \
+  TITO_DB_PASSWORD="${TITO_DB_PASSWORD}" \
   SECRET_KEY=$(openssl rand -hex 32) \
   TITO_API_KEY=$(openssl rand -hex 16) \
   TITO_JWT_SECRET=$(openssl rand -hex 32)
@@ -308,7 +309,8 @@ docker compose -f docker-compose.customer.yaml -p "planbar-${CUSTOMER}" up -d
 ```
 
 Das Skript `deploy-customer.sh` erledigt automatisch:
-- Secrets generieren und in `customers/<kunde>/.env` speichern
+- DB-Passwörter aus der Infrastruktur-Env (`.env.infra`) übernehmen (für Zugriff auf die Shared-PostgreSQL-Instanzen)
+- Weitere Secrets generieren (SECRET_KEY, API-Keys, JWT-Secrets) und in `customers/<kunde>/.env` speichern
 - Datenbanken in den Shared-PostgreSQL-Instanzen anlegen (`kunde_planbar`, `kunde_tito`)
 - TiTO-Schema in der Kundendatenbank initialisieren
 - Caddy-Konfiguration um Subdomain-Eintrag erweitern
@@ -447,8 +449,8 @@ Siehe `TiTO/.env.example` für alle TiTO-spezifischen Variablen (Datenbank, Queu
 
 | Variable | Beschreibung |
 |----------|-------------|
-| `PLANBAR_SUPER_PASSWORD` | PostgreSQL-Passwort für `planbar`-Superuser |
-| `TITO_SUPER_PASSWORD` | PostgreSQL-Passwort für `tito`-Superuser |
+| `PLANBAR_DB_PASSWORD` | PostgreSQL-Passwort für `planbar`-Superuser |
+| `TITO_DB_PASSWORD` | PostgreSQL-Passwort für `tito`-Superuser |
 
 ### Per-Customer
 

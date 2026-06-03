@@ -225,7 +225,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: planbar
-      POSTGRES_PASSWORD: ${PLANBAR_SUPER_PASSWORD}
+      POSTGRES_PASSWORD: ${PLANBAR_DB_PASSWORD}
     volumes:
       - planbar_postgres_data:/var/lib/postgresql/data
       - ./init-multi-db-planbar.sh:/docker-entrypoint-initdb.d/init.sh:ro
@@ -245,7 +245,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: tito
-      POSTGRES_PASSWORD: ${TITO_SUPER_PASSWORD}
+      POSTGRES_PASSWORD: ${TITO_DB_PASSWORD}
     volumes:
       - tito_postgres_data:/var/lib/postgresql/data
       - ./init-multi-db-tito.sh:/docker-entrypoint-initdb.d/init.sh:ro
