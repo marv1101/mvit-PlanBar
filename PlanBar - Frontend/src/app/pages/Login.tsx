@@ -40,9 +40,9 @@ export function Login() {
               <Lock className="h-8 w-8 text-white" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Schichtplanung Apotheke</CardTitle>
+          <CardTitle className="text-2xl">MVIT PlanBar</CardTitle>
           <CardDescription>
-            Melden Sie sich an, um auf Ihre Schichtpläne zuzugreifen
+            Ihr digitales Dienstplan- und Personalmanagement-Tool. Bitte melden Sie sich mit Ihren Zugangsdaten an.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -54,7 +54,7 @@ export function Login() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="ihre.email@apotheke.de"
+                  placeholder="ihre.email@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
