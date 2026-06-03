@@ -27,7 +27,7 @@ services:
       JWT_ALGORITHM: HS256
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      test: ["CMD", "python3", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5001/health').status == 200 else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -68,13 +68,13 @@ services:
       REFRESH_TOKEN_EXPIRE_DAYS: 90
       TITO_API_URL: http://tito:5001
       TITO_API_KEY: ${TITO_API_KEY:?}
-      BACKEND_CALLBACK_URL: https://${DOMAIN:?}/api/v1
+      BACKEND_CALLBACK_URL: http://planbar_backend:8000
       CORS_ORIGINS: https://${DOMAIN:?}
       ENVIRONMENT: production
       LOG_LEVEL: INFO
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/ping"]
+      test: ["CMD", "python3", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/health/ping').status == 200 else 1)"]
       interval: 30s
       timeout: 10s
       retries: 5

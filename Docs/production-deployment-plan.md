@@ -171,15 +171,29 @@ app.planbar.de {
 }
 
 demo.app.planbar.de {
-    reverse_proxy localhost:8090
+    handle /api/* {
+        reverse_proxy localhost:8000
+    }
+    handle {
+        reverse_proxy localhost:8090
+    }
 }
 
 kunde1.app.planbar.de {
-    reverse_proxy localhost:8081
+    handle /api/* {
+        reverse_proxy localhost:8001
+    }
+    handle {
+        reverse_proxy localhost:8081
+    }
 }
 
 kunde2.app.planbar.de {
-    reverse_proxy localhost:8082
+    handle /api/* {
+        reverse_proxy localhost:8002
+    }
+    handle {
+        reverse_proxy localhost:8082
 }
 CADDY
 
@@ -448,7 +462,12 @@ EOF
 
   # Caddy-Eintrag hinzufügen
   echo "${DOMAIN} {
-    reverse_proxy localhost:${FRONTEND_PORT}
+    handle /api/* {
+        reverse_proxy localhost:${BACKEND_PORT}
+    }
+    handle {
+        reverse_proxy localhost:${FRONTEND_PORT}
+    }
 }" >> /etc/caddy/Caddyfile
   systemctl reload caddy
 fi
