@@ -14,6 +14,8 @@
 #
 # Environment variables (all optional):
 #   PLANBAR_BASE    - Base deployment directory (default: /opt/planbar)
+#   INFRA_ENV_FILE  - Path to infrastructure .env file with DB superuser passwords
+#                     (default: <PLANBAR_BASE>/Infrastructure/.env.infra)
 #   CADDYFILE       - Caddyfile path for automatic reverse proxy entry
 #                     (default: /etc/caddy/Caddyfile; set empty to skip)
 #   CADDY_RELOAD_CMD- Command to reload Caddy after config change
@@ -43,10 +45,23 @@ if [ ! -d "${CUSTOMER_DIR}" ]; then
 
     mkdir -p "${CUSTOMER_DIR}"
 
+    # Read DB superuser passwords from infrastructure env file.
+    # The customer apps connect to the shared PostgreSQL instances using the
+    # same PostgreSQL user (planbar / tito) whose password is set in the infra env.
+    INFRA_ENV_FILE="${INFRA_ENV_FILE:-${BASE_DIR}/Infrastructure/.env.infra}"
+    if [ -f "${INFRA_ENV_FILE}" ]; then
+        echo "Reading DB passwords from ${INFRA_ENV_FILE}..."
+        set -a
+        source "${INFRA_ENV_FILE}"
+        set +a
+    else
+        echo "Warning: ${INFRA_ENV_FILE} not found. DB passwords must be set manually or via environment."
+    fi
+
     PLANBAR_DB_NAME="${CUSTOMER}_planbar"
     TITO_DB_NAME="${CUSTOMER}_tito"
-    PLANBAR_DB_PASSWORD=$(openssl rand -hex 32)
-    TITO_DB_PASSWORD=$(openssl rand -hex 32)
+PLANBAR_DB_PASSWORD="${PLANBAR_DB_PASSWORD:?PLANBAR_DB_PASSWORD not set. Set it in ${INFRA_ENV_FILE} or pass as env var.}"
+TITO_DB_PASSWORD="${TITO_DB_PASSWORD:?TITO_DB_PASSWORD not set. Set it in ${INFRA_ENV_FILE} or pass as env var.}"
     SECRET_KEY=$(openssl rand -hex 32)
     TITO_API_KEY=$(openssl rand -hex 16)
     TITO_JWT_SECRET=$(openssl rand -hex 32)

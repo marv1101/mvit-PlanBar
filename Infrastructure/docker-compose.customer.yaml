@@ -25,9 +25,6 @@ services:
       API_TOKEN: ${TITO_API_KEY:?}
       JWT_SECRET: ${TITO_JWT_SECRET:?}
       JWT_ALGORITHM: HS256
-    depends_on:
-      db_tito:
-        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
@@ -52,9 +49,6 @@ services:
       CALLBACK_QUEUE: callback_queue
       MAX_JOBS: 10
       TIMEOUT_SECONDS: 300
-    depends_on:
-      db_tito:
-        condition: service_healthy
     restart: unless-stopped
     networks:
       - planbar_shared
@@ -77,9 +71,6 @@ services:
       CORS_ORIGINS: https://${DOMAIN:?}
       ENVIRONMENT: production
       LOG_LEVEL: INFO
-    depends_on:
-      db_planbar:
-        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/ping"]
