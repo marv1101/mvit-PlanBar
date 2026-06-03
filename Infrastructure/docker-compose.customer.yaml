@@ -45,6 +45,7 @@ services:
       TZ: ${TZ:-UTC}
       DATABASE_URL: postgresql://tito:${TITO_DB_PASSWORD:?}@db_tito:5432/${TITO_DB_NAME:?}
       API_URL: http://tito:5001
+      API_TOKEN: ${TITO_API_KEY:?}
       QUEUE_TABLE: job_queue
       CALLBACK_QUEUE: callback_queue
       MAX_JOBS: 10
