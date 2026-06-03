@@ -142,8 +142,8 @@ services:
       # Backend URL für nginx proxy. Beim Endkunden: https://api.example.com
       - BACKEND_URL=http://planbar_backend:8000
     depends_on:
-      db_backend:
-        condition: service_healthy
+      planbar_backend:
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost"]
