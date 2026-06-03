@@ -100,7 +100,12 @@ EOF
         cat >> "${CADDYFILE}" << EOF
 
 ${DOMAIN} {
-    reverse_proxy localhost:${FRONTEND_PORT}
+    handle /api/* {
+        reverse_proxy localhost:${BACKEND_PORT}
+    }
+    handle {
+        reverse_proxy localhost:${FRONTEND_PORT}
+    }
 }
 EOF
         CADDY_RELOAD_CMD="${CADDY_RELOAD_CMD:-systemctl reload caddy}"
