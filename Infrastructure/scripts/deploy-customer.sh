@@ -27,7 +27,7 @@ CUSTOMER="${1:?Usage: $0 <customer-id> [frontend-port] [tito-port] [backend-port
 FRONTEND_PORT="${2:-8080}"
 TITO_PORT="${3:-5000}"
 BACKEND_PORT="${4:-8000}"
-DOMAIN="${CUSTOMER}.app.planbar.de"
+DOMAIN="planbar-${CUSTOMER}.mphion.de"
 
 BASE_DIR="${PLANBAR_BASE:-/opt/planbar}"
 CUSTOMER_DIR="${BASE_DIR}/customers/${CUSTOMER}"
