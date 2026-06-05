@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
-from app.db.models.employee import Contract, Employee
+from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
@@ -238,6 +238,53 @@ def test_build_tito_payload_with_requirements(db_session):
     payload = _build_tito_payload(schedule, [], [])
     assert len(payload["requirements"]) == 6
     assert len(payload["shiftTemplates"]) == 2
+
+
+def test_build_tito_payload_with_current_balance_hours(db_session):
+    schedule = Schedule(
+        name="Balance Test",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    employee = Employee(first_name="Balance", last_name="Test")
+    db_session.add(employee)
+    db_session.commit()
+
+    contract = Contract(employee_id=employee.id, weekly_working_hours=40, break_time=30)
+    db_session.add(contract)
+
+    timecard = Timecard(employee_id=employee.id, week=22, year=2026, balance=12.5)
+    db_session.add(timecard)
+    timecard_old = Timecard(employee_id=employee.id, week=21, year=2026, balance=10.0)
+    db_session.add(timecard_old)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [employee], [], db=db_session)
+    emp = payload["employees"][0]
+    assert emp["currentBalanceHours"] == 12.5
+
+
+def test_build_tito_payload_with_no_timecard_defaults_zero(db_session):
+    schedule = Schedule(
+        name="No Balance",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    employee = Employee(first_name="No", last_name="Balance")
+    db_session.add(employee)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [employee], [], db=db_session)
+    emp = payload["employees"][0]
+    assert emp.get("currentBalanceHours", 0.0) == 0.0
 
 
 def test_build_tito_payload_with_callback_url(db_session):

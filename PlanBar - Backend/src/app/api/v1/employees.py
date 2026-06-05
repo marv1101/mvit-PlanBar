@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db, require_admin
+from app.db.models.employee import Contract, Employee, Timecard
+from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.user import User
 from app.schemas.employee import (
     ContractCreate,
@@ -11,6 +13,9 @@ from app.schemas.employee import (
     EmployeeCreate,
     EmployeeResponse,
     EmployeeUpdate,
+    TimeAccountEntry,
+    TimeAccountProjected,
+    TimeAccountResponse,
     TimecardCreate,
     TimecardResponse,
     TimecardUpdate,
@@ -30,6 +35,7 @@ from app.services.employee_service import (
     update_employee,
     update_timecard,
 )
+from app.services.tito_callback import _calc_effective_hours
 
 router = APIRouter()
 
@@ -176,3 +182,60 @@ def update_timecard_endpoint(
     if not timecard:
         raise NotFoundException(detail="Timecard not found")
     return update_timecard(db, timecard, data)
+
+
+@router.get("/{employee_id}/time-account", response_model=TimeAccountResponse)
+def get_employee_time_account(
+    employee_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    employee = get_employee_by_id(db, employee_id)
+    if not employee:
+        raise NotFoundException(detail="Employee not found")
+
+    timecards = db.query(Timecard).filter(
+        Timecard.employee_id == employee_id,
+    ).order_by(Timecard.year.asc(), Timecard.week.asc()).all()
+
+    history = []
+    for tc in timecards:
+        history.append(TimeAccountEntry(
+            week=tc.week,
+            year=tc.year,
+            scheduled_hours=tc.scheduled_hours,
+            contract_hours=tc.contract_hours,
+            delta=tc.scheduled_hours - tc.contract_hours,
+            balance=tc.balance,
+        ))
+
+    current_balance = timecards[-1].balance if timecards else 0.0
+
+    projected = None
+    latest_schedule = db.query(Schedule).filter(
+        Schedule.status.in_(["completed", "submitted"]),
+    ).order_by(Schedule.end_date.desc()).first()
+
+    if latest_schedule:
+        shiftplans = db.query(Shiftplan).filter(
+            Shiftplan.schedule_id == latest_schedule.id,
+            Shiftplan.employee_id == employee_id,
+        ).all()
+        if shiftplans:
+            contract = employee.contracts[0] if employee.contracts else None
+            from_schedule = sum(
+                _calc_effective_hours(sp, contract) for sp in shiftplans
+            )
+            weekly_hours = contract.weekly_working_hours if contract else 40.0
+            expected_balance_after = current_balance + from_schedule - weekly_hours
+            projected = TimeAccountProjected(
+                from_schedule=from_schedule,
+                expected_balance_after=expected_balance_after,
+            )
+
+    return TimeAccountResponse(
+        employee_id=employee_id,
+        current_balance=current_balance,
+        history=history,
+        projected=projected,
+    )

@@ -167,24 +167,90 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         if requirement_assignments:
             cp_model.add(LinearExpr.sum(requirement_assignments) >= 1)
     
-    # Constraint 2: Fairness - Schichten gleichmäßig auf alle Workers verteilen
-    # Berechne min/max Schichten pro Worker (Zielbereich)
-    total_shifts = len(requirements)
-    num_workers = len(employees)
+    # Constraint 2: Stunden-Fairness als Soft Constraint (ersetzt alte Shift-Count-Fairness)
+    # Rollen-Gruppen ermitteln und Abweichungen von der Soll-Stundenzahl minimieren
+    fairness_deviation_vars = []
     
-    if num_workers > 0 and total_shifts > 0:
-        avg_shifts = total_shifts / num_workers
-        min_shifts = int(avg_shifts)
-        max_shifts = int(avg_shifts) + 1
+    if start_date and end_date:
+        weeks_in_period = max(1, round((_parse_date(end_date) - _parse_date(start_date)).days / 7.0))
+    else:
+        weeks_in_period = 1
+    
+    # Sammlung aller Skills aus Requirements
+    all_needed_skills = set()
+    for requirement in requirements:
+        needed = requirement.get("neededSkills") or {}
+        all_needed_skills.update(needed.keys())
+    
+    for skill in sorted(all_needed_skills):
+        # Requirements, die diesen Skill benötigen
+        group_req_indices = [
+            i for i, req in enumerate(requirements)
+            if skill in (req.get("neededSkills") or {})
+        ]
+        if not group_req_indices:
+            continue
         
-        for emp_idx in range(num_workers):
-            emp_shift_count = LinearExpr.sum([
-                assignments[(emp_idx, req_idx)]
-                for req_idx in range(len(requirements))
+        # Employees, die diesen Skill haben (oder die passende Rolle für ROLE_-Skills)
+        group_emp_indices = []
+        for i, emp in enumerate(employees):
+            emp_skills = set(emp.get("skills") or [])
+            if skill in emp_skills:
+                group_emp_indices.append(i)
+            elif skill.startswith("ROLE_") and emp.get("role") == skill.replace("ROLE_", ""):
+                group_emp_indices.append(i)
+        if len(group_emp_indices) < 2:
+            continue  # Keine Fairness nötig bei < 2 Mitarbeitern
+        
+        # Totale effektive Minuten aller Requirements dieser Gruppe
+        total_group_minutes = 0
+        for req_idx in group_req_indices:
+            requirement = requirements[req_idx]
+            shift = shift_templates.get(requirement.get("shiftId"), {})
+            total_group_minutes += _effective_shift_minutes(shift, {})
+        
+        # Totale Contract-Minuten der Gruppe (contractHours × Wochen × 60)
+        group_contract_minutes = 0.0
+        for emp_idx in group_emp_indices:
+            emp = employees[emp_idx]
+            contract_hours = float(
+                (emp.get("contract") or {}).get("weeklyHours", default_weekly_hours)
+            )
+            group_contract_minutes += contract_hours * weeks_in_period * 60
+        
+        if group_contract_minutes <= 0:
+            continue
+        
+        max_possible = 24 * 60 * len(group_req_indices)
+        
+        for emp_idx in group_emp_indices:
+            emp = employees[emp_idx]
+            contract_hours = float(
+                (emp.get("contract") or {}).get("weeklyHours", default_weekly_hours)
+            )
+            emp_contract_minutes = contract_hours * weeks_in_period * 60
+            anteil = emp_contract_minutes / group_contract_minutes
+            target_minutes = int(anteil * total_group_minutes)
+            
+            current_balance = float(emp.get("currentBalanceHours", 0.0) or 0.0)
+            adjusted_target = max(0, target_minutes - int(current_balance * 60))
+            
+            actual_minutes_expr = LinearExpr.sum([
+                assignments[(emp_idx, req_idx)] * _effective_shift_minutes(
+                    shift_templates.get(requirements[req_idx].get("shiftId"), {}),
+                    emp
+                )
+                for req_idx in group_req_indices
             ])
-            # Worker sollte zwischen min_shifts und max_shifts Schichten haben
-            cp_model.add(emp_shift_count >= min_shifts)
-            cp_model.add(emp_shift_count <= max_shifts)
+            
+            over = cp_model.new_int_var(0, max_possible, f"over_s{skill}_e{emp_idx}")
+            under = cp_model.new_int_var(0, max_possible, f"under_s{skill}_e{emp_idx}")
+            cp_model.add(actual_minutes_expr - adjusted_target == over - under)
+            
+            fairness_deviation_vars.append(over)
+            fairness_deviation_vars.append(under)
+    
+    num_workers = len(employees)
     
     # Constraint 3: Mindest-Ruhezeit zwischen Schichten (Hard Constraint)
     # Zwischen zwei Schichten eines Mitarbeiters müssen mindestens min_rest_hours liegen
@@ -373,19 +439,23 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                 )
                 wish_penalty_vars.append((wish_fulfilled, weight))
     
-    # Zielfunktion: Maximiere erfüllte Anforderungen und gewichtete Wünsche
-    objective = []
+    # Zielfunktion: Maximiere mit Prioritäten
+    # Priorität 1: Anforderungen erfüllen × 10000
+    # Priorität 2: Wünsche erfüllen × 100
+    # Priorität 3: Fairness-Abweichungen minimieren × -1
+    objective_terms = []
     
-    # Priorität: Anforderungen erfüllen
     for emp_idx, req_idx in assignments:
-        objective.append(assignments[(emp_idx, req_idx)])
+        objective_terms.append(assignments[(emp_idx, req_idx)] * 10000)
     
-    # Sekundär: Wünsche erfüllen mit Gewichtung
     for wish_var, weight in wish_penalty_vars:
-        objective.append(LinearExpr.sum([wish_var]) * weight)
+        objective_terms.append(wish_var * weight * 100)
     
-    if objective:
-        cp_model.maximize(LinearExpr.sum(objective))
+    for var in fairness_deviation_vars:
+        objective_terms.append(var * -1)
+    
+    if objective_terms:
+        cp_model.maximize(LinearExpr.sum(objective_terms))
     
     # Solver mit Timeout
     solver = CpSolver()
@@ -530,6 +600,58 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         
         employee_utilization[emp_id] = employee_utilization.get(emp_id, 0.0) + effective_hours
     
+    # Berechne Fairness-Metriken pro Employee
+    employee_fairness = {}
+    all_needed_skills_set = set()
+    for requirement in requirements:
+        needed = requirement.get("neededSkills") or {}
+        all_needed_skills_set.update(needed.keys())
+    
+    if start_date and end_date:
+        weeks_in_period = max(1, round((_parse_date(end_date) - _parse_date(start_date)).days / 7.0))
+    else:
+        weeks_in_period = 1
+    
+    # Pro Employee: Sammle scheduledHours und berechne targetMinutes
+    for emp in employees:
+        emp_id = emp["id"]
+        scheduled_hours = employee_utilization.get(emp_id, 0.0)
+        current_balance = float(emp.get("currentBalanceHours", 0.0) or 0.0)
+        
+        contract_hours = float(
+            (emp.get("contract") or {}).get("weeklyHours", default_weekly_hours)
+        )
+        
+        # Berechne target (proportionale Stunden basierend auf Contract)
+        total_contract_minutes = sum(
+            float((e.get("contract") or {}).get("weeklyHours", default_weekly_hours)) * weeks_in_period * 60
+            for e in employees
+        )
+        total_requirement_minutes = sum(
+            _effective_shift_minutes(shift_templates.get(req.get("shiftId"), {}), {})
+            for req in requirements
+        )
+        
+        if total_contract_minutes > 0:
+            emp_contract_minutes = contract_hours * weeks_in_period * 60
+            target_hours = (emp_contract_minutes / total_contract_minutes) * total_requirement_minutes / 60.0
+        else:
+            target_hours = 0.0
+        
+        projected_balance = current_balance + (scheduled_hours - target_hours)
+        
+        # Berechne fairnessDeviation (Abweichung der Ist-Stunden vom adjustierten Target)
+        # Hier: scheduled_hours - (target_hours - current_balance) = scheduled_hours - target_hours + current_balance
+        deviation = abs(scheduled_hours - target_hours + current_balance)
+        
+        employee_fairness[emp_id] = {
+            "currentBalanceHours": round(current_balance, 2),
+            "scheduledHours": round(scheduled_hours, 2),
+            "targetHours": round(target_hours, 2),
+            "projectedBalance": round(projected_balance, 2),
+            "fairnessDeviation": round(deviation, 2),
+        }
+    
     return {
         "metadata": {
             "status": solver_status,
@@ -544,6 +666,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             "wishFulfillmentRate": wish_rate,
             "totalObjectiveScore": len(assignments_solution) * 100,
             "employeeUtilization": employee_utilization,
+            "employeeFairness": employee_fairness,
             "violations": violations,
         },
         "diagnostics": {

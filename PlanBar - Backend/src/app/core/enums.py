@@ -20,6 +20,12 @@ class WishType(str, Enum):
     UNAVAILABLE = "unavailable"
 
 
+class WishStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class WeekType(str, Enum):
     A = "A"
     B = "B"

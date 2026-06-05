@@ -118,6 +118,9 @@ def create_timecard(db: Session, data: TimecardCreate) -> Timecard:
         week=data.week,
         year=data.year,
         balance=data.balance,
+        scheduled_hours=data.scheduled_hours,
+        actual_hours=data.actual_hours,
+        contract_hours=data.contract_hours,
     )
     db.add(timecard)
     db.commit()
@@ -140,6 +143,12 @@ def update_timecard(db: Session, timecard: Timecard, data: TimecardUpdate) -> Ti
         timecard.year = data.year
     if data.balance is not None:
         timecard.balance = data.balance
+    if data.scheduled_hours is not None:
+        timecard.scheduled_hours = data.scheduled_hours
+    if data.actual_hours is not None:
+        timecard.actual_hours = data.actual_hours
+    if data.contract_hours is not None:
+        timecard.contract_hours = data.contract_hours
     db.add(timecard)
     db.commit()
     db.refresh(timecard)
