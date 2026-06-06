@@ -1,7 +1,11 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.core.auth import generate_password, hash_password, verify_password
+from app.db.models.audit import DeletionAuditLog
 from app.db.models.employee import Employee
+from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
 from app.schemas.user import AdminUserCreate, UserCreate, UserUpdate
 from app.services import audit_service
@@ -42,7 +46,7 @@ def create_user(db: Session, user_in: UserCreate, role: str = "user") -> User:
 
 
 def authenticate_user(db: Session, email: str, password: str) -> User | None:
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.email == email, User.is_deleted == False).first()
     if not user:
         return None
     if not verify_password(password, user.password_hash):
@@ -55,7 +59,7 @@ def get_user_by_id(db: Session, user_id: int) -> User | None:
 
 
 def list_users(db: Session, offset: int = 0, limit: int | None = None) -> list[User]:
-    query = db.query(User).order_by(User.id)
+    query = db.query(User).filter(User.is_deleted == False).order_by(User.id)
     if limit is not None:
         query = query.offset(offset).limit(limit)
     return query.all()
@@ -104,8 +108,51 @@ def update_user(db: Session, user: User, user_update: UserUpdate, actor_id: int 
     return user
 
 
-def delete_user(db: Session, user: User, actor_id: int | None = None) -> None:
-    db.delete(user)
+def _pseudonymize_employee_data(db: Session, employee: Employee) -> None:
+    """Replace personal data in an Employee record with pseudonymized values."""
+    employee.first_name = "[DELETED]"
+    employee.last_name = "[DELETED]"
+    employee.email = None
+    employee.color = None
+    db.add(employee)
+
+
+def delete_user(
+    db: Session, user: User, deletion_type: str = "admin"
+) -> None:
+    """Soft-delete a user with GDPR-compliant cascade handling.
+
+    1. Mark user as deleted (soft-delete)
+    2. Pseudonymize personal data in linked Employee records
+    3. Create audit log entry (no PII)
+    """
+    now = datetime.now(timezone.utc)
+
+    # Soft-delete the user
+    user.is_deleted = True
+    user.deleted_at = now
+    db.add(user)
+
+    # Cascade: pseudonymize linked Employee personal data
+    employees = db.query(Employee).filter(Employee.user_id == user.id).all()
+    for employee in employees:
+        _pseudonymize_employee_data(db, employee)
+
+        # Pseudonymize shift wishes (remove notes which could contain PII)
+        shift_wishes = db.query(ShiftWish).filter(
+            ShiftWish.employee_id == employee.id
+        ).all()
+        for wish in shift_wishes:
+            wish.note = None
+            db.add(wish)
+
+    # Create audit log (no PII - only user ID and timestamp)
+    audit_log = DeletionAuditLog(
+        deleted_user_id=user.id,
+        deleted_at=now,
+        deletion_type=deletion_type,
+    )
+    db.add(audit_log)
     db.commit()
     audit_service.log_delete(db, user_id=actor_id, resource_type="user", resource_id=str(user.id))
 

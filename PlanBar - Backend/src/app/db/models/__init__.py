@@ -12,11 +12,13 @@ from app.db.models.shift_wish import ShiftWish
 from app.db.models.team import Team
 from app.db.models.time_tracking import TimeEntry
 from app.db.models.user import User
+from app.db.models.audit import DeletionAuditLog
 
 __all__ = [
     "AuditLog",
     "Availability",
     "Contract",
+    "DeletionAuditLog",
     "Employee",
     "Notification",
     "PinboardDocument",
