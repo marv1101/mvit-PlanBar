@@ -9,6 +9,7 @@ import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { useIsMobile } from './ui/use-mobile';
 import { OfflineIndicator } from './OfflineIndicator';
+import { CookieConsent } from '../../components/CookieConsent';
 
 function NavContent({ navItems, onNavigate }: { navItems: { path: string; label: string; icon: React.ComponentType<{ className?: string }>; }[]; onNavigate?: () => void }) {
   const location = useLocation();
@@ -150,6 +151,7 @@ export function Layout() {
               Datenschutzerklärung
             </Link>
           </div>
+          <CookieConsent />
         </div>
       </footer>
       <OfflineIndicator />

@@ -10,6 +10,7 @@ import { Login } from './pages/Login';
 import { ChangePasswordDialog } from './components/ChangePasswordDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initPushState } from './services/pushService';
+import { CookieConsent } from '../components/CookieConsent';
 
 function AppContent() {
   const { user, isLoading, mustChangePassword } = useAuth();
@@ -42,6 +43,7 @@ function AppContent() {
           {mustChangePassword && <ChangePasswordDialog />}
           <RouterProvider router={router} />
           <Toaster />
+          <CookieConsent />
         </AppProvider>
       </TeamProvider>
     </QueryProvider>
