@@ -74,6 +74,8 @@ class TimecardBase(BaseModel):
     scheduled_hours: float = 0.0
     actual_hours: float = 0.0
     contract_hours: float = 0.0
+    manual_adjustment_hours: float = 0.0
+    adjustment_reason: Optional[str] = None
 
 
 class TimecardCreate(TimecardBase):
@@ -87,6 +89,8 @@ class TimecardUpdate(BaseModel):
     scheduled_hours: Optional[float] = None
     actual_hours: Optional[float] = None
     contract_hours: Optional[float] = None
+    manual_adjustment_hours: Optional[float] = None
+    adjustment_reason: Optional[str] = None
 
 
 class TimecardResponse(TimecardBase):
@@ -105,6 +109,8 @@ class TimeAccountEntry(BaseModel):
     contract_hours: float
     delta: float
     balance: float
+    manual_adjustment: float = 0.0
+    adjustment_reason: Optional[str] = None
 
 
 class TimeAccountProjected(BaseModel):
@@ -114,6 +120,12 @@ class TimeAccountProjected(BaseModel):
 
 class TimeAccountResponse(BaseModel):
     employee_id: int
+    employee_name: str
     current_balance: float
     history: list[TimeAccountEntry]
     projected: TimeAccountProjected | None = None
+
+
+class TimeAccountAdjust(BaseModel):
+    delta_hours: float
+    reason: Optional[str] = None

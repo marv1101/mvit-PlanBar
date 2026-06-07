@@ -153,6 +153,7 @@ class Config(BaseModel):
     maxDailyWorkHours: Optional[float] = Field(default=10, gt=0, description="Maximum daily working hours")
     minFreeSundaysPerYear: Optional[int] = Field(default=15, ge=0, le=52, description="Minimum free Sundays per year")
     defaultWeeklyHours: Optional[float] = Field(default=40.0, gt=0, description="Default weekly contract hours")
+    maxSameShiftConsecutive: Optional[int] = Field(default=0, ge=0, le=14, description="Max consecutive days with same shift type (0 = disabled)")
     solverTimeoutSeconds: Optional[int] = Field(default=300, gt=0, description="Solver timeout in seconds")
 
 

@@ -66,6 +66,8 @@ class Timecard(Base):
     scheduled_hours = Column(Float, default=0.0)
     actual_hours = Column(Float, default=0.0)
     contract_hours = Column(Float, default=0.0)
+    manual_adjustment_hours = Column(Float, default=0.0)
+    adjustment_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 

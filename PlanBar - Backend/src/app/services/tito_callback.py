@@ -121,7 +121,7 @@ def update_timecards_from_schedule(db: Session, schedule: Schedule) -> None:
             ).first()
 
             if existing:
-                prev_balance = existing.balance - (existing.scheduled_hours - existing.contract_hours)
+                prev_balance = existing.balance - (existing.scheduled_hours - existing.contract_hours) - (existing.manual_adjustment_hours or 0)
             else:
                 prev_tc = db.query(Timecard).filter(
                     Timecard.employee_id == emp_id,

@@ -48,6 +48,8 @@ export interface Employee {
 
 export type RequestType = 'urlaubswunsch' | 'bevorzugt' | 'nicht-verfügbar';
 
+export type WishStatus = 'approved' | 'pending' | 'rejected';
+
 export interface Request {
   id: string;
   employeeId: string;
@@ -55,6 +57,10 @@ export interface Request {
   week: WeekType;
   type: RequestType;
   notes?: string;
+  status?: WishStatus;
+  reviewedBy?: number | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string | null;
 }
 
 export interface Shift {
@@ -80,10 +86,22 @@ export interface TiTODiagnostics {
   info: string;
 }
 
+export interface EmployeeFairnessEntry {
+  group: string;
+  groupTarget: number;
+  adjustedTarget: number;
+  actualMinutes: number;
+  deviation: number;
+  deviationType: string;
+  projectedBalance: number;
+  currentBalanceHours: number;
+}
+
 export interface TiTOMetrics {
   wishFulfillmentRate: number;
   totalObjectiveScore: number;
   violations?: TiTOViolation[];
+  employeeFairness?: Record<string, EmployeeFairnessEntry>;
 }
 
 export interface AppUser {
@@ -106,4 +124,28 @@ export interface Schedule {
   titoJobId?: number | null;
   diagnostics?: TiTODiagnostics | null;
   metrics?: TiTOMetrics | null;
+}
+
+export interface TimeAccountEntry {
+  week: number;
+  year: number;
+  scheduledHours: number;
+  contractHours: number;
+  delta: number;
+  balance: number;
+  manualAdjustment: number;
+  adjustmentReason: string | null;
+}
+
+export interface TimeAccountProjected {
+  fromSchedule: number;
+  expectedBalanceAfter: number;
+}
+
+export interface EmployeeTimeAccount {
+  employeeId: number;
+  employeeName: string;
+  currentBalance: number;
+  history: TimeAccountEntry[];
+  projected: TimeAccountProjected | null;
 }

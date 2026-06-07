@@ -1,4 +1,4 @@
-import { AppUser, Employee, Request, Role, Schedule, Shift, TiTODiagnostics, TiTOMetrics, WeekType } from '../types';
+import { AppUser, Employee, Request, Role, Schedule, Shift, TiTODiagnostics, TiTOMetrics, WeekType, WishStatus } from '../types';
 import type { EmployeeResponseDTO, EmployeeCreateDTO } from '../services/employeeService';
 import type { RoleResponseDTO, RoleCreateDTO } from '../services/roleService';
 import type { ShiftWishResponseDTO, ShiftWishCreateDTO, ShiftWishType } from '../services/requestService';
@@ -113,6 +113,10 @@ export function requestFromResponse(dto: ShiftWishResponseDTO): Request {
     week: dto.week === 2 ? 'B' : 'A' as WeekType,
     type: (API_TYPE_TO_FRONTEND[dto.type] || dto.type) as Request['type'],
     notes: dto.note || undefined,
+    status: dto.status as WishStatus | undefined,
+    reviewedBy: dto.reviewed_by,
+    reviewedAt: dto.reviewed_at,
+    rejectionReason: dto.rejection_reason,
   };
 }
 
@@ -178,6 +182,8 @@ export function scheduleToCreate(schedule: Schedule, shiftplans: ShiftplanCreate
 }
 
 import type { UserResponseDTO } from '../services/userService';
+import type { TimeAccountResponseDTO } from '../services/employeeService';
+import { EmployeeTimeAccount, TimeAccountEntry, TimeAccountProjected } from '../types';
 
 export function userFromResponse(dto: UserResponseDTO): AppUser {
   return {
@@ -187,5 +193,27 @@ export function userFromResponse(dto: UserResponseDTO): AppUser {
     role: dto.role === 'admin' ? 'admin' : 'employee',
     mustChangePassword: dto.must_change_password,
     lastLogin: dto.last_login,
+  };
+}
+
+export function timeAccountFromResponse(dto: TimeAccountResponseDTO): EmployeeTimeAccount {
+  return {
+    employeeId: dto.employee_id,
+    employeeName: dto.employee_name,
+    currentBalance: dto.current_balance,
+    history: dto.history.map(e => ({
+      week: e.week,
+      year: e.year,
+      scheduledHours: e.scheduled_hours,
+      contractHours: e.contract_hours,
+      delta: e.delta,
+      balance: e.balance,
+      manualAdjustment: e.manual_adjustment,
+      adjustmentReason: e.adjustment_reason,
+    })),
+    projected: dto.projected ? {
+      fromSchedule: dto.projected.from_schedule,
+      expectedBalanceAfter: dto.projected.expected_balance_after,
+    } : null,
   };
 }

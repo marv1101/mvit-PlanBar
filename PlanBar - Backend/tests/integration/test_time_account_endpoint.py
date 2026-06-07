@@ -1,6 +1,6 @@
-from datetime import date, time
+from datetime import date, time, datetime, timezone
 
-from app.db.models.employee import Contract, Timecard
+from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 
 
@@ -21,6 +21,15 @@ def test_get_time_account_empty(client, auth_headers):
     assert data["projected"] is None
 
 
+def _entry(week, year, scheduled_hours, contract_hours, delta, balance, manual_adjustment=0.0, adjustment_reason=None):
+    return dict(
+        week=week, year=year,
+        scheduled_hours=scheduled_hours, contract_hours=contract_hours,
+        delta=delta, balance=balance,
+        manual_adjustment=manual_adjustment, adjustment_reason=adjustment_reason,
+    )
+
+
 def test_get_time_account_with_history(client, auth_headers, db_session):
     emp_resp = client.post(
         "/api/v1/employees",
@@ -39,8 +48,8 @@ def test_get_time_account_with_history(client, auth_headers, db_session):
     data = resp.json()
     assert data["current_balance"] == 0.0
     assert len(data["history"]) == 2
-    assert data["history"][0] == dict(week=22, year=2026, scheduled_hours=38.0, contract_hours=40.0, delta=-2.0, balance=-2.0)
-    assert data["history"][1] == dict(week=23, year=2026, scheduled_hours=42.0, contract_hours=40.0, delta=2.0, balance=0.0)
+    assert data["history"][0] == _entry(22, 2026, 38.0, 40.0, -2.0, -2.0)
+    assert data["history"][1] == _entry(23, 2026, 42.0, 40.0, 2.0, 0.0)
 
 
 def test_get_time_account_with_projected(client, auth_headers, db_session):
@@ -86,4 +95,121 @@ def test_get_time_account_with_projected(client, auth_headers, db_session):
 
 def test_get_time_account_not_found(client, auth_headers):
     resp = client.get("/api/v1/employees/99999/time-account", headers=auth_headers)
+    assert resp.status_code == 404
+
+
+def test_get_all_time_accounts_batch(client, auth_headers, db_session):
+    emp1_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Batch", "last_name": "One"},
+        headers=auth_headers,
+    )
+    emp1_id = emp1_resp.json()["id"]
+    emp2_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Batch", "last_name": "Two"},
+        headers=auth_headers,
+    )
+    emp2_id = emp2_resp.json()["id"]
+
+    tc1 = Timecard(employee_id=emp1_id, week=22, year=2026, scheduled_hours=38.0, contract_hours=40.0, balance=-2.0)
+    tc2 = Timecard(employee_id=emp2_id, week=22, year=2026, scheduled_hours=42.0, contract_hours=40.0, balance=2.0)
+    db_session.add_all([tc1, tc2])
+    db_session.commit()
+
+    resp = client.get("/api/v1/employees/time-accounts", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) >= 2
+
+    emp1_data = next(e for e in data if e["employee_id"] == emp1_id)
+    assert emp1_data["current_balance"] == -2.0
+    assert len(emp1_data["history"]) == 1
+    assert emp1_data["history"][0] == _entry(22, 2026, 38.0, 40.0, -2.0, -2.0)
+
+    emp2_data = next(e for e in data if e["employee_id"] == emp2_id)
+    assert emp2_data["current_balance"] == 2.0
+    assert len(emp2_data["history"]) == 1
+
+
+def test_get_all_time_accounts_requires_admin(client):
+    resp = client.get("/api/v1/employees/time-accounts")
+    assert resp.status_code == 401
+
+
+def test_adjust_time_account_add_hours(client, auth_headers, db_session):
+    emp_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Adjust", "last_name": "Test"},
+        headers=auth_headers,
+    )
+    emp_id = emp_resp.json()["id"]
+
+    tc = Timecard(employee_id=emp_id, week=22, year=2026, scheduled_hours=38.0, contract_hours=40.0, balance=-2.0)
+    db_session.add(tc)
+    db_session.commit()
+
+    resp = client.post(
+        f"/api/v1/employees/{emp_id}/time-account/adjust",
+        json={"delta_hours": 5.0, "reason": "Korrektur Überstunden"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["current_balance"] == 3.0
+    assert len(data["history"]) == 2
+    adj_entry = data["history"][1]
+    assert adj_entry["delta"] == 0.0
+    assert adj_entry["scheduled_hours"] == 0.0
+    assert adj_entry["contract_hours"] == 0.0
+    assert adj_entry["manual_adjustment"] == 5.0
+    assert adj_entry["adjustment_reason"] == "Korrektur Überstunden"
+    assert adj_entry["balance"] == 3.0
+
+
+def test_adjust_time_account_subtract_hours(client, auth_headers, db_session):
+    emp_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Adjust", "last_name": "Sub"},
+        headers=auth_headers,
+    )
+    emp_id = emp_resp.json()["id"]
+
+    tc = Timecard(employee_id=emp_id, week=22, year=2026, scheduled_hours=42.0, contract_hours=40.0, balance=2.0)
+    db_session.add(tc)
+    db_session.commit()
+
+    resp = client.post(
+        f"/api/v1/employees/{emp_id}/time-account/adjust",
+        json={"delta_hours": -5.0},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["current_balance"] == -3.0
+
+
+def test_adjust_time_account_requires_admin(client, auth_headers, db_session):
+    emp_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "No", "last_name": "Access"},
+        headers=auth_headers,
+    )
+    emp_id = emp_resp.json()["id"]
+
+    client.cookies.clear()
+
+    resp = client.post(
+        f"/api/v1/employees/{emp_id}/time-account/adjust",
+        json={"delta_hours": 1.0},
+    )
+    assert resp.status_code == 401
+
+
+def test_adjust_time_account_not_found(client, auth_headers):
+    resp = client.post(
+        "/api/v1/employees/99999/time-account/adjust",
+        json={"delta_hours": 1.0},
+        headers=auth_headers,
+    )
     assert resp.status_code == 404
