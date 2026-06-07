@@ -39,6 +39,15 @@ def _verify_production_settings():
                 "SQLite is not supported in production. "
                 "Set DATABASE_URL to a PostgreSQL connection string."
             )
+        # Validate CORS origins are HTTPS in production
+        origins = settings.cors_origins.split(",") if settings.cors_origins else []
+        for origin in origins:
+            origin = origin.strip()
+            if origin.startswith("http://") and origin != "http://localhost":
+                raise RuntimeError(
+                    f"CORS origin '{origin}' uses HTTP in production. "
+                    "All CORS origins must use HTTPS in production/staging/demo."
+                )
 
 
 def create_app() -> FastAPI:
@@ -55,8 +64,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins.split(",") if settings.cors_origins else ["http://localhost:5173"],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=settings.cors_allow_methods.split(","),
+        allow_headers=settings.cors_allow_headers.split(","),
     )
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware, max_size=10 * 1024 * 1024)

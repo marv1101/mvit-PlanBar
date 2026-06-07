@@ -42,7 +42,7 @@ def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: 
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
+        secure=settings.cookie_secure,
         samesite="lax",
         max_age=settings.access_token_expire_minutes * 60,
     )
@@ -50,7 +50,7 @@ def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: 
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,
+        secure=settings.cookie_secure,
         samesite="lax",
         max_age=settings.refresh_token_expire_days * 24 * 3600,
     )

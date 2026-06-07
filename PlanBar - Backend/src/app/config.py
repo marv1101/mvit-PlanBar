@@ -19,10 +19,22 @@ class Settings(BaseSettings):
     tito_api_url: str = Field("http://localhost:5001")
     backend_callback_url: str = Field("http://localhost:8000")
     cors_origins: str = Field("http://localhost:5173,http://localhost:3000")
+    cors_allow_methods: str = Field("GET,POST,PUT,DELETE,PATCH,OPTIONS")
+    cors_allow_headers: str = Field("Authorization,Content-Type,Accept")
     tito_api_key: str | None = Field(None)
     log_level: str = Field("INFO")
     environment: str = Field("development")
     timezone: str = Field("UTC")
+
+    @property
+    def cookie_secure(self) -> bool:
+        """True for non-development environments (HTTPS required)."""
+        return self.environment not in ("development", "test")
+
+    @property
+    def is_production(self) -> bool:
+        """True for production, demo, or staging environments."""
+        return self.environment in ("production", "demo", "staging")
 
 
 settings = Settings()
