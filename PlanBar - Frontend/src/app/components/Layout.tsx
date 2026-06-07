@@ -43,13 +43,13 @@ export function Layout() {
 
   const allNavItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
-    { path: '/employees', label: 'Mitarbeiter', icon: Users, roles: ['admin'] },
     { path: '/roles', label: 'Rollen', icon: UserCog, roles: ['admin'] },
+    { path: '/employees', label: 'Mitarbeiter', icon: Users, roles: ['admin'] },
     { path: '/users', label: 'Benutzer', icon: UserPlus, roles: ['admin'] },
     { path: '/requests', label: 'Wünsche', icon: ClipboardList, roles: ['admin', 'employee'] },
     { path: '/schedule', label: 'Schichtplan', icon: Calendar, roles: ['admin'] },
-    { path: '/employee-view', label: 'Mitarbeiteransicht', icon: Eye, roles: ['admin', 'employee'] },
     { path: '/time-accounts', label: 'Zeitkonten', icon: Clock, roles: ['admin'] },
+    { path: '/employee-view', label: 'Mitarbeiteransicht', icon: Eye, roles: ['admin', 'employee'] },
   ];
 
   const navItems = allNavItems.filter(item =>
