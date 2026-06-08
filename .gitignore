@@ -41,3 +41,6 @@ Docs/github-issues-go-live.md
 
 # Keep example env files
 !.env.example
+__pycache__/
+*.pyc
+dist/
