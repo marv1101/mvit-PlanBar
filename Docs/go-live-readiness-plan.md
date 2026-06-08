@@ -823,7 +823,7 @@ Je nachdem, wie der Pfad in `CMD` referenziert wird (`app.main:app` vs `main:app
 
 ### 5.4 nginx Security Headers
 
-**Status:** ❌ Offen  
+**Status:** ✅ Erledigt (Issue #23)  
 **Datei:** `PlanBar - Frontend/nginx.conf`
 
 **Lösung:**
@@ -835,6 +835,8 @@ add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';" always;
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 ```
+
+**CSP-Änderung (Issue #23):** `'unsafe-inline'` aus `script-src` entfernt – Vite bündelt alle Scripts in externe Dateien, keine inline `<script>`-Elemente im Codebase. `style-src 'unsafe-inline'` bleibt wegen `chart.tsx` (`<style dangerouslySetInnerHTML>`) und Radix UI (`react-style-singleton`).
 
 ### 5.5 Healthcheck-Aggregation
 
