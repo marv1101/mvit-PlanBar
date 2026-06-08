@@ -12,8 +12,11 @@ import { EditableScheduleCalendar } from '../components/EditableScheduleCalendar
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import * as scheduleService from '../services/scheduleService';
+import * as requestService from '../services/requestService';
 import { scheduleFromResponse, shiftplanToShift } from '../lib/mappers';
 import { TIMEZONE } from '../lib/timezone';
+import { FairnessMeter } from '../components/FairnessMeter';
+import { WishReviewDialog } from '../components/WishReviewDialog';
 
 const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   draft: { label: 'Entwurf', variant: 'secondary' },
@@ -62,6 +65,8 @@ export function Schedule() {
   const [manualEndDate, setManualEndDate] = useState('');
   const [manualWeekType, setManualWeekType] = useState<WeekType>('A');
   const [manuallyCreatedSchedule, setManuallyCreatedSchedule] = useState<ScheduleType | null>(null);
+
+  const [wishReviewScheduleId, setWishReviewScheduleId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!currentScheduleId || currentScheduleStatus !== 'submitted') return;
@@ -123,6 +128,18 @@ export function Schedule() {
       const mapped = scheduleFromResponse(created);
       addSchedule(mapped);
 
+      // Check for pending wishes
+      try {
+        const pending = await requestService.getPendingShiftWishes(created.id);
+        if (pending.length > 0) {
+          setWishReviewScheduleId(created.id);
+          return;
+        }
+      } catch {
+        // If the endpoint fails, just proceed
+      }
+
+      // No pending wishes, submit directly
       setCurrentScheduleId(mapped.id);
       setCurrentScheduleStatus('submitted');
 
@@ -197,6 +214,21 @@ export function Schedule() {
   };
 
   const handleSubmitExisting = async (schedule: ScheduleType) => {
+    // Check for pending wishes first
+    try {
+      const pending = await requestService.getPendingShiftWishes(Number(schedule.id));
+      if (pending.length > 0) {
+        setWishReviewScheduleId(Number(schedule.id));
+        return;
+      }
+    } catch {
+      // If the endpoint fails, just proceed
+    }
+
+    doSubmitExisting(schedule);
+  };
+
+  const doSubmitExisting = async (schedule: ScheduleType) => {
     try {
       await scheduleService.submitScheduleToTito(Number(schedule.id));
       toast.success('Schichtplan an TiTO übermittelt');
@@ -206,6 +238,33 @@ export function Schedule() {
     } catch {
       toast.error('Fehler beim Übermitteln an TiTO');
     }
+  };
+
+  const handleWishReviewComplete = () => {
+    const scheduleId = wishReviewScheduleId;
+    setWishReviewScheduleId(null);
+    if (scheduleId) {
+      refresh();
+      setCurrentScheduleId(String(scheduleId));
+      setCurrentScheduleStatus('submitted');
+      scheduleService.submitScheduleToTito(scheduleId)
+        .then(res => {
+          setCurrentScheduleStatus(res.status);
+          toast.success('Schichtplan an TiTO übermittelt');
+        })
+        .catch(() => {
+          setSubmitting(false);
+          setCurrentScheduleId(null);
+          setCurrentScheduleStatus(null);
+          toast.error('Fehler beim Übermitteln an TiTO');
+        });
+    }
+  };
+
+  const handleWishReviewCancel = () => {
+    setWishReviewScheduleId(null);
+    setSubmitting(false);
+    toast.info('Submit abgebrochen – bitte alle ausstehenden Wünsche prüfen');
   };
 
   const handleRetry = async (schedule: ScheduleType) => {
@@ -561,6 +620,14 @@ export function Schedule() {
                   />
                 </CardContent>
               </Card>
+
+              {pollResult.metrics?.employeeFairness && (
+                <FairnessMeter
+                  employees={employees}
+                  roles={roles}
+                  employeeFairness={pollResult.metrics.employeeFairness}
+                />
+              )}
             </>
           )}
 
@@ -905,12 +972,23 @@ export function Schedule() {
                         onSaveShifts={handleManageSave}
                       />
                     ) : (
-                      <ScheduleCalendar
-                        shifts={selectedSchedule.shifts}
-                        startDate={selectedSchedule.startDate}
-                        endDate={selectedSchedule.endDate}
-                        currentWeek={currentWeek}
-                      />
+                      <>
+                        <ScheduleCalendar
+                          shifts={selectedSchedule.shifts}
+                          startDate={selectedSchedule.startDate}
+                          endDate={selectedSchedule.endDate}
+                          currentWeek={currentWeek}
+                        />
+                        {selectedSchedule.metrics?.employeeFairness && (
+                          <div className="mt-4">
+                            <FairnessMeter
+                              employees={employees}
+                              roles={roles}
+                              employeeFairness={selectedSchedule.metrics.employeeFairness}
+                            />
+                          </div>
+                        )}
+                      </>
                     )}
                   </CardContent>
                 </Card>
@@ -919,6 +997,17 @@ export function Schedule() {
           )}
         </TabsContent>
       </Tabs>
+
+      {wishReviewScheduleId && (
+        <WishReviewDialog
+          scheduleId={wishReviewScheduleId}
+          open={true}
+          onOpenChange={() => setWishReviewScheduleId(null)}
+          onComplete={handleWishReviewComplete}
+          onCancel={handleWishReviewCancel}
+          employees={employees}
+        />
+      )}
     </div>
   );
 }

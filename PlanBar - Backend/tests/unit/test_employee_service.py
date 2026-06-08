@@ -145,6 +145,27 @@ def test_create_timecard(db_session):
     assert tc.week == 22
     assert tc.year == 2026
     assert tc.balance == 5.5
+    assert tc.scheduled_hours == 0.0
+    assert tc.actual_hours == 0.0
+    assert tc.contract_hours == 0.0
+
+
+def test_create_timecard_with_extended_fields(db_session):
+    emp = create_employee(db_session, EmployeeCreate(first_name="TCExt", last_name="Test"))
+    data = TimecardCreate(employee_id=emp.id, week=23, year=2026, balance=5.5,
+                          scheduled_hours=38.0, actual_hours=36.0, contract_hours=40.0)
+    tc = create_timecard(db_session, data)
+    assert tc.scheduled_hours == 38.0
+    assert tc.actual_hours == 36.0
+    assert tc.contract_hours == 40.0
+    assert tc.balance == 5.5
+
+
+def test_timecard_unique_employee_week_year(db_session):
+    emp = create_employee(db_session, EmployeeCreate(first_name="TCUniq", last_name="Test"))
+    create_timecard(db_session, TimecardCreate(employee_id=emp.id, week=25, year=2026, balance=0))
+    with pytest.raises(Exception):
+        create_timecard(db_session, TimecardCreate(employee_id=emp.id, week=25, year=2026, balance=5.0))
 
 
 def test_get_timecard_by_id_not_found(db_session):
@@ -161,6 +182,7 @@ def test_list_timecards(db_session):
 def test_update_timecard(db_session):
     emp = create_employee(db_session, EmployeeCreate(first_name="TCUpd", last_name="Test"))
     tc = create_timecard(db_session, TimecardCreate(employee_id=emp.id, week=20, year=2026, balance=0))
-    updated = update_timecard(db_session, tc, TimecardUpdate(week=21, year=2026, balance=10.0))
+    updated = update_timecard(db_session, tc, TimecardUpdate(week=21, year=2026, balance=10.0, scheduled_hours=35.0))
     assert updated.week == 21
     assert updated.balance == 10.0
+    assert updated.scheduled_hours == 35.0

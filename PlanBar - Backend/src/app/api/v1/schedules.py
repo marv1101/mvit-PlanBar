@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.v1.requests import ShiftWishResponse
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.schedule import Shiftplan
+from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
 from app.schemas.schedule import (
     ScheduleCreate,
@@ -92,7 +94,10 @@ async def submit_schedule_endpoint(
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    return await submit_schedule_to_tito(db, schedule)
+    try:
+        return await submit_schedule_to_tito(db, schedule)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
 
 @router.post("/{schedule_id}/retry", response_model=ScheduleResponse)
@@ -176,3 +181,20 @@ def replace_all_shifts_endpoint(
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
     return replace_all_shifts(db, schedule, data.shiftplans)
+
+
+@router.get("/{schedule_id}/wishes/pending", response_model=list[ShiftWishResponse])
+def get_pending_wishes(
+    schedule_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    schedule = get_schedule_by_id(db, schedule_id)
+    if not schedule:
+        raise NotFoundException(detail="Schedule not found")
+    wishes = db.query(ShiftWish).filter(
+        ShiftWish.status == "pending",
+        ShiftWish.date >= schedule.start_date,
+        ShiftWish.date <= schedule.end_date,
+    ).order_by(ShiftWish.date).all()
+    return wishes

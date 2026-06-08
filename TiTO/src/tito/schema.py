@@ -94,6 +94,7 @@ class Employee(BaseModel):
     maxConsecutiveDays: Optional[int] = Field(default=None, ge=1, le=31, description="Maximum consecutive working days")
     minFreeSundaysPerYear: Optional[int] = Field(default=None, ge=0, le=52, description="Minimum free Sundays per year")
     forbiddenDates: Optional[List[str]] = Field(default=None, description="Forbidden dates (old)")
+    currentBalanceHours: Optional[float] = Field(default=0.0, description="Aktueller Zeitkontostand in Stunden")
     
     @model_validator(mode='after')
     def normalize_employee_fields(self) -> 'Employee':
@@ -101,6 +102,10 @@ class Employee(BaseModel):
         # Handle contract - extract weeklyHours if contract dict exists
         if self.contract and self.contractHours is None:
             self.contractHours = self.contract.get('weeklyHours', 40.0)
+        
+        # Handle contract - extract currentBalanceHours for backward compatibility
+        if self.contract and self.currentBalanceHours == 0.0:
+            self.currentBalanceHours = self.contract.get('currentBalanceHours', 0.0)
         
         return self
 
@@ -148,6 +153,7 @@ class Config(BaseModel):
     maxDailyWorkHours: Optional[float] = Field(default=10, gt=0, description="Maximum daily working hours")
     minFreeSundaysPerYear: Optional[int] = Field(default=15, ge=0, le=52, description="Minimum free Sundays per year")
     defaultWeeklyHours: Optional[float] = Field(default=40.0, gt=0, description="Default weekly contract hours")
+    maxSameShiftConsecutive: Optional[int] = Field(default=0, ge=0, le=14, description="Max consecutive days with same shift type (0 = disabled)")
     solverTimeoutSeconds: Optional[int] = Field(default=300, gt=0, description="Solver timeout in seconds")
 
 

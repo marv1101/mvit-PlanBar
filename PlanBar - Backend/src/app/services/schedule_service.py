@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db.models.employee import Employee
+from app.db.models.employee import Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
@@ -78,7 +78,16 @@ async def submit_schedule_to_tito(db: Session, schedule: Schedule, callback_url:
     employees = db.query(Employee).all()
     shift_wishes = db.query(ShiftWish).all()
 
-    payload = _build_tito_payload(schedule, employees, shift_wishes, callback_url=callback_url)
+    pending = [w for w in shift_wishes if w.status == "pending"]
+    if pending:
+        raise ValueError(
+            f"Schedule has {len(pending)} pending shift wish(es). "
+            "All wishes must be reviewed before submitting."
+        )
+
+    approved_wishes = [w for w in shift_wishes if w.status == "approved"]
+
+    payload = _build_tito_payload(schedule, employees, approved_wishes, callback_url=callback_url, db=db)
 
     try:
         result = await tito_proxy.submit_job(payload)
@@ -168,6 +177,7 @@ def _build_tito_payload(
     employees: list[Employee],
     shift_wishes: list[ShiftWish],
     callback_url: str | None = None,
+    db: Session | None = None,
 ) -> dict[str, Any]:
     """Build a payload matching the TiTO JobPayload schema."""
     if not schedule.start_date or not schedule.end_date:
@@ -186,11 +196,23 @@ def _build_tito_payload(
             break_minutes = c.break_time
             role = c.hired_role
 
+        current_balance = 0.0
+        if db is not None:
+            latest_timecard = (
+                db.query(Timecard)
+                .filter(Timecard.employee_id == emp.id)
+                .order_by(Timecard.year.desc(), Timecard.week.desc())
+                .first()
+            )
+            if latest_timecard:
+                current_balance = latest_timecard.balance
+
         entry: dict[str, Any] = {
             "id": f"emp_{emp.id:03d}",
             "name": f"{emp.first_name} {emp.last_name}",
             "contractHours": contract_hours,
             "breakMinutes": break_minutes,
+            "currentBalanceHours": current_balance,
         }
         if role:
             entry["role"] = role

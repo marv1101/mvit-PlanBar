@@ -63,3 +63,47 @@ export async function updateEmployee(id: number, dto: EmployeeUpdateDTO): Promis
 export async function deleteEmployee(id: number): Promise<void> {
   await api.delete(`/employees/${id}`);
 }
+
+export interface TimeAccountEntryDTO {
+  week: number;
+  year: number;
+  scheduled_hours: number;
+  contract_hours: number;
+  delta: number;
+  balance: number;
+  manual_adjustment: number;
+  adjustment_reason: string | null;
+}
+
+export interface TimeAccountProjectedDTO {
+  from_schedule: number;
+  expected_balance_after: number;
+}
+
+export interface TimeAccountResponseDTO {
+  employee_id: number;
+  employee_name: string;
+  current_balance: number;
+  history: TimeAccountEntryDTO[];
+  projected: TimeAccountProjectedDTO | null;
+}
+
+export async function getEmployeeTimeAccount(id: number): Promise<TimeAccountResponseDTO> {
+  const { data } = await api.get(`/employees/${id}/time-account`);
+  return data;
+}
+
+export async function getAllTimeAccounts(): Promise<TimeAccountResponseDTO[]> {
+  const { data } = await api.get('/employees/time-accounts');
+  return data;
+}
+
+export interface TimeAccountAdjustDTO {
+  delta_hours: number;
+  reason?: string;
+}
+
+export async function adjustTimeAccount(id: number, dto: TimeAccountAdjustDTO): Promise<TimeAccountResponseDTO> {
+  const { data } = await api.post(`/employees/${id}/time-account/adjust`, dto);
+  return data;
+}

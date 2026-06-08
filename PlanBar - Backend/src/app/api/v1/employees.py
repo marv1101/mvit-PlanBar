@@ -1,8 +1,12 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db, require_admin
+from app.db.models.employee import Contract, Employee, Timecard
+from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.user import User
 from app.schemas.employee import (
     ContractCreate,
@@ -11,6 +15,10 @@ from app.schemas.employee import (
     EmployeeCreate,
     EmployeeResponse,
     EmployeeUpdate,
+    TimeAccountAdjust,
+    TimeAccountEntry,
+    TimeAccountProjected,
+    TimeAccountResponse,
     TimecardCreate,
     TimecardResponse,
     TimecardUpdate,
@@ -30,6 +38,7 @@ from app.services.employee_service import (
     update_employee,
     update_timecard,
 )
+from app.services.tito_callback import _calc_effective_hours
 
 router = APIRouter()
 
@@ -49,6 +58,15 @@ def list_employees_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     return list_employees(db)
+
+
+@router.get("/time-accounts", response_model=list[TimeAccountResponse])
+def get_all_time_accounts(
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    employees = list_employees(db)
+    return [_build_time_account_response(emp, db) for emp in employees]
 
 
 @router.get("/{employee_id}", response_model=EmployeeResponse)
@@ -176,3 +194,106 @@ def update_timecard_endpoint(
     if not timecard:
         raise NotFoundException(detail="Timecard not found")
     return update_timecard(db, timecard, data)
+
+
+def _build_time_account_response(employee: Employee, db: Session) -> TimeAccountResponse:
+    timecards = db.query(Timecard).filter(
+        Timecard.employee_id == employee.id,
+    ).order_by(Timecard.year.asc(), Timecard.week.asc()).all()
+
+    history = []
+    for tc in timecards:
+        history.append(TimeAccountEntry(
+            week=tc.week,
+            year=tc.year,
+            scheduled_hours=tc.scheduled_hours,
+            contract_hours=tc.contract_hours,
+            delta=tc.scheduled_hours - tc.contract_hours,
+            balance=tc.balance,
+            manual_adjustment=tc.manual_adjustment_hours or 0.0,
+            adjustment_reason=tc.adjustment_reason,
+        ))
+
+    current_balance = timecards[-1].balance if timecards else 0.0
+
+    projected = None
+    latest_schedule = db.query(Schedule).filter(
+        Schedule.status.in_(["completed", "submitted"]),
+    ).order_by(Schedule.end_date.desc()).first()
+
+    if latest_schedule:
+        shiftplans = db.query(Shiftplan).filter(
+            Shiftplan.schedule_id == latest_schedule.id,
+            Shiftplan.employee_id == employee.id,
+        ).all()
+        if shiftplans:
+            contract = employee.contracts[0] if employee.contracts else None
+            from_schedule = sum(
+                _calc_effective_hours(sp, contract) for sp in shiftplans
+            )
+            weekly_hours = contract.weekly_working_hours if contract else 40.0
+            expected_balance_after = current_balance + from_schedule - weekly_hours
+            projected = TimeAccountProjected(
+                from_schedule=from_schedule,
+                expected_balance_after=expected_balance_after,
+            )
+
+    return TimeAccountResponse(
+        employee_id=employee.id,
+        employee_name=f"{employee.first_name} {employee.last_name}",
+        current_balance=current_balance,
+        history=history,
+        projected=projected,
+    )
+
+
+@router.get("/{employee_id}/time-account", response_model=TimeAccountResponse)
+def get_employee_time_account(
+    employee_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    employee = get_employee_by_id(db, employee_id)
+    if not employee:
+        raise NotFoundException(detail="Employee not found")
+    return _build_time_account_response(employee, db)
+
+
+@router.post("/{employee_id}/time-account/adjust", response_model=TimeAccountResponse, status_code=status.HTTP_200_OK)
+def adjust_employee_time_account(
+    employee_id: int,
+    data: TimeAccountAdjust,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    employee = get_employee_by_id(db, employee_id)
+    if not employee:
+        raise NotFoundException(detail="Employee not found")
+
+    latest_tc = db.query(Timecard).filter(
+        Timecard.employee_id == employee_id,
+    ).order_by(Timecard.year.desc(), Timecard.week.desc()).first()
+
+    if latest_tc:
+        prev_balance = latest_tc.balance
+    else:
+        prev_balance = 0.0
+
+    new_balance = prev_balance + data.delta_hours
+
+    now_utc = datetime.now(timezone.utc)
+    tc = Timecard(
+        employee_id=employee_id,
+        week=now_utc.isocalendar()[1],
+        year=now_utc.year,
+        scheduled_hours=0.0,
+        contract_hours=0.0,
+        manual_adjustment_hours=data.delta_hours,
+        adjustment_reason=data.reason,
+        balance=new_balance,
+    )
+    db.add(tc)
+    db.commit()
+    db.refresh(tc)
+
+    return _build_time_account_response(employee, db)

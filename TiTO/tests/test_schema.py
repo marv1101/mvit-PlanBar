@@ -253,6 +253,42 @@ def test_schema_validates_references():
         validate_job_payload(payload)
 
 
+def test_employee_accepts_current_balance_hours():
+    """Test that Employee schema accepts currentBalanceHours field."""
+    emp = Employee(id="E001", name="Test", currentBalanceHours=12.5)
+    assert emp.currentBalanceHours == 12.5
+
+
+def test_employee_defaults_current_balance_hours():
+    """Test that currentBalanceHours defaults to 0.0."""
+    emp = Employee(id="E001", name="Test")
+    assert emp.currentBalanceHours == 0.0
+
+
+def test_employee_extracts_current_balance_from_contract():
+    """Test backward compat: extract currentBalanceHours from contract dict."""
+    emp = Employee(
+        id="E001", name="Test",
+        contract={"weeklyHours": 40.0, "currentBalanceHours": 5.5}
+    )
+    assert emp.currentBalanceHours == 5.5
+
+
+def test_employee_accepts_current_balance_via_payload():
+    """Test that full payload validation accepts currentBalanceHours."""
+    payload = {
+        "metadata": {"tenantId": 1},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [],
+        "requirements": [],
+        "employees": [
+            {"id": "E001", "name": "Test", "currentBalanceHours": 3.5}
+        ],
+    }
+    result = validate_job_payload(payload)
+    assert result.employees[0].currentBalanceHours == 3.5
+
+
 def test_schema_with_minimal_required_fields():
     """Test that minimal valid payloads work."""
     payload = {
