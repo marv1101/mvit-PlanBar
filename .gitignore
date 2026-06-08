@@ -44,3 +44,6 @@ Docs/github-issues-go-live.md
 __pycache__/
 *.pyc
 dist/
+
+# Uploads
+uploads/

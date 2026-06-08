@@ -510,24 +510,35 @@ async def websocket_endpoint(
     try:
         thread_exists = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
         if not thread_exists:
+            logger.warning(f"WebSocket connection attempted to non-existent thread {thread_id}")
             await websocket.close(code=4004, reason="Thread not found")
+            return
+
+        token_str = token
+        if not token_str:
+            token_str = websocket.cookies.get("access_token", "")
+        if not token_str:
+            logger.warning("WebSocket auth failed: no token provided")
+            await websocket.close(code=4001, reason="Missing token")
+            return
+
+        try:
+            payload = verify_token(token_str)
+            user_id = int(payload.get("sub", 0))
+        except (ValueError, Exception) as e:
+            logger.warning(f"WebSocket auth failed: invalid token - {e}")
+            await websocket.close(code=4001, reason="Invalid token")
+            return
+
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            logger.warning(f"WebSocket auth failed: user {user_id} not found in database")
+            await websocket.close(code=4001, reason="User not found")
             return
     finally:
         db.close()
 
-    token_str = token
-    if not token_str:
-        token_str = websocket.cookies.get("access_token", "")
-    if not token_str:
-        await websocket.close(code=4001, reason="Missing token")
-        return
-
-    try:
-        payload = verify_token(token_str)
-        user_id = int(payload.get("sub", 0))
-    except (ValueError, Exception):
-        await websocket.close(code=4001, reason="Invalid token")
-        return
+    logger.info(f"WebSocket authenticated: user={user_id} thread={thread_id}")
 
     connected = await _connect_ws(websocket, thread_id, user_id)
     if not connected:

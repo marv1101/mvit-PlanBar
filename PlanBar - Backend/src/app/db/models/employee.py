@@ -63,6 +63,7 @@ class Timecard(Base):
     week = Column(Integer, nullable=False)
     year = Column(Integer, nullable=False)
     balance = Column(Float, nullable=False, default=0.0)
+    manual_adjustment = Column(Float, nullable=False, default=0.0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
