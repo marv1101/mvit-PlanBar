@@ -8,6 +8,7 @@ from app.api.v1.employees import (
 )
 from app.api.v1.health import router as health_router
 from app.api.v1.metrics import router as metrics_router
+from app.api.v1.pinboard import router as pinboard_router
 from app.api.v1.requests import router as requests_router
 from app.api.v1.roles import router as roles_router
 from app.api.v1.schedules import router as schedules_router
@@ -24,3 +25,4 @@ api_router.include_router(requests_router, prefix="/requests", tags=["requests"]
 api_router.include_router(schedules_router, prefix="/schedules", tags=["schedules"])
 api_router.include_router(metrics_router, prefix="/metrics", tags=["metrics"])
 api_router.include_router(callbacks_router, prefix="/callbacks", tags=["callbacks"])
+api_router.include_router(pinboard_router, prefix="/pinboard", tags=["pinboard"])

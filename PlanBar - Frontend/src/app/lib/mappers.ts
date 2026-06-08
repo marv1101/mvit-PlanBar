@@ -178,6 +178,18 @@ export function scheduleToCreate(schedule: Schedule, shiftplans: ShiftplanCreate
 }
 
 import type { UserResponseDTO } from '../services/userService';
+import type {
+  ThreadResponseDTO,
+  ThreadDetailResponseDTO,
+  MessageResponseDTO,
+  DocumentResponseDTO,
+} from '../services/pinboardService';
+import {
+  PinboardThread,
+  PinboardThreadDetail,
+  PinboardMessage,
+  PinboardDocument,
+} from '../types';
 
 export function userFromResponse(dto: UserResponseDTO): AppUser {
   return {
@@ -189,3 +201,56 @@ export function userFromResponse(dto: UserResponseDTO): AppUser {
     lastLogin: dto.last_login,
   };
 }
+
+export function pinboardDocumentFromResponse(dto: DocumentResponseDTO): PinboardDocument {
+  return {
+    id: String(dto.id),
+    messageId: String(dto.message_id),
+    fileName: dto.file_name,
+    fileSize: dto.file_size,
+    mimeType: dto.mime_type,
+    createdAt: dto.created_at,
+  };
+}
+
+export function pinboardMessageFromResponse(dto: MessageResponseDTO): PinboardMessage {
+  return {
+    id: String(dto.id),
+    threadId: String(dto.thread_id),
+    authorId: String(dto.author_id),
+    authorName: dto.author_name,
+    content: dto.content,
+    documents: (dto.documents || []).map(pinboardDocumentFromResponse),
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+  };
+}
+
+export function pinboardThreadFromResponse(dto: ThreadResponseDTO): PinboardThread {
+  return {
+    id: String(dto.id),
+    title: dto.title,
+    authorId: String(dto.author_id),
+    authorName: dto.author_name,
+    isPinned: dto.is_pinned,
+    messageCount: dto.message_count,
+    lastMessageAt: dto.last_message_at,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+  };
+}
+
+export function pinboardThreadDetailFromResponse(dto: ThreadDetailResponseDTO): PinboardThreadDetail {
+  return {
+    id: String(dto.id),
+    title: dto.title,
+    authorId: String(dto.author_id),
+    authorName: dto.author_name,
+    isPinned: dto.is_pinned,
+    messages: (dto.messages || []).map(pinboardMessageFromResponse),
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+  };
+}
+
+

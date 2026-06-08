@@ -107,3 +107,70 @@ export interface Schedule {
   diagnostics?: TiTODiagnostics | null;
   metrics?: TiTOMetrics | null;
 }
+
+export interface TimeAccountEntry {
+  week: number;
+  year: number;
+  scheduledHours: number;
+  contractHours: number;
+  delta: number;
+  balance: number;
+  manualAdjustment: number;
+  adjustmentReason: string | null;
+}
+
+export interface TimeAccountProjected {
+  fromSchedule: number;
+  expectedBalanceAfter: number;
+}
+
+export interface EmployeeTimeAccount {
+  employeeId: number;
+  employeeName: string;
+  currentBalance: number;
+  history: TimeAccountEntry[];
+  projected: TimeAccountProjected | null;
+}
+
+export interface PinboardDocument {
+  id: string;
+  messageId: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  createdAt: string;
+}
+
+export interface PinboardMessage {
+  id: string;
+  threadId: string;
+  authorId: string;
+  authorName: string;
+  content: string;
+  documents: PinboardDocument[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PinboardThread {
+  id: string;
+  title: string;
+  authorId: string;
+  authorName: string;
+  isPinned: boolean;
+  messageCount: number;
+  lastMessageAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PinboardThreadDetail {
+  id: string;
+  title: string;
+  authorId: string;
+  authorName: string;
+  isPinned: boolean;
+  messages: PinboardMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
