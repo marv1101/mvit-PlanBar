@@ -1,5 +1,8 @@
+import asyncio
 import json
+import logging
 import os
+import time
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional
@@ -9,17 +12,46 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.auth import verify_token
+from app.core.auth import verify_token, create_access_token
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db
 from app.db.models.pinboard import PinboardThread, PinboardMessage, PinboardDocument
 from app.db.models.user import User
 from app.db.database import SessionLocal
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "uploads", "pinboard")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+MAX_FILE_SIZE = 10 * 1024 * 1024
+
+ALLOWED_MIME_TYPES = {
+    "image/jpeg": {".jpg", ".jpeg"},
+    "image/png": {".png"},
+    "image/gif": {".gif"},
+    "image/webp": {".webp"},
+    "application/pdf": {".pdf"},
+    "application/msword": {".doc"},
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {".docx"},
+    "application/vnd.ms-excel": {".xls"},
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {".xlsx"},
+    "text/plain": {".txt"},
+}
+
+ALLOWED_EXTENSIONS = {}
+for mime, exts in ALLOWED_MIME_TYPES.items():
+    for ext in exts:
+        ALLOWED_EXTENSIONS[ext] = mime
+
+BLOCKED_EXTENSIONS = {".exe", ".bat", ".cmd", ".com", ".msi", ".scr", ".ps1", ".vbs"}
+
+MAX_WS_CONNECTIONS_PER_USER = 5
+WS_HEARTBEAT_INTERVAL = 30
+WS_HEARTBEAT_TIMEOUT = 60
+WS_IDLE_TIMEOUT = 300
 
 
 class ThreadCreate(BaseModel):
@@ -284,11 +316,34 @@ async def upload_document(
     if not message:
         raise NotFoundException(detail="Message not found")
 
-    ext = os.path.splitext(file.filename or "file")[1]
+    ext = os.path.splitext(file.filename or "file")[1].lower()
+
+    if ext in BLOCKED_EXTENSIONS:
+        logger.warning(
+            f"Blocked upload attempt - user={current_user.id} file={file.filename} ext={ext}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File type is not allowed.",
+        )
+
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File type '{ext}' is not supported.",
+        )
+
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)} MB.",
+        )
+
+    mime_type = ALLOWED_EXTENSIONS[ext]
     stored_name = f"{uuid.uuid4().hex}{ext}"
     file_path = os.path.join(UPLOAD_DIR, stored_name)
 
-    content = await file.read()
     with open(file_path, "wb") as f:
         f.write(content)
 
@@ -297,7 +352,7 @@ async def upload_document(
         file_name=file.filename or "file",
         file_path=file_path,
         file_size=len(content),
-        mime_type=file.content_type or "application/octet-stream",
+        mime_type=mime_type,
     )
     db.add(doc)
     db.commit()
@@ -339,9 +394,6 @@ def delete_document(
     db.commit()
 
 
-from app.core.auth import create_access_token
-
-
 class WsTokenResponse(BaseModel):
     token: str
     expires_in: int
@@ -356,20 +408,47 @@ def get_ws_token(
 
 
 active_connections: dict[int, list[WebSocket]] = {}
+_user_connections: dict[int, int] = {}
+_ws_user_map: dict[int, int] = {}
+_ws_last_activity: dict[int, float] = {}
 
 
-async def _connect_ws(websocket: WebSocket, thread_id: int):
+async def _connect_ws(websocket: WebSocket, thread_id: int, user_id: int):
+    if _user_connections.get(user_id, 0) >= MAX_WS_CONNECTIONS_PER_USER:
+        await websocket.close(code=4001, reason="Maximum connections per user reached")
+        logger.warning(f"Rate limit exceeded for user {user_id}")
+        return False
+
     await websocket.accept()
+    conn_id = id(websocket)
     if thread_id not in active_connections:
         active_connections[thread_id] = []
     active_connections[thread_id].append(websocket)
+    _user_connections[user_id] = _user_connections.get(user_id, 0) + 1
+    _ws_user_map[conn_id] = user_id
+    _ws_last_activity[conn_id] = time.time()
+    return True
 
 
 def _disconnect_ws(websocket: WebSocket, thread_id: int):
+    conn_id = id(websocket)
     if thread_id in active_connections:
-        active_connections[thread_id].remove(websocket)
+        try:
+            active_connections[thread_id].remove(websocket)
+        except ValueError:
+            pass
         if not active_connections[thread_id]:
             del active_connections[thread_id]
+
+    user_id = _ws_user_map.pop(conn_id, None)
+    if user_id is not None:
+        current_count = _user_connections.get(user_id, 0)
+        if current_count > 1:
+            _user_connections[user_id] = current_count - 1
+        else:
+            _user_connections.pop(user_id, None)
+
+    _ws_last_activity.pop(conn_id, None)
 
 
 async def _broadcast(thread_id: int, message: dict):
@@ -383,7 +462,6 @@ async def _broadcast(thread_id: int, message: dict):
 
 
 def _notify_clients(thread_id: int, message: MessageResponse):
-    import asyncio
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
@@ -395,6 +473,31 @@ def _notify_clients(thread_id: int, message: MessageResponse):
             )
     except RuntimeError:
         pass
+
+
+async def _heartbeat_loop(websocket: WebSocket, thread_id: int):
+    try:
+        while True:
+            await asyncio.sleep(WS_HEARTBEAT_INTERVAL)
+            conn_id = id(websocket)
+            now = time.time()
+            last_activity = _ws_last_activity.get(conn_id)
+
+            if last_activity is not None and (now - last_activity) > WS_IDLE_TIMEOUT:
+                logger.info(f"Closing idle WebSocket: user={_ws_user_map.get(conn_id)} conn={conn_id}")
+                await websocket.close(code=4001, reason="Connection timeout due to inactivity")
+                _disconnect_ws(websocket, thread_id)
+                return
+
+            if last_activity is not None and (now - last_activity) > WS_HEARTBEAT_TIMEOUT:
+                logger.info(f"Heartbeat timeout for WebSocket: user={_ws_user_map.get(conn_id)} conn={conn_id}")
+                await websocket.close(code=4001, reason="Heartbeat timeout")
+                _disconnect_ws(websocket, thread_id)
+                return
+
+            await websocket.send_json({"type": "ping"})
+    except Exception:
+        _disconnect_ws(websocket, thread_id)
 
 
 @router.websocket("/ws/threads/{thread_id}")
@@ -426,15 +529,27 @@ async def websocket_endpoint(
         await websocket.close(code=4001, reason="Invalid token")
         return
 
-    await _connect_ws(websocket, thread_id)
+    connected = await _connect_ws(websocket, thread_id, user_id)
+    if not connected:
+        return
+
+    logger.info(f"WebSocket connected: user={user_id} thread={thread_id}")
+
+    heartbeat_task = asyncio.create_task(_heartbeat_loop(websocket, thread_id))
+
     try:
         while True:
             data = await websocket.receive_text()
+            conn_id = id(websocket)
+            _ws_last_activity[conn_id] = time.time()
+
             msg_data = json.loads(data)
             msg_type = msg_data.get("type", "ping")
 
             if msg_type == "ping":
                 await websocket.send_json({"type": "pong"})
+            elif msg_type == "pong":
+                pass
             elif msg_type == "message":
                 content = msg_data.get("content", "").strip()
                 if not content:
@@ -462,7 +577,19 @@ async def websocket_endpoint(
                     })
                 finally:
                     db.close()
+            else:
+                await websocket.send_json({"type": "error", "detail": f"Unknown message type: {msg_type}"})
     except WebSocketDisconnect:
-        _disconnect_ws(websocket, thread_id)
-    except Exception:
+        logger.info(f"WebSocket disconnected: user={user_id} thread={thread_id}")
+    except json.JSONDecodeError:
+        logger.warning(f"Invalid JSON from user={user_id}")
+        await websocket.send_json({"type": "error", "detail": "Invalid JSON"})
+    except Exception as e:
+        logger.error(f"WebSocket error user={user_id} thread={thread_id}: {e}")
+    finally:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
         _disconnect_ws(websocket, thread_id)
