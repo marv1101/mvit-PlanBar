@@ -15,6 +15,10 @@ class ShiftWish(Base):
     week = Column(Integer, nullable=True)
     type = Column(String(20), nullable=False, default="preferred")
     note = Column(Text, nullable=True)
+    status = Column(String(20), nullable=False, default="approved")
+    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 

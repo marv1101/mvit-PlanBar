@@ -1,12 +1,13 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.core.enums import WishStatus
 from app.core.exceptions import NotFoundException
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
 
@@ -19,6 +20,7 @@ class ShiftWishCreate(BaseModel):
     week: Optional[int] = None
     type: str = Field("preferred", pattern=r"^(preferred|unavailable|vacation)$")
     note: Optional[str] = None
+    status: str = Field("approved", pattern=r"^(pending|approved|rejected)$")
 
 
 class ShiftWishUpdate(BaseModel):
@@ -27,6 +29,7 @@ class ShiftWishUpdate(BaseModel):
     week: Optional[int] = None
     type: Optional[str] = Field(None, pattern=r"^(preferred|unavailable|vacation)$")
     note: Optional[str] = None
+    status: Optional[str] = Field(None, pattern=r"^(pending|approved|rejected)$")
 
 
 class ShiftWishResponse(BaseModel):
@@ -36,8 +39,16 @@ class ShiftWishResponse(BaseModel):
     week: Optional[int] = None
     type: str
     note: Optional[str] = None
+    status: str = "approved"
+    reviewed_by: Optional[int] = None
+    reviewed_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+class ShiftWishReject(BaseModel):
+    rejection_reason: Optional[str] = None
 
 
 @router.post("", response_model=ShiftWishResponse, status_code=status.HTTP_201_CREATED)
@@ -52,6 +63,7 @@ def create_shift_wish(
         week=data.week,
         type=data.type,
         note=data.note,
+        status=data.status,
     )
     db.add(wish)
     db.commit()
@@ -99,6 +111,8 @@ def update_shift_wish(
         wish.type = data.type
     if data.note is not None:
         wish.note = data.note
+    if data.status is not None:
+        wish.status = data.status
     db.add(wish)
     db.commit()
     db.refresh(wish)
@@ -116,3 +130,42 @@ def delete_shift_wish(
         raise NotFoundException(detail="Shift wish not found")
     db.delete(wish)
     db.commit()
+
+
+@router.put("/{wish_id}/approve", response_model=ShiftWishResponse)
+def approve_shift_wish(
+    wish_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
+    if not wish:
+        raise NotFoundException(detail="Shift wish not found")
+    wish.status = WishStatus.APPROVED.value
+    wish.reviewed_by = admin.id
+    wish.reviewed_at = datetime.now()
+    wish.rejection_reason = None
+    db.add(wish)
+    db.commit()
+    db.refresh(wish)
+    return wish
+
+
+@router.put("/{wish_id}/reject", response_model=ShiftWishResponse)
+def reject_shift_wish(
+    wish_id: int,
+    body: ShiftWishReject,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
+    if not wish:
+        raise NotFoundException(detail="Shift wish not found")
+    wish.status = WishStatus.REJECTED.value
+    wish.reviewed_by = admin.id
+    wish.reviewed_at = datetime.now()
+    wish.rejection_reason = body.rejection_reason
+    db.add(wish)
+    db.commit()
+    db.refresh(wish)
+    return wish

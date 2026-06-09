@@ -9,6 +9,7 @@ import { getWeekType } from '../lib/week';
 import { WeekType, Shift } from '../types';
 import { toast } from 'sonner';
 import { TIMEZONE } from '../lib/timezone';
+import { TimeAccountCard } from '../components/TimeAccountCard';
 
 export function EmployeeView() {
   const { employees, schedules, roles, loading } = useApp();
@@ -330,6 +331,9 @@ export function EmployeeView() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Time Account */}
+          <TimeAccountCard employeeId={selectedEmployeeId} />
 
           {/* Schedule View */}
           <Tabs value={currentWeek} onValueChange={(v) => setCurrentWeek(v as WeekType)}>

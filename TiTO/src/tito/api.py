@@ -16,8 +16,10 @@ from .schema import JobPayload
 from . import monitoring
 
 
-def cleanup_worker_thread(connection, interval_minutes: int = 5):
-    """Background thread that periodically cleans up inactive workers."""
+def cleanup_worker_thread(database_url: str, interval_minutes: int = 5):
+    """Background thread that periodically cleans up inactive workers.
+    Uses its own database connection to avoid race conditions."""
+    connection = get_connection(database_url)
     while True:
         try:
             deleted_count = cleanup_inactive_workers(connection, timeout_seconds=300)  # 5 minutes
@@ -40,8 +42,8 @@ def create_app(settings: Settings | None = None) -> Flask:
     )
     logger = logging.getLogger(__name__)
 
-    # Start background cleanup thread
-    cleanup_thread = threading.Thread(target=cleanup_worker_thread, args=(connection,), daemon=True)
+    # Start background cleanup thread with its own connection
+    cleanup_thread = threading.Thread(target=cleanup_worker_thread, args=(settings.database_url,), daemon=True)
     cleanup_thread.start()
 
     def require_auth(view):

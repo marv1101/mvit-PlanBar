@@ -25,6 +25,10 @@ export interface ShiftWishResponseDTO {
   week: number | null;
   type: string;
   note: string | null;
+  status: string;
+  reviewed_by: number | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
 }
 
 export async function getShiftWishes(): Promise<ShiftWishResponseDTO[]> {
@@ -49,4 +53,19 @@ export async function updateShiftWish(id: number, dto: ShiftWishUpdateDTO): Prom
 
 export async function deleteShiftWish(id: number): Promise<void> {
   await api.delete(`/requests/${id}`);
+}
+
+export async function approveShiftWish(id: number): Promise<ShiftWishResponseDTO> {
+  const { data } = await api.put(`/requests/${id}/approve`);
+  return data;
+}
+
+export async function rejectShiftWish(id: number, rejectionReason?: string): Promise<ShiftWishResponseDTO> {
+  const { data } = await api.put(`/requests/${id}/reject`, { rejection_reason: rejectionReason || null });
+  return data;
+}
+
+export async function getPendingShiftWishes(scheduleId: number): Promise<ShiftWishResponseDTO[]> {
+  const { data } = await api.get(`/schedules/${scheduleId}/wishes/pending`);
+  return data;
 }

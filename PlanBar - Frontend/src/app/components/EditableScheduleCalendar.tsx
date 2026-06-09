@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useDrag, useDrop, DndProvider } from 'react-dnd';
 import { TouchBackend } from 'react-dnd-touch-backend';
 import { useApp } from '../context/AppContext';
@@ -122,11 +123,22 @@ function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) 
   const showTime = totalLanes <= 2;
 
   return (
-    <div
+    <motion.div
       ref={drag}
-      className={`absolute rounded overflow-hidden cursor-move group z-10 ${
-        isDragging ? 'opacity-50' : ''
-      }`}
+      layout
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{
+        opacity: isDragging ? 0.25 : 1,
+        scale: isDragging ? 0.95 : 1,
+        boxShadow: isDragging
+          ? '0 0 0 2px rgba(59,130,246,0.3)'
+          : '0 1px 2px rgba(0,0,0,0.05)',
+      }}
+      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
+      transition={{ type: 'spring', stiffness: 400, damping: 30, mass: 0.8 }}
+      whileHover={{ scale: 1.02, y: -1 }}
+      whileTap={{ scale: 0.98 }}
+      className="absolute rounded overflow-hidden cursor-move group z-10"
       style={{
         ...style,
         position: 'absolute',
@@ -169,7 +181,7 @@ function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) 
           <Trash2 className="h-2.5 w-2.5" />
         </button>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -183,11 +195,17 @@ function EmployeeCard({ employee }: { employee: Employee }) {
   }), [employee.id]);
 
   return (
-    <div
+    <motion.div
       ref={drag}
-      className={`p-3 rounded-lg border-2 cursor-move hover:shadow-md transition-all ${
-        isDragging ? 'opacity-50' : ''
-      }`}
+      layout
+      animate={{
+        opacity: isDragging ? 0.3 : 1,
+        scale: isDragging ? 0.95 : 1,
+      }}
+      whileHover={{ scale: 1.03, y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+      whileTap={{ scale: 0.97 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+      className="p-3 rounded-lg border-2 cursor-move"
       style={{
         backgroundColor: employee.color + '15',
         borderColor: employee.color + '40'
@@ -207,7 +225,7 @@ function EmployeeCard({ employee }: { employee: Employee }) {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -225,9 +243,19 @@ interface DayColumnProps {
 function DayColumn({
   date, weekType, shifts, onDrop, onEmployeeDrop, onClick, onEdit, onDelete
 }: DayColumnProps) {
+  const { employees } = useApp();
   const dateStr = date.toISOString().split('T')[0];
   const dayShifts = shifts.filter(s => s.date === dateStr);
   const lanes = useMemo(() => assignLanes(dayShifts), [dayShifts]);
+
+  const [hoverInfo, setHoverInfo] = useState<{
+    minutes: number;
+    duration: number;
+    color: string;
+  } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const employeesRef = useRef(employees);
+  employeesRef.current = employees;
 
   const onDropRef = useRef(onDrop);
   onDropRef.current = onDrop;
@@ -238,7 +266,34 @@ function DayColumn({
 
   const [{ isOver }, drop] = useDrop(() => ({
     accept: [ITEM_TYPE, EMPLOYEE_ITEM_TYPE],
+    hover: (item: DragItem | EmployeeDragItem, monitor) => {
+      const offset = monitor.getClientOffset();
+      if (!offset || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const y = offset.y - rect.top;
+      const fromTopMinutes = (y / HOUR_HEIGHT) * 60;
+      const snapped = Math.round(fromTopMinutes / 30) * 30;
+
+      if ('shift' in item) {
+        if (item.fromDate === dateStr) {
+          setHoverInfo(null);
+          return;
+        }
+        const dur = toMinutes(item.shift.endTime) - toMinutes(item.shift.startTime);
+        const maxTop = (END_HOUR - START_HOUR) * 60 - dur;
+        const clamped = Math.max(0, Math.min(snapped, maxTop));
+        const emp = employeesRef.current.find(e => e.id === item.shift.employeeId);
+        setHoverInfo({ minutes: clamped, duration: dur, color: emp?.color || '#3b82f6' });
+      } else if ('employeeId' in item) {
+        const dur = 480;
+        const maxTop = (END_HOUR - START_HOUR) * 60 - dur;
+        const clamped = Math.max(0, Math.min(snapped, maxTop));
+        const emp = employeesRef.current.find(e => e.id === item.employeeId);
+        setHoverInfo({ minutes: clamped, duration: dur, color: emp?.color || '#3b82f6' });
+      }
+    },
     drop: (item: DragItem | EmployeeDragItem) => {
+      setHoverInfo(null);
       if ('shift' in item) {
         if (item.fromDate !== dateStr) {
           onDropRef.current(item.shift, dateStr);
@@ -251,6 +306,10 @@ function DayColumn({
       isOver: monitor.isOver(),
     }),
   }), [dateStr, weekType]);
+
+  React.useEffect(() => {
+    if (!isOver) setHoverInfo(null);
+  }, [isOver]);
 
   const isToday = date.toDateString() === new Date().toDateString();
 
@@ -265,12 +324,19 @@ function DayColumn({
         <br />
         <span className="text-xs">{date.toLocaleDateString('de-DE', { timeZone: TIMEZONE, day: 'numeric', month: '2-digit' })}</span>
       </div>
-      <div
-        ref={drop}
+      <motion.div
+        ref={(node: HTMLDivElement | null) => {
+          containerRef.current = node;
+          drop(node);
+        }}
         onClick={() => onClick(date)}
-        className={`relative flex-1 cursor-pointer transition-colors ${
-          isOver ? 'bg-blue-50' : ''
-        } ${isToday ? 'bg-blue-50/30' : ''}`}
+        animate={{
+          backgroundColor: isToday
+            ? 'rgba(59,130,246,0.03)'
+            : 'transparent',
+        }}
+        transition={{ duration: 0.2 }}
+        className="relative flex-1 cursor-pointer"
         style={{ minHeight: `${HOURS.length * HOUR_HEIGHT}px` }}
       >
         {HOURS.map(hour => (
@@ -280,17 +346,36 @@ function DayColumn({
             style={{ height: `${HOUR_HEIGHT}px` }}
           />
         ))}
-        {lanes.map(({ shift, lane, totalLanes }) => (
-          <ShiftBar
-            key={shift.id}
-            shift={shift}
-            lane={lane}
-            totalLanes={totalLanes}
-            onEdit={onEdit}
-            onDelete={onDelete}
+        {hoverInfo && isOver && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.12 }}
+            className="absolute left-1 right-1 rounded pointer-events-none z-20"
+            style={{
+              top: `${(hoverInfo.minutes / 60) * HOUR_HEIGHT}px`,
+              height: `${Math.max((hoverInfo.duration / 60) * HOUR_HEIGHT, 24)}px`,
+              backgroundColor: hoverInfo.color + '18',
+              borderTop: `2px solid ${hoverInfo.color}50`,
+              borderBottom: `2px solid ${hoverInfo.color}50`,
+              boxShadow: `0 0 0 1px ${hoverInfo.color}20 inset`,
+            }}
           />
-        ))}
-      </div>
+        )}
+        <AnimatePresence mode="popLayout">
+          {lanes.map(({ shift, lane, totalLanes }) => (
+            <ShiftBar
+              key={shift.id}
+              shift={shift}
+              lane={lane}
+              totalLanes={totalLanes}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          ))}
+        </AnimatePresence>
+      </motion.div>
     </div>
   );
 }
@@ -714,7 +799,7 @@ export function EditableScheduleCalendar({
           onDelete={handleDelete}
         />
       ) : (
-      <div className="space-y-4">
+      <div className="space-y-4 select-none">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-800">
             💡 <strong>Tipp:</strong> Ziehen Sie Schichten per Drag & Drop, um sie zu verschieben.

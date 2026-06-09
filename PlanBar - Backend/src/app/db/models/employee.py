@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Table, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -63,8 +63,13 @@ class Timecard(Base):
     week = Column(Integer, nullable=False)
     year = Column(Integer, nullable=False)
     balance = Column(Float, nullable=False, default=0.0)
-    manual_adjustment = Column(Float, nullable=False, default=0.0)
+    scheduled_hours = Column(Float, default=0.0)
+    actual_hours = Column(Float, default=0.0)
+    contract_hours = Column(Float, default=0.0)
+    manual_adjustment_hours = Column(Float, default=0.0)
+    adjustment_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     employee = relationship("Employee", back_populates="timecards")
+    __table_args__ = (UniqueConstraint("employee_id", "week", "year", name="uq_timecard_employee_week_year"),)
