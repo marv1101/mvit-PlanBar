@@ -4,6 +4,7 @@ from app.db.models.employee import Employee, Contract, Timecard
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.pinboard import PinboardThread, PinboardMessage, PinboardDocument
+from app.db.models.audit_log import AuditLog
 
 __all__ = [
     "User",
@@ -17,4 +18,5 @@ __all__ = [
     "PinboardThread",
     "PinboardMessage",
     "PinboardDocument",
+    "AuditLog",
 ]

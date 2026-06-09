@@ -23,6 +23,7 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
+from app.services import audit_service
 from app.services.user_service import (
     admin_create_user,
     authenticate_user,
@@ -75,6 +76,16 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
 def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db)):
     user = authenticate_user(db, user_data.email, user_data.password)
     if not user:
+        ip = request.client.host if request.client else None
+        audit_service.log(
+            db,
+            user_id=None,
+            action="LOGIN_FAILED",
+            resource_type="user",
+            resource_id=user_data.email,
+            ip_address=ip,
+            user_agent=request.headers.get("user-agent"),
+        )
         raise UnauthorizedException(detail="Invalid email or password")
     user.last_login = datetime.now(timezone.utc)
     db.add(user)
@@ -174,7 +185,7 @@ def update_user_endpoint(
         if existing:
             raise ConflictException(detail="Username already in use")
 
-    return update_user(db, user, user_in)
+    return update_user(db, user, user_in, actor_id=current_user.id)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -187,7 +198,7 @@ def delete_user_endpoint(
     if user is None:
         raise NotFoundException(detail="User not found")
 
-    delete_user(db, user)
+    delete_user(db, user, actor_id=admin.id)
     return None
 
 
@@ -201,7 +212,7 @@ def admin_create_user_endpoint(
     if existing:
         raise ConflictException(detail="User with email or username already exists")
 
-    user, password = admin_create_user(db, user_in)
+    user, password = admin_create_user(db, user_in, actor_id=admin.id)
 
     return AdminUserCreateResponse(
         id=user.id,

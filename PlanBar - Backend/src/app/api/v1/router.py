@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.audit import router as audit_router
 from app.api.v1.callbacks import router as callbacks_router
 from app.api.v1.employees import (
     contract_router,
@@ -26,3 +27,4 @@ api_router.include_router(schedules_router, prefix="/schedules", tags=["schedule
 api_router.include_router(metrics_router, prefix="/metrics", tags=["metrics"])
 api_router.include_router(callbacks_router, prefix="/callbacks", tags=["callbacks"])
 api_router.include_router(pinboard_router, prefix="/pinboard", tags=["pinboard"])
+api_router.include_router(audit_router, prefix="", tags=["audit"])
