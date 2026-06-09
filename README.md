@@ -1,6 +1,6 @@
-# PlanBar – Schichtplanung für Apotheken
+# PlanBar – Schichtplanung
 
-PlanBar ist eine webbasierte Schichtplanungsanwendung für Apotheken (KMU in Deutschland). Sie ermöglicht die Erstellung, Verwaltung und automatische Optimierung von Dienstplänen unter Berücksichtigung des deutschen Arbeitszeitgesetzes (ArbZG).
+PlanBar ist eine webbasierte Schichtplanungsanwendung für KMU in Deutschland. Sie ermöglicht die Erstellung, Verwaltung und automatische Optimierung von Dienstplänen unter Berücksichtigung des deutschen Arbeitszeitgesetzes (ArbZG).
 
 Das System besteht aus drei Komponenten:
 

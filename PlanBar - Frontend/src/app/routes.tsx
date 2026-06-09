@@ -12,6 +12,7 @@ const Schedule = lazy(() => import('./pages/Schedule').then(m => ({ default: m.S
 const Roles = lazy(() => import('./pages/Roles').then(m => ({ default: m.Roles })));
 const Users = lazy(() => import('./pages/Users').then(m => ({ default: m.Users })));
 const EmployeeView = lazy(() => import('./pages/EmployeeView').then(m => ({ default: m.EmployeeView })));
+const PinboardPage = lazy(() => import('./pages/PinboardPage').then(m => ({ default: m.PinboardPage })));
 const TimeAccounts = lazy(() => import('./pages/TimeAccounts').then(m => ({ default: m.TimeAccounts })));
 
 function LazyPage({ children }: { children: React.ReactNode }) {
@@ -84,6 +85,10 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: 'pinboard',
+        element: (
+          <ProtectedRoute allowedRoles={['admin', 'employee']}>
+            <LazyPage><PinboardPage /></LazyPage>
         path: 'time-accounts',
         element: (
           <ProtectedRoute allowedRoles={['admin']}>
