@@ -89,6 +89,10 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['admin', 'employee']}>
             <LazyPage><PinboardPage /></LazyPage>
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: 'time-accounts',
         element: (
           <ProtectedRoute allowedRoles={['admin']}>
