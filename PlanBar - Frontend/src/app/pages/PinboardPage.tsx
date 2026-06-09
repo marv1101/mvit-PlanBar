@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { MessageSquare, Plus, ArrowLeft, Send, Paperclip, Trash2, Pin, Loader2, FileText, Download, Eye } from 'lucide-react';
 import { PinboardThread, PinboardThreadDetail, PinboardMessage } from '../types';
@@ -181,6 +181,9 @@ export function PinboardPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Neuen Thread erstellen</DialogTitle>
+              <DialogDescription>
+                Geben Sie einen Titel für den neuen Pinnwand-Thread ein.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <Input

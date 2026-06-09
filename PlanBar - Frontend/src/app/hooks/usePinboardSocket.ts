@@ -11,11 +11,16 @@ interface UsePinboardSocketOptions {
   enabled?: boolean;
 }
 
+const MAX_RECONNECT_ATTEMPTS = 10;
+const RECONNECT_BASE_DELAY = 1000;
+const RECONNECT_MAX_DELAY = 30000;
+
 export function usePinboardSocket({ threadId, onNewMessage, enabled = true }: UsePinboardSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const tokenRef = useRef<string | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const mountedRef = useRef(true);
+  const reconnectAttemptsRef = useRef(0);
 
   const connect = useCallback(async () => {
     if (!threadId || !enabled) return;
@@ -24,7 +29,9 @@ export function usePinboardSocket({ threadId, onNewMessage, enabled = true }: Us
     try {
       const { data } = await api.get('/pinboard/ws-token');
       tokenRef.current = data.token;
-    } catch {
+    } catch (err) {
+      console.error('[WS] Token fetch failed:', err);
+      scheduleReconnect();
       return;
     }
 
@@ -36,7 +43,9 @@ export function usePinboardSocket({ threadId, onNewMessage, enabled = true }: Us
 
     wsRef.current = new WebSocket(url);
 
-    wsRef.current.onopen = () => {};
+    wsRef.current.onopen = () => {
+      reconnectAttemptsRef.current = 0;
+    };
 
     wsRef.current.onmessage = (event) => {
       try {
@@ -47,9 +56,12 @@ export function usePinboardSocket({ threadId, onNewMessage, enabled = true }: Us
       } catch {}
     };
 
-    wsRef.current.onclose = () => {
+    wsRef.current.onclose = (event) => {
+      if (event.code !== 1000) {
+        console.warn(`[WS] Connection closed: code=${event.code} reason="${event.reason}"`);
+      }
       if (mountedRef.current && enabled) {
-        reconnectTimeoutRef.current = setTimeout(connect, 3000);
+        scheduleReconnect();
       }
     };
 
@@ -58,8 +70,25 @@ export function usePinboardSocket({ threadId, onNewMessage, enabled = true }: Us
     };
   }, [threadId, onNewMessage, enabled]);
 
+  function scheduleReconnect() {
+    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      console.error(`[WS] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Giving up.`);
+      return;
+    }
+
+    const delay = Math.min(
+      RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttemptsRef.current),
+      RECONNECT_MAX_DELAY,
+    );
+    reconnectAttemptsRef.current += 1;
+    console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
+
+    reconnectTimeoutRef.current = setTimeout(connect, delay);
+  }
+
   useEffect(() => {
     mountedRef.current = true;
+    reconnectAttemptsRef.current = 0;
     connect();
 
     return () => {
