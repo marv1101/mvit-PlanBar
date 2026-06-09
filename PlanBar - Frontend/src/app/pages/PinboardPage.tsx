@@ -9,9 +9,10 @@ import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { MessageSquare, Plus, ArrowLeft, Send, Paperclip, Trash2, Pin, Loader2, FileText, Download, Eye } from 'lucide-react';
-import { PinboardThread, PinboardThreadDetail, PinboardMessage } from '../types';
+import { PinboardDocument, PinboardThread, PinboardThreadDetail, PinboardMessage } from '../types';
 import * as pinboardService from '../services/pinboardService';
 import {
+  pinboardDocumentFromResponse,
   pinboardThreadFromResponse,
   pinboardThreadDetailFromResponse,
   pinboardMessageFromResponse,
@@ -118,9 +119,24 @@ export function PinboardPage() {
     });
   }, []);
 
+  const handleDocumentUploaded = useCallback((messageId: number, document: PinboardDocument) => {
+    setSelectedThread(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        messages: prev.messages.map(m =>
+          m.id === String(messageId)
+            ? { ...m, documents: [...m.documents, document] }
+            : m
+        ),
+      };
+    });
+  }, []);
+
   usePinboardSocket({
     threadId: selectedThread?.id ?? null,
     onNewMessage: handleNewMessage,
+    onDocumentUploaded: handleDocumentUploaded,
     enabled: !!selectedThread,
   });
 
@@ -160,6 +176,7 @@ export function PinboardPage() {
         onSendMessage={handleSendMessage}
         sendingMessage={sendingMessage}
         currentUserId={user?.id}
+        onDocumentUploaded={handleDocumentUploaded}
       />
     );
   }
@@ -289,6 +306,7 @@ function ThreadView({
   onSendMessage,
   sendingMessage,
   currentUserId,
+  onDocumentUploaded,
 }: {
   thread: PinboardThreadDetail;
   onBack: () => void;
@@ -297,14 +315,16 @@ function ThreadView({
   onSendMessage: () => void;
   sendingMessage: boolean;
   currentUserId?: string;
+  onDocumentUploaded: (messageId: number, document: PinboardDocument) => void;
 }) {
   const [uploadingFile, setUploadingFile] = useState(false);
 
   const handleFileUpload = async (messageId: string, file: File) => {
     setUploadingFile(true);
     try {
-      await pinboardService.uploadDocument(Number(messageId), file);
+      const doc = await pinboardService.uploadDocument(Number(messageId), file);
       toast.success('Datei hochgeladen');
+      onDocumentUploaded(Number(messageId), pinboardDocumentFromResponse(doc));
     } catch {
       toast.error('Fehler beim Hochladen der Datei');
     } finally {

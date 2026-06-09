@@ -1,13 +1,15 @@
 import { useEffect, useRef, useCallback } from 'react';
 import api from '../lib/api';
-import { PinboardMessage } from '../types';
-import { pinboardMessageFromResponse } from '../lib/mappers';
+import { PinboardDocument, PinboardMessage } from '../types';
+import { pinboardDocumentFromResponse, pinboardMessageFromResponse } from '../lib/mappers';
 
 type MessageHandler = (message: PinboardMessage) => void;
+type DocumentUploadedHandler = (messageId: number, document: PinboardDocument) => void;
 
 interface UsePinboardSocketOptions {
   threadId: string | null;
   onNewMessage?: MessageHandler;
+  onDocumentUploaded?: DocumentUploadedHandler;
   enabled?: boolean;
 }
 
@@ -15,7 +17,7 @@ const MAX_RECONNECT_ATTEMPTS = 10;
 const RECONNECT_BASE_DELAY = 1000;
 const RECONNECT_MAX_DELAY = 30000;
 
-export function usePinboardSocket({ threadId, onNewMessage, enabled = true }: UsePinboardSocketOptions) {
+export function usePinboardSocket({ threadId, onNewMessage, onDocumentUploaded, enabled = true }: UsePinboardSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const tokenRef = useRef<string | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
@@ -53,6 +55,9 @@ export function usePinboardSocket({ threadId, onNewMessage, enabled = true }: Us
         if (data.type === 'new_message' && data.message && onNewMessage) {
           onNewMessage(pinboardMessageFromResponse(data.message));
         }
+        if (data.type === 'document_uploaded' && data.document && onDocumentUploaded) {
+          onDocumentUploaded(data.message_id, pinboardDocumentFromResponse(data.document));
+        }
       } catch {}
     };
 
@@ -68,7 +73,7 @@ export function usePinboardSocket({ threadId, onNewMessage, enabled = true }: Us
     wsRef.current.onerror = () => {
       wsRef.current?.close();
     };
-  }, [threadId, onNewMessage, enabled]);
+  }, [threadId, onNewMessage, onDocumentUploaded, enabled]);
 
   function scheduleReconnect() {
     if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {

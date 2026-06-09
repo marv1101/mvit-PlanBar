@@ -357,7 +357,14 @@ async def upload_document(
     db.add(doc)
     db.commit()
     db.refresh(doc)
-    return DocumentResponse.model_validate(doc)
+
+    doc_response = DocumentResponse.model_validate(doc)
+    await _broadcast(message.thread_id, {
+        "type": "document_uploaded",
+        "message_id": message_id,
+        "document": doc_response.model_dump(mode="json"),
+    })
+    return doc_response
 
 
 @router.get("/documents/{document_id}")
