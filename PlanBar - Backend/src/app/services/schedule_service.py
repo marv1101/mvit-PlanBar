@@ -9,6 +9,7 @@ from app.db.models.employee import Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
+from app.services import audit_service
 from app.services.tito_proxy import tito_proxy
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = Non
 
     db.commit()
     db.refresh(schedule)
+    audit_service.log_create(db, user_id=user_id, resource_type="schedule", resource_id=str(schedule.id))
     return schedule
 
 
@@ -55,7 +57,7 @@ def list_schedules(db: Session) -> list[Schedule]:
     return db.query(Schedule).order_by(Schedule.created_at.desc()).all()
 
 
-def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate) -> Schedule:
+def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate, actor_id: int | None = None) -> Schedule:
     if data.name is not None:
         schedule.name = data.name
     if data.week_type is not None:
@@ -65,13 +67,15 @@ def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate) -> Sc
     db.add(schedule)
     db.commit()
     db.refresh(schedule)
+    audit_service.log_update(db, user_id=actor_id, resource_type="schedule", resource_id=str(schedule.id))
     return schedule
 
 
-def delete_schedule(db: Session, schedule: Schedule) -> None:
+def delete_schedule(db: Session, schedule: Schedule, actor_id: int | None = None) -> None:
     db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).delete()
     db.delete(schedule)
     db.commit()
+    audit_service.log_delete(db, user_id=actor_id, resource_type="schedule", resource_id=str(schedule.id))
 
 
 async def submit_schedule_to_tito(db: Session, schedule: Schedule, callback_url: str | None = None) -> Schedule:
@@ -102,10 +106,12 @@ async def submit_schedule_to_tito(db: Session, schedule: Schedule, callback_url:
         db.commit()
         db.refresh(schedule)
 
+    audit_service.log_update(db, user_id=None, resource_type="schedule", resource_id=str(schedule.id),
+                             details=f"submitted_to_tito job_id={schedule.tito_job_id}")
     return schedule
 
 
-async def retry_schedule(db: Session, schedule: Schedule) -> Schedule:
+async def retry_schedule(db: Session, schedule: Schedule, actor_id: int | None = None) -> Schedule:
     if schedule.tito_job_id:
         try:
             await tito_proxy.retry_job(schedule.tito_job_id)
@@ -121,6 +127,8 @@ async def retry_schedule(db: Session, schedule: Schedule) -> Schedule:
     else:
         await submit_schedule_to_tito(db, schedule)
 
+    audit_service.log_update(db, user_id=actor_id, resource_type="schedule", resource_id=str(schedule.id),
+                             details=f"retry_tito job_id={schedule.tito_job_id}")
     return schedule
 
 
@@ -128,6 +136,7 @@ def replace_all_shifts(
     db: Session,
     schedule: Schedule,
     shiftplans_data: list[ShiftplanCreate],
+    actor_id: int | None = None,
 ) -> Schedule:
     db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).delete()
     for sp_data in shiftplans_data:
@@ -146,6 +155,8 @@ def replace_all_shifts(
         db.add(shiftplan)
     db.commit()
     db.refresh(schedule)
+    audit_service.log_update(db, user_id=actor_id, resource_type="schedule", resource_id=str(schedule.id),
+                             details="replace_all_shifts")
     return schedule
 
 

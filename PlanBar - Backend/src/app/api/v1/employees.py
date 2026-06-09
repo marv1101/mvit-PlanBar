@@ -49,7 +49,7 @@ def create_employee_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return create_employee(db, data)
+    return create_employee(db, data, actor_id=current_user.id)
 
 
 @router.get("", response_model=list[EmployeeResponse])
@@ -91,7 +91,7 @@ def update_employee_endpoint(
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
-    return update_employee(db, employee, data)
+    return update_employee(db, employee, data, actor_id=current_user.id)
 
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -103,7 +103,7 @@ def delete_employee_endpoint(
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
-    delete_employee(db, employee)
+    delete_employee(db, employee, actor_id=admin.id)
 
 
 contract_router = APIRouter()
@@ -115,7 +115,7 @@ def create_contract_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return create_contract(db, data)
+    return create_contract(db, data, actor_id=current_user.id)
 
 
 @contract_router.get("", response_model=list[ContractResponse])
@@ -148,7 +148,7 @@ def update_contract_endpoint(
     contract = get_contract_by_id(db, contract_id)
     if not contract:
         raise NotFoundException(detail="Contract not found")
-    return update_contract(db, contract, data)
+    return update_contract(db, contract, data, actor_id=current_user.id)
 
 
 timecard_router = APIRouter()
@@ -160,7 +160,7 @@ def create_timecard_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return create_timecard(db, data)
+    return create_timecard(db, data, actor_id=current_user.id)
 
 
 @timecard_router.get("", response_model=list[TimecardResponse])
@@ -193,7 +193,7 @@ def update_timecard_endpoint(
     timecard = get_timecard_by_id(db, timecard_id)
     if not timecard:
         raise NotFoundException(detail="Timecard not found")
-    return update_timecard(db, timecard, data)
+    return update_timecard(db, timecard, data, actor_id=current_user.id)
 
 
 def _build_time_account_response(employee: Employee, db: Session) -> TimeAccountResponse:

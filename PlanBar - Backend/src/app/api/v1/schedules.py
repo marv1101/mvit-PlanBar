@@ -70,7 +70,7 @@ def update_schedule_endpoint(
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    return update_schedule(db, schedule, data)
+    return update_schedule(db, schedule, data, actor_id=admin.id)
 
 
 @router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -82,7 +82,7 @@ def delete_schedule_endpoint(
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    delete_schedule(db, schedule)
+    delete_schedule(db, schedule, actor_id=admin.id)
 
 
 @router.post("/{schedule_id}/submit", response_model=ScheduleResponse)
@@ -109,7 +109,7 @@ async def retry_schedule_endpoint(
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    return await retry_schedule(db, schedule)
+    return await retry_schedule(db, schedule, actor_id=admin.id)
 
 
 @router.get("/{schedule_id}/summary", response_model=ScheduleSummary)
@@ -180,7 +180,7 @@ def replace_all_shifts_endpoint(
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    return replace_all_shifts(db, schedule, data.shiftplans)
+    return replace_all_shifts(db, schedule, data.shiftplans, actor_id=current_user.id)
 
 
 @router.get("/{schedule_id}/wishes/pending", response_model=list[ShiftWishResponse])
