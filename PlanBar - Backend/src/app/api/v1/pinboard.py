@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.core.auth import verify_token, create_access_token
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "uploads", "pinboard")
+UPLOAD_DIR = os.path.abspath(settings.upload_dir)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 MAX_FILE_SIZE = 10 * 1024 * 1024

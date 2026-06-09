@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     cors_origins: str = Field("http://localhost:5173,http://localhost:3000")
     tito_api_key: str | None = Field(None)
     log_level: str = Field("INFO")
+    upload_dir: str = Field("./uploads/pinboard")
     environment: str = Field("development")
     timezone: str = Field("UTC")
 

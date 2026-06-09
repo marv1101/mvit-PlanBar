@@ -8,7 +8,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { MessageSquare, Plus, ArrowLeft, Send, Paperclip, Trash2, Pin, Loader2, FileText, Download, Eye } from 'lucide-react';
+import { MessageSquare, Plus, ArrowLeft, Send, Paperclip, Trash2, Pin, Loader2 } from 'lucide-react';
 import { PinboardDocument, PinboardThread, PinboardThreadDetail, PinboardMessage } from '../types';
 import * as pinboardService from '../services/pinboardService';
 import {
@@ -19,6 +19,7 @@ import {
 } from '../lib/mappers';
 import { toast } from 'sonner';
 import { usePinboardSocket } from '../hooks/usePinboardSocket';
+import { DocumentList } from '../components/pinboard/DocumentList';
 import { requestNotificationPermission, showPinboardNotification } from '../lib/notifications';
 
 export function PinboardPage() {
@@ -126,7 +127,9 @@ export function PinboardPage() {
         ...prev,
         messages: prev.messages.map(m =>
           m.id === String(messageId)
-            ? { ...m, documents: [...m.documents, document] }
+            ? m.documents.some(d => d.id === document.id)
+              ? m
+              : { ...m, documents: [...m.documents, document] }
             : m
         ),
       };
@@ -446,12 +449,6 @@ function MessageCard({
     }
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
   return (
     <Card className={isOwn ? 'border-blue-200' : ''}>
       <CardContent className="pt-6">
@@ -481,26 +478,7 @@ function MessageCard({
         <p className="text-gray-800 whitespace-pre-wrap">{message.content}</p>
 
         {message.documents.length > 0 && (
-          <div className="mt-3 space-y-2">
-            {message.documents.map(doc => (
-              <div key={doc.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-md">
-                <FileText className="h-5 w-5 text-blue-600 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{doc.fileName}</p>
-                  <p className="text-xs text-gray-500">{formatFileSize(doc.fileSize)}</p>
-                </div>
-                <a
-                  href={`/api/v1/pinboard/documents/${doc.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button variant="ghost" size="sm">
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </a>
-              </div>
-            ))}
-          </div>
+          <DocumentList documents={message.documents} />
         )}
       </CardContent>
 
