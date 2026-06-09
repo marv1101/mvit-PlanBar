@@ -176,6 +176,10 @@ def update_user_endpoint(
     if user is None:
         raise NotFoundException(detail="User not found")
 
+    # Prevent privilege escalation: only admins can change roles
+    if user_in.role is not None and current_user.role != "admin":
+        raise UnauthorizedException(detail="Only admins can change user roles")
+
     if user_in.email:
         existing = db.query(User).filter(User.email == user_in.email, User.id != user.id).first()
         if existing:
