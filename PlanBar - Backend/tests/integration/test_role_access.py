@@ -63,7 +63,7 @@ def test_non_admin_cannot_read_other_user(client):
     assert response.status_code in (401, 403)
 
 
-def test_non_admin_can_update_self(client):
+def test_non_admin_cannot_update_self(client):
     token, user_id = _create_user(client)
     headers = {"Authorization": f"Bearer {token}"}
     response = client.put(
@@ -71,7 +71,7 @@ def test_non_admin_can_update_self(client):
         json={"username": "updatedregular"},
         headers=headers,
     )
-    assert response.status_code == 200
+    assert response.status_code == 401
 
 
 def test_non_admin_cannot_update_other_user(client):
@@ -119,7 +119,7 @@ def test_non_admin_cannot_self_promote_to_admin(client):
         headers=headers,
     )
     assert response.status_code in (401, 403), response.text
-    assert "Only admins can change user roles" in response.json()["detail"]
+    assert "Insufficient permissions" in response.json()["detail"]
 
 
 def test_admin_can_change_user_role(client, auth_headers):
