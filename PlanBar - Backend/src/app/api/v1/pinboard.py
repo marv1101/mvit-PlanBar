@@ -151,6 +151,14 @@ def _message_to_response(message: PinboardMessage) -> MessageResponse:
     )
 
 
+def _check_ownership(current_user: User, author_id: int):
+    if current_user.id != author_id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized",
+        )
+
+
 def _thread_to_detail_response(thread: PinboardThread) -> ThreadDetailResponse:
     return ThreadDetailResponse(
         id=thread.id,
@@ -212,6 +220,7 @@ def update_thread(
     thread = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
     if not thread:
         raise NotFoundException(detail="Thread not found")
+    _check_ownership(current_user, thread.author_id)
     if data.title is not None:
         thread.title = data.title
     if data.is_pinned is not None:
@@ -230,6 +239,7 @@ def delete_thread(
     thread = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
     if not thread:
         raise NotFoundException(detail="Thread not found")
+    _check_ownership(current_user, thread.author_id)
     for message in thread.messages or []:
         for doc in message.documents or []:
             if os.path.exists(doc.file_path):
@@ -283,6 +293,7 @@ def update_message(
     message = db.query(PinboardMessage).filter(PinboardMessage.id == message_id).first()
     if not message:
         raise NotFoundException(detail="Message not found")
+    _check_ownership(current_user, message.author_id)
     if data.content is not None:
         message.content = data.content
     db.commit()
@@ -299,6 +310,7 @@ def delete_message(
     message = db.query(PinboardMessage).filter(PinboardMessage.id == message_id).first()
     if not message:
         raise NotFoundException(detail="Message not found")
+    _check_ownership(current_user, message.author_id)
     for doc in message.documents or []:
         if os.path.exists(doc.file_path):
             os.remove(doc.file_path)
@@ -396,6 +408,7 @@ def delete_document(
     doc = db.query(PinboardDocument).filter(PinboardDocument.id == document_id).first()
     if not doc:
         raise NotFoundException(detail="Document not found")
+    _check_ownership(current_user, doc.message.author_id)
     if os.path.exists(doc.file_path):
         os.remove(doc.file_path)
     db.delete(doc)
