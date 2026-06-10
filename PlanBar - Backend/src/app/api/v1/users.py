@@ -169,16 +169,12 @@ def update_user_endpoint(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if current_user.id != user_id and current_user.role != "admin":
+    if current_user.role != "admin":
         raise UnauthorizedException(detail="Insufficient permissions")
 
     user = get_user_by_id(db, user_id)
     if user is None:
         raise NotFoundException(detail="User not found")
-
-    # Prevent privilege escalation: only admins can change roles
-    if user_in.role is not None and current_user.role != "admin":
-        raise UnauthorizedException(detail="Only admins can change user roles")
 
     if user_in.email:
         existing = db.query(User).filter(User.email == user_in.email, User.id != user.id).first()
