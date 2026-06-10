@@ -20,7 +20,7 @@ class ShiftWishCreate(BaseModel):
     week: Optional[int] = None
     type: str = Field("preferred", pattern=r"^(preferred|unavailable|vacation)$")
     note: Optional[str] = None
-    status: str = Field("approved", pattern=r"^(pending|approved|rejected)$")
+    status: str = Field("pending", pattern=r"^(pending|approved|rejected)$")
 
 
 class ShiftWishUpdate(BaseModel):
@@ -39,7 +39,7 @@ class ShiftWishResponse(BaseModel):
     week: Optional[int] = None
     type: str
     note: Optional[str] = None
-    status: str = "approved"
+    status: str = "pending"
     reviewed_by: Optional[int] = None
     reviewed_at: Optional[datetime] = None
     rejection_reason: Optional[str] = None
