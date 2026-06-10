@@ -169,7 +169,7 @@ def update_user_endpoint(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if current_user.id != user_id and current_user.role != "admin":
+    if current_user.role != "admin":
         raise UnauthorizedException(detail="Insufficient permissions")
 
     user = get_user_by_id(db, user_id)
