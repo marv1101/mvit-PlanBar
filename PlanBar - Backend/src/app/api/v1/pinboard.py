@@ -159,6 +159,25 @@ def _check_ownership(current_user: User, author_id: int):
         )
 
 
+def _validate_magic_bytes(content: bytes, ext: str):
+    MAGIC_PATTERNS = {
+        ".jpg": [(b"\xff\xd8\xff", 0)],
+        ".jpeg": [(b"\xff\xd8\xff", 0)],
+        ".png": [(b"\x89PNG\r\n\x1a\n", 0)],
+        ".gif": [(b"GIF87a", 0), (b"GIF89a", 0)],
+        ".webp": [(b"RIFF", 0), (b"WEBP", 8)],
+        ".pdf": [(b"%PDF", 0)],
+    }
+    if ext not in MAGIC_PATTERNS:
+        return
+    for magic, offset in MAGIC_PATTERNS[ext]:
+        if len(content) < offset + len(magic) or content[offset : offset + len(magic)] != magic:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File content does not match expected signature.",
+            )
+
+
 def _thread_to_detail_response(thread: PinboardThread) -> ThreadDetailResponse:
     return ThreadDetailResponse(
         id=thread.id,
@@ -328,6 +347,7 @@ async def upload_document(
     message = db.query(PinboardMessage).filter(PinboardMessage.id == message_id).first()
     if not message:
         raise NotFoundException(detail="Message not found")
+    _check_ownership(current_user, message.author_id)
 
     ext = os.path.splitext(file.filename or "file")[1].lower()
 
@@ -352,6 +372,7 @@ async def upload_document(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)} MB.",
         )
+    _validate_magic_bytes(content, ext)
 
     mime_type = ALLOWED_EXTENSIONS[ext]
     stored_name = f"{uuid.uuid4().hex}{ext}"
@@ -389,6 +410,7 @@ def download_document(
     doc = db.query(PinboardDocument).filter(PinboardDocument.id == document_id).first()
     if not doc:
         raise NotFoundException(detail="Document not found")
+    _check_ownership(current_user, doc.message.author_id)
     if not os.path.exists(doc.file_path):
         raise NotFoundException(detail="File not found on disk")
 
@@ -396,6 +418,7 @@ def download_document(
         doc.file_path,
         media_type=doc.mime_type,
         filename=doc.file_name,
+        content_disposition_type="attachment",
     )
 
 

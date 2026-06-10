@@ -1,4 +1,38 @@
 import io
+import pytest
+
+
+@pytest.fixture
+def other_user_headers(client):
+    register_data = {
+        "username": "otheruser",
+        "email": "other@test.com",
+        "password": "testpassword123",
+    }
+    client.post("/api/v1/users", json=register_data)
+    login_response = client.post(
+        "/api/v1/users/login",
+        json={"email": "other@test.com", "password": "testpassword123"},
+    )
+    token = login_response.json()["access_token"]
+    client.cookies.clear()
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _create_thread_and_message(client, headers):
+    thread_resp = client.post(
+        "/api/v1/pinboard/threads",
+        json={"title": "Test Thread"},
+        headers=headers,
+    )
+    thread_id = thread_resp.json()["id"]
+    msg_resp = client.post(
+        f"/api/v1/pinboard/threads/{thread_id}/messages",
+        json={"content": "Test message"},
+        headers=headers,
+    )
+    message_id = msg_resp.json()["id"]
+    return thread_id, message_id
 
 
 def test_create_thread(client, auth_headers):
@@ -381,3 +415,85 @@ def test_pinned_threads_appear_first(client, auth_headers):
     unpinned_indices = [i for i, t in enumerate(data) if not t["is_pinned"]]
     if pinned_indices and unpinned_indices:
         assert max(pinned_indices) < min(unpinned_indices)
+
+
+def test_upload_document_unauthorized_user_returns_403(client, auth_headers, other_user_headers):
+    _, message_id = _create_thread_and_message(client, auth_headers)
+    response = client.post(
+        f"/api/v1/pinboard/messages/{message_id}/documents",
+        files={"file": ("test.txt", io.BytesIO(b"hello"), "text/plain")},
+        headers=other_user_headers,
+    )
+    assert response.status_code == 403
+
+
+def test_admin_can_upload_document_to_any_message(client, auth_headers, other_user_headers):
+    _, message_id = _create_thread_and_message(client, other_user_headers)
+    response = client.post(
+        f"/api/v1/pinboard/messages/{message_id}/documents",
+        files={"file": ("test.txt", io.BytesIO(b"hello"), "text/plain")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+
+
+def test_upload_document_wrong_magic_bytes_returns_400(client, auth_headers):
+    _, message_id = _create_thread_and_message(client, auth_headers)
+    response = client.post(
+        f"/api/v1/pinboard/messages/{message_id}/documents",
+        files={"file": ("test.png", io.BytesIO(b"<html>"), "image/png")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+
+
+def test_upload_document_correct_magic_bytes_accepted(client, auth_headers):
+    _, message_id = _create_thread_and_message(client, auth_headers)
+    png_header = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+    response = client.post(
+        f"/api/v1/pinboard/messages/{message_id}/documents",
+        files={"file": ("test.png", io.BytesIO(png_header), "image/png")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+
+
+def test_upload_txt_skips_magic_check(client, auth_headers):
+    _, message_id = _create_thread_and_message(client, auth_headers)
+    response = client.post(
+        f"/api/v1/pinboard/messages/{message_id}/documents",
+        files={"file": ("test.txt", io.BytesIO(b"<html>"), "text/plain")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+
+
+def test_download_document_unauthorized_user_returns_403(client, auth_headers, other_user_headers):
+    _, message_id = _create_thread_and_message(client, auth_headers)
+    doc_resp = client.post(
+        f"/api/v1/pinboard/messages/{message_id}/documents",
+        files={"file": ("test.txt", io.BytesIO(b"file content"), "text/plain")},
+        headers=auth_headers,
+    )
+    document_id = doc_resp.json()["id"]
+    response = client.get(
+        f"/api/v1/pinboard/documents/{document_id}",
+        headers=other_user_headers,
+    )
+    assert response.status_code == 403
+
+
+def test_download_document_has_attachment_header(client, auth_headers):
+    _, message_id = _create_thread_and_message(client, auth_headers)
+    doc_resp = client.post(
+        f"/api/v1/pinboard/messages/{message_id}/documents",
+        files={"file": ("test.txt", io.BytesIO(b"file content"), "text/plain")},
+        headers=auth_headers,
+    )
+    document_id = doc_resp.json()["id"]
+    response = client.get(
+        f"/api/v1/pinboard/documents/{document_id}",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert "attachment" in response.headers.get("content-disposition", "")
