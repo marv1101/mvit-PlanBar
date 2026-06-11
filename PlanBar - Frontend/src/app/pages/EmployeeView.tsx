@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
@@ -13,9 +14,25 @@ import { TimeAccountCard } from '../components/TimeAccountCard';
 
 export function EmployeeView() {
   const { employees, schedules, roles, loading } = useApp();
+  const { user } = useAuth();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>('');
   const [currentWeek, setCurrentWeek] = useState<WeekType>('A');
+
+  const isAdmin = user?.role === 'admin';
+
+  // For non-admin users, find and auto-select their linked employee
+  const linkedEmployee = useMemo(() => {
+    if (isAdmin || !user?.id) return undefined;
+    return employees.find(e => e.userId === user.id);
+  }, [employees, user, isAdmin]);
+
+  // Auto-select the linked employee for non-admins
+  useEffect(() => {
+    if (!isAdmin && linkedEmployee && !selectedEmployeeId) {
+      setSelectedEmployeeId(linkedEmployee.id);
+    }
+  }, [isAdmin, linkedEmployee, selectedEmployeeId]);
 
   const selectedEmployee = useMemo(() => 
     employees.find(e => e.id === selectedEmployeeId),
@@ -217,17 +234,23 @@ export function EmployeeView() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="employee">Mitarbeiter</Label>
-              <select
-                id="employee"
-                className="w-full border rounded-md px-3 py-2 mt-1"
-                value={selectedEmployeeId}
-                onChange={(e) => setSelectedEmployeeId(e.target.value)}
-              >
-                <option value="">Bitte wählen...</option>
-                {employees.map(emp => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                ))}
-              </select>
+              {isAdmin ? (
+                <select
+                  id="employee"
+                  className="w-full border rounded-md px-3 py-2 mt-1"
+                  value={selectedEmployeeId}
+                  onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                >
+                  <option value="">Bitte wählen...</option>
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="w-full border rounded-md px-3 py-2 mt-1 bg-gray-50 text-gray-700">
+                  {linkedEmployee ? linkedEmployee.name : 'Kein Mitarbeiterprofil verknüpft'}
+                </div>
+              )}
             </div>
 
             <div>

@@ -72,6 +72,7 @@ export function employeeFromResponse(dto: EmployeeResponseDTO): Employee {
     },
     color: dto.color || '#3b82f6',
     maxWorkHours: dto.max_work_hours ?? 40,
+    userId: dto.user_id != null ? String(dto.user_id) : undefined,
   };
 }
 

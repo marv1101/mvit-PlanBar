@@ -44,6 +44,7 @@ export interface Employee {
   breakTime: BreakTime;
   color: string; // for calendar display
   maxWorkHours?: number; // maximum work hours per week
+  userId?: string; // linked auth user ID (from Employee.user_id)
 }
 
 export type RequestType = 'urlaubswunsch' | 'bevorzugt' | 'nicht-verfügbar';
