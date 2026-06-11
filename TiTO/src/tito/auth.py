@@ -2,8 +2,11 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Iterable
+
+logger = logging.getLogger(__name__)
 
 
 def _base64url_decode(value: str) -> bytes:
@@ -58,7 +61,8 @@ def authenticate_request(
 ) -> bool:
     """Prüfe, ob ein Zugriffstoken gültig ist."""
     if not valid_tokens and not jwt_secret:
-        return True
+        logger.warning("No authentication configured — rejecting request (fail-closed)")
+        return False
     if not token:
         return False
     if token in valid_tokens:
@@ -79,7 +83,8 @@ def authorize_access(
 ) -> bool:
     """Prüfe, ob ein Token auf die angefragte Ressource zugreifen darf."""
     if not token_roles and not jwt_secret:
-        return True
+        logger.warning("No authentication configured — rejecting access (fail-closed)")
+        return False
     if not token:
         return False
 
