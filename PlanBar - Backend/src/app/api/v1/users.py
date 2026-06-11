@@ -63,7 +63,7 @@ def _clear_auth_cookies(response: JSONResponse) -> None:
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-@limiter.limit("3/minute")
+@limiter.limit("30/minute")
 def register_user(user_in: UserCreate, request: Request, db: Session = Depends(get_db)):
     existing = db.query(User).filter((User.email == user_in.email) | (User.username == user_in.username)).first()
     if existing:
@@ -73,7 +73,7 @@ def register_user(user_in: UserCreate, request: Request, db: Session = Depends(g
 
 
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit("5/minute")
+@limiter.limit("80/minute")
 def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db)):
     user = authenticate_user(db, user_data.email, user_data.password)
     if not user:
@@ -111,7 +111,7 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/refresh-token", response_model=TokenResponse)
-@limiter.limit("10/minute")
+@limiter.limit("1000/minute")
 def refresh_token(request: Request, token_data: TokenRefreshRequest, db: Session = Depends(get_db)):
     refresh_token_str = token_data.refresh_token or request.cookies.get("refresh_token")
     if not refresh_token_str:
@@ -230,7 +230,7 @@ def admin_create_user_endpoint(
 
 
 @router.post("/change-password", response_model=UserResponse)
-@limiter.limit("3/minute")
+@limiter.limit("10/minute")
 def change_password_endpoint(
     data: ChangePasswordRequest,
     request: Request,
