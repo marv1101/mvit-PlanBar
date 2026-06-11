@@ -1,3 +1,4 @@
+import hmac
 import logging
 
 from fastapi import APIRouter, Depends, Request, status
@@ -17,7 +18,11 @@ router = APIRouter()
 def verify_tito_callback_auth(request: Request) -> None:
     if settings.tito_api_key:
         auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer ") or auth_header[7:] != settings.tito_api_key:
+        if (
+            not auth_header
+            or not auth_header.startswith("Bearer ")
+            or not hmac.compare_digest(auth_header[7:], settings.tito_api_key)
+        ):
             raise UnauthorizedException(detail="Invalid or missing API key")
     else:
         logger.warning("tito_api_key is not set — allowing TiTO callback without authentication")

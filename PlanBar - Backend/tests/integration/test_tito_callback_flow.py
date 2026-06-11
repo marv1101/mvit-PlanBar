@@ -350,3 +350,91 @@ def test_callback_endpoint_with_invalid_job_id(client):
 
     # Should return error or 404
     assert response.status_code in [404, 400, 500]
+
+
+# --- TiTO callback auth tests ---
+
+
+def _minimal_callback_payload(job_id: int = 1) -> dict:
+    """Minimal valid callback payload for auth tests."""
+    return {
+        "job_id": job_id,
+        "status": "SUCCESS",
+        "metadata": {"status": "success", "solveTimeSeconds": 1.0, "timestamp": "2026-06-01T00:00:00"},
+        "solution": {"assignments": [], "unassignedRequirements": []},
+        "metrics": {"wishFulfillmentRate": 0.0, "totalObjectiveScore": 0.0, "employeeUtilization": {}, "violations": None},
+        "diagnostics": {"isOptimal": True, "info": "ok"},
+    }
+
+
+def test_callback_auth_valid_key(client, db_session, test_schedule):
+    """Valid API key should be accepted."""
+    test_schedule.tito_job_id = 500
+    test_schedule.status = "submitted"
+    db_session.commit()
+
+    from app.config import settings
+
+    original = settings.tito_api_key
+    settings.tito_api_key = "secret-token-123"
+    try:
+        response = client.post(
+            "/api/v1/callbacks/tito",
+            json=_minimal_callback_payload(500),
+            headers={"Authorization": "Bearer secret-token-123"},
+        )
+        assert response.status_code == 200
+    finally:
+        settings.tito_api_key = original
+
+
+def test_callback_auth_invalid_key(client, test_schedule):
+    """Wrong API key should return 401."""
+    from app.config import settings
+
+    original = settings.tito_api_key
+    settings.tito_api_key = "real-key"
+    try:
+        response = client.post(
+            "/api/v1/callbacks/tito",
+            json=_minimal_callback_payload(1),
+            headers={"Authorization": "Bearer wrong-key"},
+        )
+        assert response.status_code in [401, 403]
+    finally:
+        settings.tito_api_key = original
+
+
+def test_callback_auth_missing_header(client, test_schedule):
+    """Missing Authorization header should return 401 when key is configured."""
+    from app.config import settings
+
+    original = settings.tito_api_key
+    settings.tito_api_key = "some-key"
+    try:
+        response = client.post(
+            "/api/v1/callbacks/tito",
+            json=_minimal_callback_payload(1),
+        )
+        assert response.status_code in [401, 403]
+    finally:
+        settings.tito_api_key = original
+
+
+def test_callback_auth_no_key_configured(client, db_session, test_schedule):
+    """When tito_api_key is None, requests are allowed (dev fallback)."""
+    from app.config import settings
+
+    original = settings.tito_api_key
+    settings.tito_api_key = None
+    test_schedule.tito_job_id = 600
+    test_schedule.status = "submitted"
+    db_session.commit()
+    try:
+        response = client.post(
+            "/api/v1/callbacks/tito",
+            json=_minimal_callback_payload(600),
+        )
+        assert response.status_code == 200
+    finally:
+        settings.tito_api_key = original
