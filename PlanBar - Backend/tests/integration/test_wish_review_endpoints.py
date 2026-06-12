@@ -91,7 +91,11 @@ def test_reject_shift_wish_without_reason(client, auth_headers):
     assert data["rejection_reason"] is None
 
 
-def test_get_pending_wishes_for_schedule(client, auth_headers):
+def test_get_pending_wishes_for_schedule(client, auth_headers, db_session):
+    from app.db.models.shift_wish import ShiftWish
+    db_session.query(ShiftWish).delete()
+    db_session.commit()
+
     emp_resp = client.post(
         "/api/v1/employees",
         json={"first_name": "Pending", "last_name": "List"},
