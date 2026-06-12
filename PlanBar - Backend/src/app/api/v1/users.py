@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.dependencies import get_current_user, get_db, require_admin
-from app.core.auth import create_access_token, create_refresh_token, verify_token
+from app.core.auth import create_access_token, create_refresh_token, is_token_revoked, revoke_token, verify_token
 from app.core.rate_limit import limiter
 from app.core.exceptions import ConflictException, NotFoundException, UnauthorizedException
 from app.db.models.employee import Employee
@@ -122,6 +122,10 @@ def refresh_token(request: Request, token_data: TokenRefreshRequest, db: Session
     except ValueError:
         raise UnauthorizedException(detail="Invalid refresh token")
 
+    jti = payload.get("jti")
+    if jti and is_token_revoked(jti, db):
+        raise UnauthorizedException(detail="Refresh token has been revoked")
+
     user_id = payload.get("sub")
     if user_id is None:
         raise UnauthorizedException(detail="Invalid refresh token payload")
@@ -129,6 +133,12 @@ def refresh_token(request: Request, token_data: TokenRefreshRequest, db: Session
     user = get_user_by_id(db, int(user_id))
     if user is None:
         raise NotFoundException(detail="User not found")
+
+    if jti and user_id:
+        exp = payload.get("exp")
+        if exp:
+            expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+            revoke_token(jti, "refresh", int(user_id), expires_at, db)
 
     access_token = create_access_token(subject=str(user.id))
     new_refresh_token = create_refresh_token(subject=str(user.id))
@@ -139,7 +149,28 @@ def refresh_token(request: Request, token_data: TokenRefreshRequest, db: Session
 
 
 @router.post("/logout")
-def logout():
+def logout(request: Request, db: Session = Depends(get_db)):
+    tokens: set[str] = set()
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        tokens.add(auth_header[7:])
+    cookie_token = request.cookies.get("access_token")
+    if cookie_token:
+        tokens.add(cookie_token)
+
+    for token in tokens:
+        try:
+            payload = verify_token(token)
+            jti = payload.get("jti")
+            token_type = payload.get("type", "access")
+            user_id = payload.get("sub")
+            exp = payload.get("exp")
+            if jti and user_id and exp:
+                expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+                revoke_token(jti, token_type, int(user_id), expires_at, db)
+        except ValueError:
+            pass
+
     response = JSONResponse(content={"message": "Logged out"})
     _clear_auth_cookies(response)
     return response

@@ -101,8 +101,9 @@ def test_logout(client):
     response = client.post("/api/v1/users/logout", headers=headers)
     assert response.status_code == 200
     assert response.json()["message"] == "Logged out"
-    # JWT is stateless; the token remains valid until expiry.
-    # The endpoint clears cookies but doesn't invalidate bearer tokens.
+
+    me_resp = client.get("/api/v1/users/me", headers=headers)
+    assert me_resp.status_code == 401
 
 
 def test_change_password_clears_must_change_flag(client, db_session):
