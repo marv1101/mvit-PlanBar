@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { RouterProvider } from 'react-router';
 import { router } from './routes';
 import { AppProvider } from './context/AppContext';
@@ -6,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import { Login } from './pages/Login';
 import { ChangePasswordDialog } from './components/ChangePasswordDialog';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function AppContent() {
   const { user, isLoading, mustChangePassword } = useAuth();
@@ -36,8 +36,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
