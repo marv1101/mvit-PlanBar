@@ -92,9 +92,7 @@ def seed_initial_users() -> None:
                 ),
                 role="admin",
             )
-            logger.info("=" * 60)
-            logger.info("Initial-Passwort fuer admin@mphion.de: %s", admin_password)
-            logger.info("=" * 60)
+            logger.info("Initial-Admin-User admin@mphion.de angelegt")
 
         if db.query(User).filter(User.email == "testuser@mphion.de").first() is None:
             test_password = uuid.uuid4().hex[:12]
@@ -106,9 +104,7 @@ def seed_initial_users() -> None:
                     password=test_password,
                 ),
             )
-            logger.info("=" * 60)
-            logger.info("Initial-Passwort fuer testuser@mphion.de: %s", test_password)
-            logger.info("=" * 60)
+            logger.info("Initial-Test-User testuser@mphion.de angelegt")
     finally:
         db.close()
 
