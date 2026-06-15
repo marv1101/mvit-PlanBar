@@ -72,6 +72,7 @@ export interface Shift {
   endTime: string;
   breakStart?: string;
   breakEnd?: string;
+  label?: string;
 }
 
 export interface TiTOViolation {

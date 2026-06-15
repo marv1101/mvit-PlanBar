@@ -50,6 +50,7 @@ def process_tito_callback(db: Session, payload: TiTOCallbackPayload) -> Schedule
                 week=_get_week_type(assignment.date),
                 start_time=time(int(start_parts[0]), int(start_parts[1])),
                 end_time=time(int(end_parts[0]), int(end_parts[1])),
+                label=assignment.name or None,
             )
             db.add(shiftplan)
 

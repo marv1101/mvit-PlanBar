@@ -250,6 +250,7 @@ class Assignment(BaseModel):
     shiftTemplateId: str
     startTime: str
     endTime: str
+    name: str = ""
 
 
 class SolverStatus:

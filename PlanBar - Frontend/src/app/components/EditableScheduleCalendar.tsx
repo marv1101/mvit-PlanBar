@@ -12,6 +12,7 @@ import { Checkbox } from './ui/checkbox';
 import { getWeekType } from '../lib/week';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import { TIMEZONE } from '../lib/timezone';
+import { sanitizeLabel } from '../lib/sanitize';
 import { ShiftListView } from './ShiftListView';
 import { SwimlaneCalendar } from './SwimlaneCalendar';
 import { Pencil, Trash2, Users, Save, Loader2, Coffee, LayoutGrid, CalendarDays } from 'lucide-react';
@@ -229,9 +230,14 @@ function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) 
         onEdit(shift);
       }}
     >
-      <div className="flex flex-col justify-center h-full px-1.5 py-0.5 text-[11px] leading-tight">
+      <div className="flex flex-col justify-center h-full px-1.5 py-0.5 text-[11px] leading-tight min-w-0">
+        {shift.label && (
+          <span className="font-semibold truncate text-gray-800 leading-tight">
+            {shift.label}
+          </span>
+        )}
         <span className="font-medium truncate flex items-center gap-1" style={{ color: employee.color }}>
-          <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[9px] font-bold leading-none ${
+          <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[9px] font-bold leading-none flex-shrink-0 ${
             shift.week === 'A' ? 'bg-blue-500 text-white' : 'bg-purple-500 text-white'
           }`}>
             {shift.week}
@@ -702,6 +708,17 @@ function EditShiftDialog({
             </div>
           </div>
 
+          <div>
+            <Label htmlFor="edit-label">Bezeichnung</Label>
+            <Input
+              id="edit-label"
+              type="text"
+              maxLength={100}
+              placeholder="z.B. Backoffice, Kasse, Fahrt"
+              value={formData.label || ''}
+              onChange={(e) => setFormData({ ...formData, label: sanitizeLabel(e.target.value) })}
+            />
+          </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Abbrechen
@@ -843,6 +860,17 @@ function AddShiftDialog({
             </div>
           </div>
 
+          <div>
+            <Label htmlFor="add-label">Bezeichnung</Label>
+            <Input
+              id="add-label"
+              type="text"
+              maxLength={100}
+              placeholder="z.B. Backoffice, Kasse, Fahrt"
+              value={formData.label || ''}
+              onChange={(e) => setFormData({ ...formData, label: sanitizeLabel(e.target.value) })}
+            />
+          </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Abbrechen

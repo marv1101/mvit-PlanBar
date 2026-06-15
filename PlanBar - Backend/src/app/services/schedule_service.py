@@ -41,6 +41,7 @@ def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = Non
             week=shiftplan_data.week,
             break_start=shiftplan_data.break_start,
             break_end=shiftplan_data.break_end,
+            label=shiftplan_data.label,
             notes=shiftplan_data.notes,
         )
         db.add(shiftplan)
@@ -154,6 +155,7 @@ def replace_all_shifts(
             week=sp_data.week,
             break_start=sp_data.break_start,
             break_end=sp_data.break_end,
+            label=sp_data.label,
             notes=sp_data.notes,
         )
         db.add(shiftplan)

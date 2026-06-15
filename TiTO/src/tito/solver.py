@@ -585,6 +585,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                         "shiftId": shift_id,
                         "startTime": shift.get("startTime", "00:00"),
                         "endTime": shift.get("endTime", "00:00"),
+                        "name": shift.get("name", ""),
                     })
                     assigned = True
                     break

@@ -140,6 +140,7 @@ export function shiftplanToShift(sp: ShiftplanResponseDTO): Shift {
     endTime: sp.end_time,
     breakStart: sp.break_start || undefined,
     breakEnd: sp.break_end || undefined,
+    label: sp.label || undefined,
   };
 }
 
@@ -153,6 +154,7 @@ export function shiftToShiftplanCreate(scheduleId: number, shift: Shift): Shiftp
     week: shift.week,
     break_start: shift.breakStart,
     break_end: shift.breakEnd,
+    label: shift.label,
   };
 }
 

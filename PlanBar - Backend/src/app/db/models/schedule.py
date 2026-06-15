@@ -43,6 +43,7 @@ class Shiftplan(Base):
     week = Column(String(1), nullable=True)
     break_start = Column(String(5), nullable=True)
     break_end = Column(String(5), nullable=True)
+    label = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     metadata_json = Column(JSON, nullable=True)
     metrics_json = Column(JSON, nullable=True)

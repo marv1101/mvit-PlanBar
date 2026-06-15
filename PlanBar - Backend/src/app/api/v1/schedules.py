@@ -166,6 +166,8 @@ def update_shiftplan(
         shiftplan.break_start = data.break_start
     if data.break_end is not None:
         shiftplan.break_end = data.break_end
+    if data.label is not None:
+        shiftplan.label = data.label
     if data.notes is not None:
         shiftplan.notes = data.notes
     db.add(shiftplan)

@@ -57,7 +57,12 @@ export function ShiftListView({ shifts, employees, weekLabel, onEdit, onDelete }
                         </span>
                         <span className="font-medium text-sm truncate">{employee?.name || 'Unbekannt'}</span>
                       </div>
-                      <div className="text-xs text-gray-500 mt-0.5">
+                      {shift.label && (
+                        <div className="text-xs font-semibold text-gray-700 mt-0.5">
+                          {shift.label}
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-500">
                         {shift.startTime} – {shift.endTime}
                       </div>
                     </div>

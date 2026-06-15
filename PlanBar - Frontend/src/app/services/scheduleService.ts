@@ -9,6 +9,7 @@ export interface ShiftplanCreateDTO {
   week?: string;
   break_start?: string;
   break_end?: string;
+  label?: string;
   notes?: string;
 }
 
@@ -23,6 +24,7 @@ export interface ShiftplanResponseDTO {
   week: string | null;
   break_start: string | null;
   break_end: string | null;
+  label: string | null;
   notes: string | null;
   metadata_json: unknown;
   metrics_json: unknown;

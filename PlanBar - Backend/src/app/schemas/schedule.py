@@ -15,6 +15,7 @@ class ShiftplanBase(BaseModel):
     week: Optional[str] = Field(None, pattern=r"^[AB]$")
     break_start: Optional[str] = None
     break_end: Optional[str] = None
+    label: Optional[str] = Field(None, max_length=100)
     notes: Optional[str] = None
 
 
@@ -31,6 +32,7 @@ class ShiftplanUpdate(BaseModel):
     week: Optional[str] = Field(None, pattern=r"^[AB]$")
     break_start: Optional[str] = None
     break_end: Optional[str] = None
+    label: Optional[str] = Field(None, max_length=100)
     notes: Optional[str] = None
 
 

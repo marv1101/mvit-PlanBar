@@ -80,6 +80,7 @@ export const mockSchedule: Schedule = {
       endTime: '18:00',
       breakStart: '12:00',
       breakEnd: '13:00',
+      label: 'Backoffice',
     },
     {
       id: 'shift-2',

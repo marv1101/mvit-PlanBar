@@ -6,6 +6,7 @@ import { Shift, Schedule, WeekType } from '../types';
 import { Button } from './ui/button';
 import { getWeekType } from '../lib/week';
 import { TIMEZONE } from '../lib/timezone';
+import { sanitizeLabel } from '../lib/sanitize';
 import { Pencil, Trash2, Coffee } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Employee } from '../types';
@@ -183,9 +184,14 @@ function ShiftBar({
         onEdit(shift);
       }}
     >
-      <div className="flex items-center h-full px-1.5 text-[10px] leading-tight">
+      <div className="flex flex-col justify-center h-full px-1.5 text-[10px] leading-tight min-w-0">
+        {shift.label && (
+          <span className="font-semibold truncate text-gray-800 leading-tight">
+            {shift.label}
+          </span>
+        )}
         <span className="font-medium truncate flex items-center gap-1" style={{ color: employee.color }}>
-          <span className={`inline-flex items-center justify-center w-3 h-3 rounded text-[8px] font-bold leading-none ${
+          <span className={`inline-flex items-center justify-center w-3 h-3 rounded text-[8px] font-bold leading-none flex-shrink-0 ${
             shift.week === 'A' ? 'bg-blue-500 text-white' : 'bg-purple-500 text-white'
           }`}>
             {shift.week}
@@ -694,6 +700,17 @@ function EditShiftDialog({
               </Button>
             </div>
           </div>
+          <div>
+            <Label htmlFor="label">Bezeichnung</Label>
+            <Input
+              id="label"
+              type="text"
+              maxLength={100}
+              placeholder="z.B. Backoffice, Kasse, Fahrt"
+              value={formData.label || ''}
+              onChange={(e) => setFormData({ ...formData, label: sanitizeLabel(e.target.value) })}
+            />
+          </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Abbrechen
@@ -831,6 +848,17 @@ function AddShiftDialog({
                 onChange={(e) => setFormData({ ...formData, breakEnd: e.target.value })}
               />
             </div>
+          </div>
+          <div>
+            <Label htmlFor="add-label">Bezeichnung</Label>
+            <Input
+              id="add-label"
+              type="text"
+              maxLength={100}
+              placeholder="z.B. Backoffice, Kasse, Fahrt"
+              value={formData.label || ''}
+              onChange={(e) => setFormData({ ...formData, label: sanitizeLabel(e.target.value) })}
+            />
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
