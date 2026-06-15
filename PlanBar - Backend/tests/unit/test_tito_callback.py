@@ -8,7 +8,7 @@ from app.db.base import Base
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.services.schedule_service import _get_week_type
-from app.services.tito_callback import process_tito_callback, update_timecards_from_schedule
+from app.services.tito_callback import process_tito_callback, update_timecards_from_schedule, _aggregate_violations
 
 
 @pytest.fixture
@@ -171,3 +171,133 @@ def test_process_tito_callback_week_per_date(db_session):
 
     assert shiftplans[0].week == _get_week_type(date(2026, 6, 1)), f"Expected A for June 1, got {shiftplans[0].week}"
     assert shiftplans[1].week == _get_week_type(date(2026, 6, 8)), f"Expected B for June 8, got {shiftplans[1].week}"
+
+
+def test_aggregate_violations_no_violations(db_session):
+    schedule = Schedule(name="Test", start_date=date(2026, 6, 15), end_date=date(2026, 7, 12))
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = mock_tito_payload(job_id=schedule.tito_job_id or 1, violations=[])
+    result = _aggregate_violations(schedule, payload)
+    assert result == []
+
+
+def test_aggregate_violations_groups_by_skill(db_session):
+    schedule = Schedule(
+        name="Test",
+        start_date=date(2026, 6, 15),
+        end_date=date(2026, 7, 12),
+        shift_templates=[
+            {"id": "frueh", "name": "Frühschicht", "startTime": "06:00", "endTime": "14:00"},
+            {"id": "spaet", "name": "Spätschicht", "startTime": "14:00", "endTime": "22:00"},
+        ],
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    violations = [
+        {"type": "UNASSIGNED_REQUIREMENT", "severity": "HARD", "message": "...",
+         "details": {"date": "2026-06-15", "count": 1, "skills": ["Apotheker"], "shiftId": "frueh", "shiftTemplateId": "frueh"}},
+        {"type": "UNASSIGNED_REQUIREMENT", "severity": "HARD", "message": "...",
+         "details": {"date": "2026-06-15", "count": 1, "skills": ["Apotheker"], "shiftId": "spaet", "shiftTemplateId": "spaet"}},
+        {"type": "UNASSIGNED_REQUIREMENT", "severity": "HARD", "message": "...",
+         "details": {"date": "2026-06-15", "count": 1, "skills": ["PKA"], "shiftId": "frueh", "shiftTemplateId": "frueh"}},
+        {"type": "UNASSIGNED_REQUIREMENT", "severity": "HARD", "message": "...",
+         "details": {"date": "2026-06-16", "count": 1, "skills": ["Apotheker"], "shiftId": "frueh", "shiftTemplateId": "frueh"}},
+    ]
+    payload = mock_tito_payload(job_id=1, violations=violations)
+    result = _aggregate_violations(schedule, payload)
+
+    assert len(result) == 2
+
+    apo = next(m for m in result if m["skill"] == "Apotheker")
+    assert apo["totalMissingShifts"] == 3
+    assert apo["totalMissingHours"] == 24  # 2×8h + 1×8h
+    assert apo["affectedDays"] == 2
+    assert "24" in apo["message"]
+    assert "Apotheker" in apo["message"]
+
+    pka = next(m for m in result if m["skill"] == "PKA")
+    assert pka["totalMissingShifts"] == 1
+    assert pka["totalMissingHours"] == 8
+    assert pka["affectedDays"] == 1
+
+
+def test_aggregate_violations_skips_non_hard(db_session):
+    schedule = Schedule(name="Test", start_date=date(2026, 6, 15), end_date=date(2026, 7, 12))
+    db_session.add(schedule)
+    db_session.commit()
+
+    violations = [
+        {"type": "WISH_NOT_FULFILLED", "severity": "SOFT", "message": "...", "details": {}},
+        {"type": "UNASSIGNED_REQUIREMENT", "severity": "HARD", "message": "...",
+         "details": {"date": "2026-06-15", "count": 1, "skills": ["Apotheker"], "shiftId": "s1", "shiftTemplateId": "s1"}},
+    ]
+    payload = mock_tito_payload(job_id=1, violations=violations)
+    result = _aggregate_violations(schedule, payload)
+    assert len(result) == 1
+    assert result[0]["skill"] == "Apotheker"
+
+
+def test_aggregate_violations_fallback_duration_without_templates(db_session):
+    schedule = Schedule(name="Test", start_date=date(2026, 6, 15), end_date=date(2026, 7, 12))
+    db_session.add(schedule)
+    db_session.commit()
+
+    violations = [
+        {"type": "UNASSIGNED_REQUIREMENT", "severity": "HARD", "message": "...",
+         "details": {"date": "2026-06-15", "count": 1, "skills": ["Apotheker"], "shiftId": "x", "shiftTemplateId": "x"}},
+    ]
+    payload = mock_tito_payload(job_id=1, violations=violations)
+    result = _aggregate_violations(schedule, payload)
+    assert result[0]["totalMissingHours"] == 8  # default 8h fallback
+
+
+def test_aggregate_violations_stored_in_process_callback(db_session):
+    from app.schemas.tito import TiTOAssignment, TiTOMetadata, TiTOCallbackPayload, TiTOSolution, TiTOMetrics, TiTODiagnostics
+
+    schedule = Schedule(
+        name="Aggregation Test",
+        status="submitted",
+        tito_job_id=99,
+        start_date=date(2026, 6, 15),
+        end_date=date(2026, 7, 12),
+        shift_templates=[
+            {"id": "frueh", "name": "Frühschicht", "startTime": "06:00", "endTime": "14:00"},
+        ],
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    violations = [
+        {"type": "UNASSIGNED_REQUIREMENT", "severity": "HARD", "message": "...",
+         "details": {"date": "2026-06-15", "count": 1, "skills": ["Apotheker"], "shiftId": "frueh", "shiftTemplateId": "frueh"}},
+    ]
+    payload = TiTOCallbackPayload(
+        job_id=99,
+        status="INFEASIBLE",
+        metadata=TiTOMetadata(status="infeasible", solveTimeSeconds=0.1, timestamp="2026-06-15T12:00:00"),
+        solution=TiTOSolution(assignments=[], unassignedRequirements=[]),
+        metrics=TiTOMetrics(wishFulfillmentRate=0.0, totalObjectiveScore=0.0, employeeUtilization={}, violations=violations),
+        diagnostics=TiTODiagnostics(isOptimal=False, info="Keine Lösung gefunden."),
+    )
+
+    result = process_tito_callback(db_session, payload)
+    assert result is not None
+    assert result.diagnostics_json is not None
+    assert "aggregatedMessages" in result.diagnostics_json
+    assert len(result.diagnostics_json["aggregatedMessages"]) == 1
+    assert result.diagnostics_json["aggregatedMessages"][0]["skill"] == "Apotheker"
+
+
+def mock_tito_payload(job_id: int, violations: list) -> "TiTOCallbackPayload":
+    from app.schemas.tito import TiTOAssignment, TiTOMetadata, TiTOCallbackPayload, TiTOSolution, TiTOMetrics, TiTODiagnostics
+    return TiTOCallbackPayload(
+        job_id=job_id,
+        status="INFEASIBLE",
+        metadata=TiTOMetadata(status="infeasible", solveTimeSeconds=0.1, timestamp="2026-06-15T12:00:00"),
+        solution=TiTOSolution(assignments=[], unassignedRequirements=[]),
+        metrics=TiTOMetrics(wishFulfillmentRate=0.0, totalObjectiveScore=0.0, employeeUtilization={}, violations=violations),
+        diagnostics=TiTODiagnostics(isOptimal=False, info="Keine Lösung gefunden."),
+    )

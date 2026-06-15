@@ -22,6 +22,12 @@ def process_tito_callback(db: Session, payload: TiTOCallbackPayload) -> Schedule
     schedule.metrics_json = payload.metrics.model_dump() if payload.metrics else None
     schedule.diagnostics_json = payload.diagnostics.model_dump() if payload.diagnostics else None
 
+    aggregated = _aggregate_violations(schedule, payload)
+    if aggregated:
+        diag = schedule.diagnostics_json or {}
+        diag["aggregatedMessages"] = aggregated
+        schedule.diagnostics_json = diag
+
     if payload.solution and payload.solution.assignments:
         db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).delete()
 
@@ -148,6 +154,64 @@ def update_timecards_from_schedule(db: Session, schedule: Schedule) -> None:
                 db.add(tc)
 
     db.commit()
+
+
+def _aggregate_violations(schedule: Schedule, payload: TiTOCallbackPayload) -> list[dict]:
+    if not payload.metrics or not payload.metrics.violations:
+        return []
+
+    shift_durations: dict[str, float] = {}
+    if schedule.shift_templates:
+        for st in schedule.shift_templates:
+            start = st.get("startTime", "00:00")
+            end = st.get("endTime", "00:00")
+            try:
+                start_h, start_m = map(int, start.split(":"))
+                end_h, end_m = map(int, end.split(":"))
+                duration = (end_h * 60 + end_m) - (start_h * 60 + start_m)
+                if duration <= 0:
+                    duration += 24 * 60
+                shift_durations[st["id"]] = duration / 60.0
+            except (ValueError, KeyError):
+                continue
+
+    by_skill: dict[str, dict] = defaultdict(lambda: {"count": 0, "hours": 0.0, "dates": set()})
+
+    for violation in payload.metrics.violations:
+        if violation.get("severity") != "HARD":
+            continue
+        details = violation.get("details", {})
+        skills = details.get("skills", [])
+        skill = skills[0] if skills else "Unbekannt"
+        shift_id = details.get("shiftTemplateId") or details.get("shiftId", "")
+        cnt = details.get("count", 1)
+        by_skill[skill]["count"] += cnt
+        by_skill[skill]["hours"] += shift_durations.get(shift_id, 8.0) * cnt
+        by_skill[skill]["dates"].add(details.get("date", ""))
+
+    messages = []
+    for skill, data in sorted(by_skill.items()):
+        hours = int(round(data["hours"]))
+        if hours > 0:
+            msg = (
+                f"{hours} {skill}-Stunden konnten nicht besetzt werden "
+                f"({data['count']} Schichten an {len(data['dates'])} Tagen)"
+            )
+        else:
+            msg = (
+                f"{data['count']} {skill}-Schichten konnten nicht besetzt werden "
+                f"(an {len(data['dates'])} Tagen)"
+            )
+        messages.append({
+            "severity": "HARD",
+            "skill": skill,
+            "message": msg,
+            "totalMissingShifts": data["count"],
+            "totalMissingHours": hours,
+            "affectedDays": len(data["dates"]),
+        })
+
+    return messages
 
 
 def _extract_employee_id(employee_id_str: str) -> int:

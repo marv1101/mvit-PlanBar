@@ -84,6 +84,16 @@ export interface TiTOViolation {
 export interface TiTODiagnostics {
   isOptimal: boolean;
   info: string;
+  aggregatedMessages?: TiTOAggregatedMessage[];
+}
+
+export interface TiTOAggregatedMessage {
+  severity: string;
+  skill: string;
+  message: string;
+  totalMissingShifts: number;
+  totalMissingHours: number;
+  affectedDays: number;
 }
 
 export interface EmployeeFairnessEntry {

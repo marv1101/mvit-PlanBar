@@ -754,6 +754,15 @@ export function Schedule() {
                   {pollResult.diagnostics && (
                     <p className="text-red-700 text-sm">{pollResult.diagnostics.info}</p>
                   )}
+                  {pollResult.diagnostics?.aggregatedMessages && pollResult.diagnostics.aggregatedMessages.length > 0 && (
+                    <div className="space-y-1">
+                      {pollResult.diagnostics.aggregatedMessages.map((m, i) => (
+                        <p key={i} className="text-red-700 text-sm font-medium">
+                          🔴 {m.message}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                   {pollResult.metrics?.violations && pollResult.metrics.violations.length > 0 && (
                     <details className="mt-2">
                       <summary className="text-red-600 text-sm cursor-pointer hover:underline">
@@ -1051,6 +1060,15 @@ export function Schedule() {
                           <span>Berechnung fehlgeschlagen</span>
                         </div>
                         <p className="text-red-700 text-sm">{selectedSchedule.diagnostics.info}</p>
+                        {selectedSchedule.diagnostics.aggregatedMessages && selectedSchedule.diagnostics.aggregatedMessages.length > 0 && (
+                          <div className="space-y-1">
+                            {selectedSchedule.diagnostics.aggregatedMessages.map((m, i) => (
+                              <p key={i} className="text-red-700 text-sm font-medium">
+                                🔴 {m.message}
+                              </p>
+                            ))}
+                          </div>
+                        )}
                         {selectedSchedule.metrics?.violations && selectedSchedule.metrics.violations.length > 0 && (
                           <details className="mt-2">
                             <summary className="text-red-600 text-sm cursor-pointer hover:underline">
