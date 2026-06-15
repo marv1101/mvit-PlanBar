@@ -2,7 +2,7 @@ import { AppUser, Employee, Request, Role, Schedule, Shift, TiTODiagnostics, TiT
 import type { EmployeeResponseDTO, EmployeeCreateDTO } from '../services/employeeService';
 import type { RoleResponseDTO, RoleCreateDTO } from '../services/roleService';
 import type { ShiftWishResponseDTO, ShiftWishCreateDTO, ShiftWishType } from '../services/requestService';
-import type { ScheduleResponseDTO, ScheduleCreateDTO, ShiftplanResponseDTO, ShiftplanCreateDTO } from '../services/scheduleService';
+import type { ScheduleResponseDTO, ScheduleCreateDTO, ShiftplanResponseDTO, ShiftplanCreateDTO, ShiftTemplateEntryDTO } from '../services/scheduleService';
 
 const FRONTEND_TYPE_TO_API: Record<string, ShiftWishType> = {
   urlaubswunsch: 'vacation',
@@ -140,6 +140,7 @@ export function shiftplanToShift(sp: ShiftplanResponseDTO): Shift {
     endTime: sp.end_time,
     breakStart: sp.break_start || undefined,
     breakEnd: sp.break_end || undefined,
+    label: sp.label || undefined,
   };
 }
 
@@ -153,6 +154,7 @@ export function shiftToShiftplanCreate(scheduleId: number, shift: Shift): Shiftp
     week: shift.week,
     break_start: shift.breakStart,
     break_end: shift.breakEnd,
+    label: shift.label,
   };
 }
 
@@ -165,6 +167,8 @@ export function scheduleFromResponse(dto: ScheduleResponseDTO): Schedule {
     endDate: dto.end_date || '',
     shifts: (dto.shiftplans || []).map(shiftplanToShift),
     roleRequirements: dto.role_requirements || undefined,
+    shiftTemplates: dto.shift_templates || undefined,
+    weekType: dto.week_type ? (dto.week_type as WeekType) : undefined,
     titoJobId: dto.tito_job_id,
     diagnostics: dto.diagnostics_json as TiTODiagnostics | null | undefined,
     metrics: dto.metrics_json as TiTOMetrics | null | undefined,
@@ -177,6 +181,7 @@ export function scheduleToCreate(schedule: Schedule, shiftplans: ShiftplanCreate
     start_date: schedule.startDate || undefined,
     end_date: schedule.endDate || undefined,
     role_requirements: schedule.roleRequirements,
+    shift_templates: schedule.shiftTemplates,
     shiftplans,
   };
 }
