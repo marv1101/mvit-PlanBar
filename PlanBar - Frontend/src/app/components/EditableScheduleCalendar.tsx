@@ -13,15 +13,20 @@ import { getWeekType } from '../lib/week';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import { TIMEZONE } from '../lib/timezone';
 import { ShiftListView } from './ShiftListView';
-import { Pencil, Trash2, Users, Save, Loader2 } from 'lucide-react';
+import { SwimlaneCalendar } from './SwimlaneCalendar';
+import { Pencil, Trash2, Users, Save, Loader2, Coffee, LayoutGrid, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Employee } from '../types';
 
 const ITEM_TYPE = 'SHIFT';
 const EMPLOYEE_ITEM_TYPE = 'EMPLOYEE';
+const BREAK_START_ITEM_TYPE = 'BREAK_START';
+const BREAK_END_ITEM_TYPE = 'BREAK_END';
 const HOUR_HEIGHT = 52;
 const START_HOUR = 6;
 const END_HOUR = 22;
+const SNAP_MINUTES_SHIFT = 30;
+const SNAP_MINUTES_BREAK = 15;
 
 const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
 
@@ -33,6 +38,28 @@ interface DragItem {
 interface EmployeeDragItem {
   employeeId: string;
 }
+
+interface BreakDragItem {
+  shift: Shift;
+  breakType: 'start' | 'end';
+}
+
+type ShiftHoverInfo = {
+  type: 'shift' | 'inDayShift';
+  minutes: number;
+  duration: number;
+  color: string;
+};
+
+type BreakHoverInfo = {
+  type: 'break';
+  minutes: number;
+  shiftId: string;
+  breakType: 'start' | 'end';
+  color: string;
+};
+
+type HoverInfo = ShiftHoverInfo | BreakHoverInfo;
 
 interface EditableScheduleCalendarProps {
   schedule: Schedule;
@@ -97,12 +124,63 @@ function getShiftStyle(shift: Shift, lane: number, totalLanes: number) {
   };
 }
 
+function getBreakStyle(shift: Shift) {
+  if (!shift.breakStart || !shift.breakEnd) return null;
+  const shiftStart = toMinutes(shift.startTime);
+  const breakStart = toMinutes(shift.breakStart);
+  const breakEnd = toMinutes(shift.breakEnd);
+  if (breakStart <= shiftStart || breakEnd <= breakStart || breakEnd > toMinutes(shift.endTime)) return null;
+  const top = ((breakStart - shiftStart) / 60) * HOUR_HEIGHT;
+  const height = Math.max(((breakEnd - breakStart) / 60) * HOUR_HEIGHT, 16);
+  return { top, height };
+}
+
 interface ShiftBarProps {
   shift: Shift;
   lane: number;
   totalLanes: number;
   onEdit: (shift: Shift) => void;
   onDelete: (shift: Shift) => void;
+}
+
+function BreakStartHandle({ shift }: { shift: Shift }) {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: BREAK_START_ITEM_TYPE,
+    item: { shift, breakType: 'start' as const } as BreakDragItem,
+    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
+  }), [shift]);
+
+  return (
+    <div
+      ref={drag}
+      className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-blue-400/30 active:bg-blue-400/50 flex items-center justify-center z-20 group/break"
+      style={{ opacity: isDragging ? 0.5 : 1 }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+    >
+      <div className="w-6 h-[2px] bg-gray-400 rounded opacity-0 group-hover/break:opacity-100 transition-opacity" />
+    </div>
+  );
+}
+
+function BreakEndHandle({ shift }: { shift: Shift }) {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: BREAK_END_ITEM_TYPE,
+    item: { shift, breakType: 'end' as const } as BreakDragItem,
+    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
+  }), [shift]);
+
+  return (
+    <div
+      ref={drag}
+      className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-blue-400/30 active:bg-blue-400/50 flex items-center justify-center z-20 group/break"
+      style={{ opacity: isDragging ? 0.5 : 1 }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+    >
+      <div className="w-6 h-[2px] bg-gray-400 rounded opacity-0 group-hover/break:opacity-100 transition-opacity" />
+    </div>
+  );
 }
 
 function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) {
@@ -121,6 +199,7 @@ function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) 
 
   const style = getShiftStyle(shift, lane, totalLanes);
   const showTime = totalLanes <= 2;
+  const breakStyle = getBreakStyle(shift);
 
   return (
     <motion.div
@@ -165,6 +244,19 @@ function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) 
           </span>
         )}
       </div>
+
+      {breakStyle && (
+        <div
+          className="absolute left-0 right-0 pointer-events-none"
+          style={{
+            top: `${breakStyle.top}px`,
+            height: `${breakStyle.height}px`,
+            borderTop: '2px solid rgba(0,0,0,0.15)',
+            borderBottom: '2px solid rgba(0,0,0,0.15)',
+          }}
+        />
+      )}
+
       <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={(e) => { e.stopPropagation(); onEdit(shift); }}
@@ -234,71 +326,150 @@ interface DayColumnProps {
   weekType: WeekType;
   shifts: Shift[];
   onDrop: (shift: Shift, newDate: string) => void;
+  onDropInDay: (shift: Shift, newStartTime: string, newEndTime: string) => void;
   onEmployeeDrop: (employeeId: string, date: string, weekType: WeekType) => void;
+  onBreakUpdate: (shiftId: string, updatedShift: Shift) => void;
   onClick: (date: Date) => void;
   onEdit: (shift: Shift) => void;
   onDelete: (shift: Shift) => void;
 }
 
 function DayColumn({
-  date, weekType, shifts, onDrop, onEmployeeDrop, onClick, onEdit, onDelete
+  date, weekType, shifts, onDrop, onDropInDay, onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete
 }: DayColumnProps) {
   const { employees } = useApp();
   const dateStr = date.toISOString().split('T')[0];
   const dayShifts = shifts.filter(s => s.date === dateStr);
   const lanes = useMemo(() => assignLanes(dayShifts), [dayShifts]);
 
-  const [hoverInfo, setHoverInfo] = useState<{
-    minutes: number;
-    duration: number;
-    color: string;
-  } | null>(null);
+  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const employeesRef = useRef(employees);
   employeesRef.current = employees;
 
   const onDropRef = useRef(onDrop);
   onDropRef.current = onDrop;
+  const onDropInDayRef = useRef(onDropInDay);
+  onDropInDayRef.current = onDropInDay;
   const onEmployeeDropRef = useRef(onEmployeeDrop);
   onEmployeeDropRef.current = onEmployeeDrop;
+  const onBreakUpdateRef = useRef(onBreakUpdate);
+  onBreakUpdateRef.current = onBreakUpdate;
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
 
+  const snapMinutes = (rawMinutes: number, snap: number) => {
+    return Math.round(rawMinutes / snap) * snap;
+  };
+
   const [{ isOver }, drop] = useDrop(() => ({
-    accept: [ITEM_TYPE, EMPLOYEE_ITEM_TYPE],
-    hover: (item: DragItem | EmployeeDragItem, monitor) => {
+    accept: [ITEM_TYPE, EMPLOYEE_ITEM_TYPE, BREAK_START_ITEM_TYPE, BREAK_END_ITEM_TYPE],
+    hover: (item: DragItem | EmployeeDragItem | BreakDragItem, monitor) => {
       const offset = monitor.getClientOffset();
       if (!offset || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const y = offset.y - rect.top;
       const fromTopMinutes = (y / HOUR_HEIGHT) * 60;
-      const snapped = Math.round(fromTopMinutes / 30) * 30;
+
+      if ('breakType' in item) {
+        const snapped = snapMinutes(fromTopMinutes, SNAP_MINUTES_BREAK);
+        const clamped = Math.max(START_HOUR * 60, Math.min(snapped, END_HOUR * 60));
+        const emp = employeesRef.current.find(e => e.id === item.shift.employeeId);
+        setHoverInfo({
+          type: 'break',
+          minutes: clamped,
+          shiftId: item.shift.id,
+          breakType: item.breakType,
+          color: emp?.color || '#3b82f6',
+        });
+        return;
+      }
 
       if ('shift' in item) {
-        if (item.fromDate === dateStr) {
-          setHoverInfo(null);
-          return;
-        }
+        const snapped = snapMinutes(fromTopMinutes, SNAP_MINUTES_SHIFT);
+        const clamped = Math.max(0, Math.min(snapped, (END_HOUR - START_HOUR) * 60));
         const dur = toMinutes(item.shift.endTime) - toMinutes(item.shift.startTime);
         const maxTop = (END_HOUR - START_HOUR) * 60 - dur;
-        const clamped = Math.max(0, Math.min(snapped, maxTop));
-        const emp = employeesRef.current.find(e => e.id === item.shift.employeeId);
-        setHoverInfo({ minutes: clamped, duration: dur, color: emp?.color || '#3b82f6' });
-      } else if ('employeeId' in item) {
+        const positionClamped = Math.max(0, Math.min(clamped, maxTop));
+
+        if (item.fromDate === dateStr) {
+          setHoverInfo({
+            type: 'inDayShift',
+            minutes: positionClamped,
+            duration: dur,
+            color: employeesRef.current.find(e => e.id === item.shift.employeeId)?.color || '#3b82f6',
+          });
+        } else {
+          setHoverInfo({
+            type: 'shift',
+            minutes: positionClamped,
+            duration: dur,
+            color: employeesRef.current.find(e => e.id === item.shift.employeeId)?.color || '#3b82f6',
+          });
+        }
+        return;
+      }
+
+      if ('employeeId' in item) {
+        const snapped = snapMinutes(fromTopMinutes, SNAP_MINUTES_SHIFT);
         const dur = 480;
         const maxTop = (END_HOUR - START_HOUR) * 60 - dur;
         const clamped = Math.max(0, Math.min(snapped, maxTop));
         const emp = employeesRef.current.find(e => e.id === item.employeeId);
-        setHoverInfo({ minutes: clamped, duration: dur, color: emp?.color || '#3b82f6' });
+        setHoverInfo({ type: 'shift', minutes: clamped, duration: dur, color: emp?.color || '#3b82f6' });
       }
     },
-    drop: (item: DragItem | EmployeeDragItem) => {
+    drop: (item: DragItem | EmployeeDragItem | BreakDragItem, monitor) => {
       setHoverInfo(null);
+
+      if ('breakType' in item) {
+        const offset = monitor.getClientOffset();
+        if (!offset || !containerRef.current) return;
+        const rect = containerRef.current.getBoundingClientRect();
+        const y = offset.y - rect.top;
+        const fromTopMinutes = (y / HOUR_HEIGHT) * 60;
+        const snapped = snapMinutes(fromTopMinutes, SNAP_MINUTES_BREAK);
+        const clamped = Math.max(START_HOUR * 60, Math.min(snapped, END_HOUR * 60));
+        const newTime = formatTime(clamped);
+        const shift = item.shift;
+        const updated = { ...shift };
+
+        if (item.breakType === 'start') {
+          if (toMinutes(newTime) <= toMinutes(shift.startTime)) return;
+          if (shift.breakEnd && toMinutes(newTime) >= toMinutes(shift.breakEnd)) return;
+          updated.breakStart = newTime;
+        } else {
+          if (shift.breakStart && toMinutes(newTime) <= toMinutes(shift.breakStart)) return;
+          if (toMinutes(newTime) >= toMinutes(shift.endTime)) return;
+          updated.breakEnd = newTime;
+        }
+
+        onBreakUpdateRef.current(shift.id, updated);
+        toast.success(`Pause ${item.breakType === 'start' ? 'Start' : 'Ende'} auf ${newTime} geändert`);
+        return;
+      }
+
       if ('shift' in item) {
-        if (item.fromDate !== dateStr) {
+        if (item.fromDate === dateStr) {
+          const offset = monitor.getClientOffset();
+          if (!offset || !containerRef.current) return;
+          const rect = containerRef.current.getBoundingClientRect();
+          const y = offset.y - rect.top;
+          const fromTopMinutes = (y / HOUR_HEIGHT) * 60;
+          const snapped = snapMinutes(fromTopMinutes, SNAP_MINUTES_SHIFT);
+          const clamped = Math.max(0, Math.min(snapped, (END_HOUR - START_HOUR) * 60));
+          const newStartMinutes = clamped + START_HOUR * 60;
+          const dur = toMinutes(item.shift.endTime) - toMinutes(item.shift.startTime);
+          const newStart = formatTime(newStartMinutes);
+          const newEnd = formatTime(newStartMinutes + dur);
+          onDropInDayRef.current(item.shift, newStart, newEnd);
+        } else {
           onDropRef.current(item.shift, dateStr);
         }
-      } else if ('employeeId' in item) {
+        return;
+      }
+
+      if ('employeeId' in item) {
         onEmployeeDropRef.current(item.employeeId, dateStr, weekType);
       }
     },
@@ -346,7 +517,7 @@ function DayColumn({
             style={{ height: `${HOUR_HEIGHT}px` }}
           />
         ))}
-        {hoverInfo && isOver && (
+        {hoverInfo && isOver && hoverInfo.type !== 'break' && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -362,6 +533,26 @@ function DayColumn({
               boxShadow: `0 0 0 1px ${hoverInfo.color}20 inset`,
             }}
           />
+        )}
+        {hoverInfo && isOver && hoverInfo.type === 'break' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.1 }}
+            className="absolute left-0 right-0 pointer-events-none z-30"
+            style={{
+              top: `${((hoverInfo.minutes - START_HOUR * 60) / 60) * HOUR_HEIGHT}px`,
+              height: '2px',
+              backgroundColor: hoverInfo.color,
+              boxShadow: `0 0 6px ${hoverInfo.color}80`,
+            }}
+          >
+            <span className="absolute -top-4 left-1 text-[10px] font-medium px-1 rounded whitespace-nowrap"
+              style={{ backgroundColor: hoverInfo.color + '20', color: hoverInfo.color }}>
+              {formatTime(hoverInfo.minutes)}
+            </span>
+          </motion.div>
         )}
         <AnimatePresence mode="popLayout">
           {lanes.map(({ shift, lane, totalLanes }) => (
@@ -681,6 +872,7 @@ export function EditableScheduleCalendar({
   const [showSunday, setShowSunday] = useState(true);
   const [showEmployeePanel, setShowEmployeePanel] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<'timeline' | 'swimlane'>('swimlane');
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   const handleDrop = (shift: Shift, newDate: string) => {
@@ -690,6 +882,30 @@ export function EditableScheduleCalendar({
     );
     onUpdateSchedule({ ...schedule, shifts: updatedShifts });
     toast.success('Schicht verschoben');
+  };
+
+  const handleDropInDay = (shift: Shift, newStartTime: string, newEndTime: string) => {
+    const startDiff = toMinutes(newStartTime) - toMinutes(shift.startTime);
+    const updatedShifts = schedule.shifts.map(s => {
+      if (s.id !== shift.id) return s;
+      const updated = { ...s, startTime: newStartTime, endTime: newEndTime };
+      if (s.breakStart) {
+        updated.breakStart = formatTime(toMinutes(s.breakStart) + startDiff);
+      }
+      if (s.breakEnd) {
+        updated.breakEnd = formatTime(toMinutes(s.breakEnd) + startDiff);
+      }
+      return updated;
+    });
+    onUpdateSchedule({ ...schedule, shifts: updatedShifts });
+    toast.success('Schicht verschoben');
+  };
+
+  const handleBreakUpdate = (shiftId: string, updatedShift: Shift) => {
+    const updatedShifts = schedule.shifts.map(s =>
+      s.id === shiftId ? updatedShift : s
+    );
+    onUpdateSchedule({ ...schedule, shifts: updatedShifts });
   };
 
   const handleEmployeeDrop = (employeeId: string, date: string, weekType: WeekType) => {
@@ -769,7 +985,8 @@ export function EditableScheduleCalendar({
   const days: Date[] = [];
   let currentDate = new Date(startDate);
   while (currentDate <= endDate) {
-    days.push(new Date(currentDate));
+    const utcDate = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()));
+    days.push(utcDate);
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
@@ -804,10 +1021,11 @@ export function EditableScheduleCalendar({
           <p className="text-sm text-blue-800">
             💡 <strong>Tipp:</strong> Ziehen Sie Schichten per Drag & Drop, um sie zu verschieben.
             Klicken Sie auf einen Tag, um eine neue Schicht hinzuzufügen, oder ziehen Sie Mitarbeiter aus dem Mitarbeiterpool auf einen Tag.
+            {viewMode === 'swimlane' && ' In der Mitarbeiter-Ansicht können Sie Pausen per Drag anpassen und Schichten zwischen Mitarbeitern verschieben.'}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             size="sm"
@@ -815,6 +1033,17 @@ export function EditableScheduleCalendar({
           >
             <Users className="h-4 w-4 mr-2" />
             {showEmployeePanel ? 'Mitarbeiterpool ausblenden' : 'Mitarbeiterpool anzeigen'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewMode(viewMode === 'timeline' ? 'swimlane' : 'timeline')}
+          >
+            {viewMode === 'timeline' ? (
+              <><LayoutGrid className="h-4 w-4 mr-2" />Mitarbeiter-Ansicht</>
+            ) : (
+              <><CalendarDays className="h-4 w-4 mr-2" />Timeline-Ansicht</>
+            )}
           </Button>
           {onSaveShifts && (
             <Button
@@ -879,57 +1108,68 @@ export function EditableScheduleCalendar({
           </div>
         </div>
 
-        <div className="border rounded-lg overflow-x-auto">
-          {weeks.map((week, weekIndex) => {
-            const weekType = getWeekType(week[0]);
+        {viewMode === 'timeline' ? (
+          <div className="border rounded-lg overflow-x-auto">
+            {weeks.map((week, weekIndex) => {
+              const weekType = getWeekType(new Date(week[0].toISOString().split('T')[0] + 'T00:00:00Z'));
 
-            if (weekType !== currentWeek) return null;
+              if (weekType !== currentWeek) return null;
 
-            const visibleDays = week.filter(day => {
-              const d = day.getDay();
-              if (d === 6 && !showSaturday) return false;
-              if (d === 0 && !showSunday) return false;
-              return true;
-            });
+              const visibleDays = week.filter(day => {
+                const d = day.getDay();
+                if (d === 6 && !showSaturday) return false;
+                if (d === 0 && !showSunday) return false;
+                return true;
+              });
 
-            if (visibleDays.length === 0) return null;
+              if (visibleDays.length === 0) return null;
 
-            return (
-              <div key={weekIndex} className="min-w-[600px]">
-                <div className="flex">
-                  <div
-                    className="sticky left-0 z-10 bg-white border-r flex-shrink-0"
-                    style={{ width: '52px' }}
-                  >
-                    <div className="h-[53px] border-b bg-gray-100" />
-                    {HOURS.map(hour => (
-                      <div
-                        key={hour}
-                        className="flex items-start justify-center text-[10px] text-gray-400 leading-none pt-0.5 border-b border-gray-100"
-                        style={{ height: `${HOUR_HEIGHT}px` }}
-                      >
-                        {`${String(hour).padStart(2, '0')}:00`}
-                      </div>
+              return (
+                <div key={weekIndex} className="min-w-[600px]">
+                  <div className="flex">
+                    <div
+                      className="sticky left-0 z-10 bg-white border-r flex-shrink-0"
+                      style={{ width: '52px' }}
+                    >
+                      <div className="h-[53px] border-b bg-gray-100" />
+                      {HOURS.map(hour => (
+                        <div
+                          key={hour}
+                          className="flex items-start justify-center text-[10px] text-gray-400 leading-none pt-0.5 border-b border-gray-100"
+                          style={{ height: `${HOUR_HEIGHT}px` }}
+                        >
+                          {`${String(hour).padStart(2, '0')}:00`}
+                        </div>
+                      ))}
+                    </div>
+                    {visibleDays.map(day => (
+                      <DayColumn
+                        key={day.toISOString()}
+                        date={day}
+                        weekType={weekType}
+                        shifts={schedule.shifts}
+                        onDrop={handleDrop}
+                        onDropInDay={handleDropInDay}
+                        onEmployeeDrop={handleEmployeeDrop}
+                        onBreakUpdate={handleBreakUpdate}
+                        onClick={handleDayClick}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                      />
                     ))}
                   </div>
-                  {visibleDays.map(day => (
-                    <DayColumn
-                      key={day.toISOString()}
-                      date={day}
-                      weekType={weekType}
-                      shifts={schedule.shifts}
-                      onDrop={handleDrop}
-                      onEmployeeDrop={handleEmployeeDrop}
-                      onClick={handleDayClick}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                    />
-                  ))}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <SwimlaneCalendar
+            schedule={schedule}
+            currentWeek={currentWeek}
+            onUpdateSchedule={onUpdateSchedule}
+            onSaveShifts={onSaveShifts}
+          />
+        )}
       </div>
       )}
 

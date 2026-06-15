@@ -45,7 +45,7 @@ interface AppContextType {
   refresh: () => Promise<void>;
 }
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 async function loadAll() {
   const [empRes, roleRes, reqRes, schedRes] = await Promise.all([

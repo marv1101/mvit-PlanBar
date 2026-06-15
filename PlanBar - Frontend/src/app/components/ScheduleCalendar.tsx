@@ -4,6 +4,7 @@ import { Shift, WeekType } from '../types';
 import { format, parseISO, eachDayOfInterval } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useMediaQuery } from '../lib/useMediaQuery';
+import { Coffee } from 'lucide-react';
 
 interface ScheduleCalendarProps {
   shifts: Shift[];
@@ -84,6 +85,11 @@ export function ScheduleCalendar({ shifts, startDate, endDate, currentWeek }: Sc
                       <div className="text-gray-600">
                         {shift.startTime.slice(0, 5)} - {shift.endTime.slice(0, 5)}
                       </div>
+                      {shift.breakStart && shift.breakEnd && (
+                        <div className="text-[10px] text-gray-400 flex items-center gap-0.5">
+                          <Coffee className="h-2.5 w-2.5" /> {shift.breakStart}–{shift.breakEnd}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
