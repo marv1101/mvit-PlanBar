@@ -7,7 +7,8 @@ from sqlalchemy.orm import sessionmaker
 from app.db.base import Base
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
-from app.services.tito_callback import update_timecards_from_schedule
+from app.services.schedule_service import _get_week_type
+from app.services.tito_callback import process_tito_callback, update_timecards_from_schedule
 
 
 @pytest.fixture
@@ -126,3 +127,47 @@ def test_update_timecards_from_schedule_no_contract_defaults(db_session):
     tc = timecards[0]
     assert tc.scheduled_hours == 7.5
     assert tc.contract_hours == 40.0
+
+
+def test_process_tito_callback_week_per_date(db_session):
+    """process_tito_callback muss week pro assignment_date berechnen (nicht schedule.week_type)."""
+    from app.schemas.tito import TiTOCallbackPayload, TiTOAssignment, TiTOMetadata, TiTOSolution, TiTOMetrics, TiTODiagnostics
+
+    emp = Employee(first_name="Test", last_name="User")
+    db_session.add(emp)
+    db_session.commit()
+
+    schedule = Schedule(
+        name="Week Test",
+        week_type=None,
+        status="submitted",
+        tito_job_id=42,
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 14),
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = TiTOCallbackPayload(
+        job_id=42,
+        status="SUCCESS",
+        metadata=TiTOMetadata(status="success", solveTimeSeconds=1.0, timestamp="2026-06-01T12:00:00"),
+        solution=TiTOSolution(
+            assignments=[
+                TiTOAssignment(employeeId=f"emp_{emp.id:03d}", date=date(2026, 6, 1), shiftId="morning", startTime="08:00", endTime="16:00"),
+                TiTOAssignment(employeeId=f"emp_{emp.id:03d}", date=date(2026, 6, 8), shiftId="evening", startTime="14:00", endTime="22:00"),
+            ],
+            unassignedRequirements=[],
+        ),
+        metrics=TiTOMetrics(wishFulfillmentRate=1.0, totalObjectiveScore=100.0, employeeUtilization={}, violations=None),
+        diagnostics=TiTODiagnostics(isOptimal=True, info="Optimal"),
+    )
+
+    result = process_tito_callback(db_session, payload)
+    assert result is not None
+
+    shiftplans = db_session.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).order_by(Shiftplan.date).all()
+    assert len(shiftplans) == 2
+
+    assert shiftplans[0].week == _get_week_type(date(2026, 6, 1)), f"Expected A for June 1, got {shiftplans[0].week}"
+    assert shiftplans[1].week == _get_week_type(date(2026, 6, 8)), f"Expected B for June 8, got {shiftplans[1].week}"

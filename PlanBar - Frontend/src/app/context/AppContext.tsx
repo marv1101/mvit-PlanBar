@@ -155,7 +155,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateSchedule = useCallback((id: string, schedule: Schedule) => {
-    scheduleService.updateSchedule(Number(id), { name: schedule.name, week_type: undefined, status: schedule.status })
+    scheduleService.updateSchedule(Number(id), { name: schedule.name, week_type: schedule.weekType || undefined, status: schedule.status })
       .then(() => {
         setSchedules(prev => prev.map(s => s.id === id ? schedule : s));
         toast.success('Schichtplan aktualisiert');

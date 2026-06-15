@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.schemas.tito import TiTOCallbackPayload
+from app.services.schedule_service import _get_week_type
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def process_tito_callback(db: Session, payload: TiTOCallbackPayload) -> Schedule
                 employee_id=employee.id,
                 date=assignment.date,
                 shift_id=assignment.shiftId,
-                week=schedule.week_type,
+                week=_get_week_type(assignment.date),
                 start_time=time(int(start_parts[0]), int(start_parts[1])),
                 end_time=time(int(end_parts[0]), int(end_parts[1])),
             )

@@ -166,6 +166,7 @@ export function scheduleFromResponse(dto: ScheduleResponseDTO): Schedule {
     shifts: (dto.shiftplans || []).map(shiftplanToShift),
     roleRequirements: dto.role_requirements || undefined,
     shiftTemplates: dto.shift_templates || undefined,
+    weekType: dto.week_type ? (dto.week_type as WeekType) : undefined,
     titoJobId: dto.tito_job_id,
     diagnostics: dto.diagnostics_json as TiTODiagnostics | null | undefined,
     metrics: dto.metrics_json as TiTOMetrics | null | undefined,

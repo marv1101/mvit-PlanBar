@@ -130,6 +130,7 @@ export interface Schedule {
   shifts: Shift[];
   roleRequirements?: Record<EmployeeRole, number>;
   shiftTemplates?: ShiftTemplateEntry[];
+  weekType?: WeekType | null;
   titoJobId?: number | null;
   diagnostics?: TiTODiagnostics | null;
   metrics?: TiTOMetrics | null;

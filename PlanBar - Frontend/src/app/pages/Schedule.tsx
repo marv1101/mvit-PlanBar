@@ -59,11 +59,11 @@ export function Schedule() {
   const [pollResult, setPollResult] = useState<ScheduleType | null>(null);
 
   const [creationMode, setCreationMode] = useState<'tito' | 'manual'>('tito');
-  const [titoWeekType, setTitoWeekType] = useState<WeekType>('A');
+  const [titoWeekType, setTitoWeekType] = useState<WeekType | ''>('A');
   const [manualName, setManualName] = useState('');
   const [manualStartDate, setManualStartDate] = useState('');
   const [manualEndDate, setManualEndDate] = useState('');
-  const [manualWeekType, setManualWeekType] = useState<WeekType>('A');
+  const [manualWeekType, setManualWeekType] = useState<WeekType | ''>('A');
   const [manuallyCreatedSchedule, setManuallyCreatedSchedule] = useState<ScheduleType | null>(null);
 
   const [wishReviewScheduleId, setWishReviewScheduleId] = useState<number | null>(null);
@@ -150,7 +150,7 @@ export function Schedule() {
         name: scheduleName,
         start_date: startDate,
         end_date: endDate,
-        week_type: titoWeekType,
+        week_type: titoWeekType || undefined,
         shift_templates: shiftTemplates.map(st => ({
           ...st,
           requirements: Object.fromEntries(
@@ -201,7 +201,7 @@ export function Schedule() {
         name: manualName,
         start_date: manualStartDate,
         end_date: manualEndDate,
-        week_type: manualWeekType,
+        week_type: manualWeekType || undefined,
         shiftplans: [],
       });
 
@@ -574,11 +574,12 @@ export function Schedule() {
                         id="titoWeekType"
                         className="w-full border rounded-md px-3 py-2"
                         value={titoWeekType}
-                        onChange={(e) => setTitoWeekType(e.target.value as WeekType)}
+                        onChange={(e) => setTitoWeekType(e.target.value as WeekType | '')}
                         disabled={submitting}
                       >
-                        <option value="A">Woche A</option>
-                        <option value="B">Woche B</option>
+                        <option value="A">Nur Woche A</option>
+                        <option value="B">Nur Woche B</option>
+                        <option value="">Beide (A & B)</option>
                       </select>
                     </div>
 
@@ -636,10 +637,11 @@ export function Schedule() {
                         id="manualWeekType"
                         className="w-full border rounded-md px-3 py-2"
                         value={manualWeekType}
-                        onChange={(e) => setManualWeekType(e.target.value as WeekType)}
+                        onChange={(e) => setManualWeekType(e.target.value as WeekType | '')}
                       >
-                        <option value="A">Woche A</option>
-                        <option value="B">Woche B</option>
+                        <option value="A">Nur Woche A</option>
+                        <option value="B">Nur Woche B</option>
+                        <option value="">Beide (A & B)</option>
                       </select>
                     </div>
 

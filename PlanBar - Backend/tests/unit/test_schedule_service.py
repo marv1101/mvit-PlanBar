@@ -161,6 +161,63 @@ def test_build_tito_payload_minimal(db_session):
     assert len(payload["shiftTemplates"]) == 0
 
 
+def test_build_tito_payload_week_type_none(db_session):
+    """week_type=None muss alle Daten einschließen (kein Filter)."""
+    schedule = Schedule(
+        name="Week Type None",
+        start_date=date(2026, 6, 1),   # Monday, week A
+        end_date=date(2026, 6, 14),    # Sunday, week B
+        status="draft",
+        week_type=None,
+        role_requirements={"früh": "2", "spät": "1"},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+    payload = _build_tito_payload(schedule, [], [], db=db_session)
+    # 14 days × 2 requirements = 28
+    assert len(payload["requirements"]) == 28
+
+
+def test_build_tito_payload_week_type_a(db_session):
+    """week_type='A' muss nur A-Wochen-Daten einschließen."""
+    schedule = Schedule(
+        name="Week Type A",
+        start_date=date(2026, 6, 1),   # Monday, week A
+        end_date=date(2026, 6, 14),    # Sunday, week B
+        status="draft",
+        week_type="A",
+        role_requirements={"früh": "2", "spät": "1"},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+    payload = _build_tito_payload(schedule, [], [], db=db_session)
+    # Only week A dates (June 1-7) = 7 days × 2 = 14
+    assert len(payload["requirements"]) == 14
+    for req in payload["requirements"]:
+        d = date.fromisoformat(req["date"])
+        assert date(2026, 6, 1) <= d <= date(2026, 6, 7), f"{d} is not in week A range"
+
+
+def test_build_tito_payload_week_type_b(db_session):
+    """week_type='B' muss nur B-Wochen-Daten einschließen."""
+    schedule = Schedule(
+        name="Week Type B",
+        start_date=date(2026, 6, 1),   # Monday, week A
+        end_date=date(2026, 6, 14),    # Sunday, week B
+        status="draft",
+        week_type="B",
+        role_requirements={"früh": "2", "spät": "1"},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+    payload = _build_tito_payload(schedule, [], [], db=db_session)
+    # Only week B dates (June 8-14) = 7 days × 2 = 14
+    assert len(payload["requirements"]) == 14
+    for req in payload["requirements"]:
+        d = date.fromisoformat(req["date"])
+        assert date(2026, 6, 8) <= d <= date(2026, 6, 14), f"{d} is not in week B range"
+
+
 def test_build_tito_payload_with_employees(db_session):
     schedule = Schedule(
         name="With Employees",
