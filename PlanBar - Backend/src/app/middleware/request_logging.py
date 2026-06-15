@@ -9,6 +9,8 @@ logger = logging.getLogger("planbar.request")
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        if request.headers.get("upgrade", "").lower() == "websocket":
+            return await call_next(request)
         start = time.time()
         response = await call_next(request)
         duration = time.time() - start

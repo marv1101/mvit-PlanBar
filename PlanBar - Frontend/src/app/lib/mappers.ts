@@ -1,8 +1,8 @@
-import { AppUser, Employee, Request, Role, Schedule, Shift, TiTODiagnostics, TiTOMetrics, WeekType } from '../types';
+import { AppUser, Employee, Request, Role, Schedule, Shift, TiTODiagnostics, TiTOMetrics, WeekType, WishStatus } from '../types';
 import type { EmployeeResponseDTO, EmployeeCreateDTO } from '../services/employeeService';
 import type { RoleResponseDTO, RoleCreateDTO } from '../services/roleService';
 import type { ShiftWishResponseDTO, ShiftWishCreateDTO, ShiftWishType } from '../services/requestService';
-import type { ScheduleResponseDTO, ScheduleCreateDTO, ShiftplanResponseDTO, ShiftplanCreateDTO } from '../services/scheduleService';
+import type { ScheduleResponseDTO, ScheduleCreateDTO, ShiftplanResponseDTO, ShiftplanCreateDTO, ShiftTemplateEntryDTO } from '../services/scheduleService';
 
 const FRONTEND_TYPE_TO_API: Record<string, ShiftWishType> = {
   urlaubswunsch: 'vacation',
@@ -113,6 +113,10 @@ export function requestFromResponse(dto: ShiftWishResponseDTO): Request {
     week: dto.week === 2 ? 'B' : 'A' as WeekType,
     type: (API_TYPE_TO_FRONTEND[dto.type] || dto.type) as Request['type'],
     notes: dto.note || undefined,
+    status: dto.status as WishStatus | undefined,
+    reviewedBy: dto.reviewed_by,
+    reviewedAt: dto.reviewed_at,
+    rejectionReason: dto.rejection_reason,
   };
 }
 
@@ -136,6 +140,7 @@ export function shiftplanToShift(sp: ShiftplanResponseDTO): Shift {
     endTime: sp.end_time,
     breakStart: sp.break_start || undefined,
     breakEnd: sp.break_end || undefined,
+    label: sp.label || undefined,
   };
 }
 
@@ -149,6 +154,7 @@ export function shiftToShiftplanCreate(scheduleId: number, shift: Shift): Shiftp
     week: shift.week,
     break_start: shift.breakStart,
     break_end: shift.breakEnd,
+    label: shift.label,
   };
 }
 
@@ -161,6 +167,8 @@ export function scheduleFromResponse(dto: ScheduleResponseDTO): Schedule {
     endDate: dto.end_date || '',
     shifts: (dto.shiftplans || []).map(shiftplanToShift),
     roleRequirements: dto.role_requirements || undefined,
+    shiftTemplates: dto.shift_templates || undefined,
+    weekType: dto.week_type ? (dto.week_type as WeekType) : undefined,
     titoJobId: dto.tito_job_id,
     diagnostics: dto.diagnostics_json as TiTODiagnostics | null | undefined,
     metrics: dto.metrics_json as TiTOMetrics | null | undefined,
@@ -173,11 +181,27 @@ export function scheduleToCreate(schedule: Schedule, shiftplans: ShiftplanCreate
     start_date: schedule.startDate || undefined,
     end_date: schedule.endDate || undefined,
     role_requirements: schedule.roleRequirements,
+    shift_templates: schedule.shiftTemplates,
     shiftplans,
   };
 }
 
 import type { UserResponseDTO } from '../services/userService';
+import type {
+  ThreadResponseDTO,
+  ThreadDetailResponseDTO,
+  MessageResponseDTO,
+  DocumentResponseDTO,
+} from '../services/pinboardService';
+import {
+  PinboardThread,
+  PinboardThreadDetail,
+  PinboardMessage,
+  PinboardDocument,
+  EmployeeTimeAccount,
+  TimeAccountEntry,
+  TimeAccountProjected,
+} from '../types';
 
 export function userFromResponse(dto: UserResponseDTO): AppUser {
   return {
@@ -187,5 +211,79 @@ export function userFromResponse(dto: UserResponseDTO): AppUser {
     role: dto.role === 'admin' ? 'admin' : 'employee',
     mustChangePassword: dto.must_change_password,
     lastLogin: dto.last_login,
+  };
+}
+
+export function pinboardDocumentFromResponse(dto: DocumentResponseDTO): PinboardDocument {
+  return {
+    id: String(dto.id),
+    messageId: String(dto.message_id),
+    fileName: dto.file_name,
+    fileSize: dto.file_size,
+    mimeType: dto.mime_type,
+    createdAt: dto.created_at,
+  };
+}
+
+export function pinboardMessageFromResponse(dto: MessageResponseDTO): PinboardMessage {
+  return {
+    id: String(dto.id),
+    threadId: String(dto.thread_id),
+    authorId: String(dto.author_id),
+    authorName: dto.author_name,
+    content: dto.content,
+    documents: (dto.documents || []).map(pinboardDocumentFromResponse),
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+  };
+}
+
+export function pinboardThreadFromResponse(dto: ThreadResponseDTO): PinboardThread {
+  return {
+    id: String(dto.id),
+    title: dto.title,
+    authorId: String(dto.author_id),
+    authorName: dto.author_name,
+    isPinned: dto.is_pinned,
+    messageCount: dto.message_count,
+    lastMessageAt: dto.last_message_at,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+  };
+}
+
+export function pinboardThreadDetailFromResponse(dto: ThreadDetailResponseDTO): PinboardThreadDetail {
+  return {
+    id: String(dto.id),
+    title: dto.title,
+    authorId: String(dto.author_id),
+    authorName: dto.author_name,
+    isPinned: dto.is_pinned,
+    messages: (dto.messages || []).map(pinboardMessageFromResponse),
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+  };
+}
+
+
+export function timeAccountFromResponse(dto: TimeAccountResponseDTO): EmployeeTimeAccount {
+  return {
+    employeeId: dto.employee_id,
+    employeeName: dto.employee_name,
+    currentBalance: dto.current_balance,
+    history: dto.history.map(e => ({
+      week: e.week,
+      year: e.year,
+      scheduledHours: e.scheduled_hours,
+      contractHours: e.contract_hours,
+      delta: e.delta,
+      balance: e.balance,
+      manualAdjustment: e.manual_adjustment,
+      adjustmentReason: e.adjustment_reason,
+    })),
+    projected: dto.projected ? {
+      fromSchedule: dto.projected.from_schedule,
+      expectedBalanceAfter: dto.projected.expected_balance_after,
+    } : null,
   };
 }

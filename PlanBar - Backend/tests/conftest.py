@@ -75,4 +75,5 @@ def auth_headers(client, db_session):
         json={"email": "admin@test.com", "password": "testpassword123"},
     )
     token = login_response.json()["access_token"]
+    client.cookies.clear()
     return {"Authorization": f"Bearer {token}"}

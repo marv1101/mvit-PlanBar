@@ -48,6 +48,8 @@ export interface Employee {
 
 export type RequestType = 'urlaubswunsch' | 'bevorzugt' | 'nicht-verfügbar';
 
+export type WishStatus = 'approved' | 'pending' | 'rejected';
+
 export interface Request {
   id: string;
   employeeId: string;
@@ -55,6 +57,10 @@ export interface Request {
   week: WeekType;
   type: RequestType;
   notes?: string;
+  status?: WishStatus;
+  reviewedBy?: number | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string | null;
 }
 
 export interface Shift {
@@ -66,6 +72,7 @@ export interface Shift {
   endTime: string;
   breakStart?: string;
   breakEnd?: string;
+  label?: string;
 }
 
 export interface TiTOViolation {
@@ -78,12 +85,34 @@ export interface TiTOViolation {
 export interface TiTODiagnostics {
   isOptimal: boolean;
   info: string;
+  aggregatedMessages?: TiTOAggregatedMessage[];
+}
+
+export interface TiTOAggregatedMessage {
+  severity: string;
+  skill: string;
+  message: string;
+  totalMissingShifts: number;
+  totalMissingHours: number;
+  affectedDays: number;
+}
+
+export interface EmployeeFairnessEntry {
+  group: string;
+  groupTarget: number;
+  adjustedTarget: number;
+  actualMinutes: number;
+  deviation: number;
+  deviationType: string;
+  projectedBalance: number;
+  currentBalanceHours: number;
 }
 
 export interface TiTOMetrics {
   wishFulfillmentRate: number;
   totalObjectiveScore: number;
   violations?: TiTOViolation[];
+  employeeFairness?: Record<string, EmployeeFairnessEntry>;
 }
 
 export interface AppUser {
@@ -95,6 +124,14 @@ export interface AppUser {
   lastLogin: string | null;
 }
 
+export interface ShiftTemplateEntry {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  requirements: Record<string, number>;
+}
+
 export interface Schedule {
   id: string;
   name: string;
@@ -103,7 +140,76 @@ export interface Schedule {
   endDate: string;
   shifts: Shift[];
   roleRequirements?: Record<EmployeeRole, number>;
+  shiftTemplates?: ShiftTemplateEntry[];
+  weekType?: WeekType | null;
   titoJobId?: number | null;
   diagnostics?: TiTODiagnostics | null;
   metrics?: TiTOMetrics | null;
+}
+
+export interface TimeAccountEntry {
+  week: number;
+  year: number;
+  scheduledHours: number;
+  contractHours: number;
+  delta: number;
+  balance: number;
+  manualAdjustment: number;
+  adjustmentReason: string | null;
+}
+
+export interface TimeAccountProjected {
+  fromSchedule: number;
+  expectedBalanceAfter: number;
+}
+
+export interface EmployeeTimeAccount {
+  employeeId: number;
+  employeeName: string;
+  currentBalance: number;
+  history: TimeAccountEntry[];
+  projected: TimeAccountProjected | null;
+}
+
+export interface PinboardDocument {
+  id: string;
+  messageId: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  createdAt: string;
+}
+
+export interface PinboardMessage {
+  id: string;
+  threadId: string;
+  authorId: string;
+  authorName: string;
+  content: string;
+  documents: PinboardDocument[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PinboardThread {
+  id: string;
+  title: string;
+  authorId: string;
+  authorName: string;
+  isPinned: boolean;
+  messageCount: number;
+  lastMessageAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PinboardThreadDetail {
+  id: string;
+  title: string;
+  authorId: string;
+  authorName: string;
+  isPinned: boolean;
+  messages: PinboardMessage[];
+  createdAt: string;
+  updatedAt: string;
 }

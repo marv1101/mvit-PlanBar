@@ -63,7 +63,7 @@ def test_non_admin_cannot_read_other_user(client):
     assert response.status_code in (401, 403)
 
 
-def test_non_admin_can_update_self(client):
+def test_non_admin_cannot_update_self(client):
     token, user_id = _create_user(client)
     headers = {"Authorization": f"Bearer {token}"}
     response = client.put(
@@ -71,7 +71,7 @@ def test_non_admin_can_update_self(client):
         json={"username": "updatedregular"},
         headers=headers,
     )
-    assert response.status_code == 200
+    assert response.status_code == 401
 
 
 def test_non_admin_cannot_update_other_user(client):
@@ -107,3 +107,36 @@ def test_admin_can_list_users(client, auth_headers):
 def test_admin_can_read_any_user(client, auth_headers):
     response = client.get("/api/v1/users/1", headers=auth_headers)
     assert response.status_code == 200
+
+
+def test_non_admin_cannot_self_promote_to_admin(client):
+    """Regression test: non-admin user must not be able to change their own role to admin."""
+    token, user_id = _create_user(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    response = client.put(
+        f"/api/v1/users/{user_id}",
+        json={"role": "admin"},
+        headers=headers,
+    )
+    assert response.status_code in (401, 403), response.text
+    assert "Insufficient permissions" in response.json()["detail"]
+
+
+def test_admin_can_change_user_role(client, auth_headers):
+    """Admin should be able to change user roles."""
+    # Create a regular user
+    create_resp = client.post(
+        "/api/v1/users",
+        json={"username": "roletest", "email": "roletest@example.com", "password": "password123"},
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    user_id = create_resp.json()["id"]
+
+    # Admin changes the user's role
+    response = client.put(
+        f"/api/v1/users/{user_id}",
+        json={"role": "admin"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["role"] == "admin"

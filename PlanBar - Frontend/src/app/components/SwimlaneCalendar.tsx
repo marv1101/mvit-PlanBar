@@ -1,0 +1,1041 @@
+import React, { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { useDrag, useDrop } from 'react-dnd';
+import { useApp } from '../context/AppContext';
+import { Shift, Schedule, WeekType } from '../types';
+import { Button } from './ui/button';
+import { getWeekType } from '../lib/week';
+import { TIMEZONE } from '../lib/timezone';
+import { sanitizeLabel } from '../lib/sanitize';
+import { Pencil, Trash2, Coffee } from 'lucide-react';
+import { toast } from 'sonner';
+import type { Employee } from '../types';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+
+const ITEM_TYPE = 'SHIFT';
+const EMPLOYEE_ITEM_TYPE = 'EMPLOYEE';
+const BREAK_START_ITEM_TYPE = 'BREAK_START';
+const BREAK_END_ITEM_TYPE = 'BREAK_END';
+const HOUR_WIDTH = 64;
+const START_HOUR = 6;
+const END_HOUR = 22;
+const EMPLOYEE_ROW_HEIGHT = 44;
+const SNAP_MINUTES_SHIFT = 30;
+const SNAP_MINUTES_BREAK = 15;
+
+const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
+
+function toMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function formatTime(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function getBreakStyle(shift: Shift) {
+  if (!shift.breakStart || !shift.breakEnd) return null;
+  const shiftStart = toMinutes(shift.startTime);
+  const breakStart = toMinutes(shift.breakStart);
+  const breakEnd = toMinutes(shift.breakEnd);
+  if (breakStart <= shiftStart || breakEnd <= breakStart || breakEnd > toMinutes(shift.endTime)) return null;
+  const left = ((breakStart - shiftStart) / 60) * HOUR_WIDTH;
+  const width = Math.max(((breakEnd - breakStart) / 60) * HOUR_WIDTH, 16);
+  return { left, width };
+}
+
+interface DragItem {
+  shift: Shift;
+  fromDate: string;
+}
+
+interface EmployeeDragItem {
+  employeeId: string;
+}
+
+interface BreakDragItem {
+  shift: Shift;
+  breakType: 'start' | 'end';
+}
+
+type HoverInfo = {
+  type: 'shift';
+  minutes: number;
+  duration: number;
+  color: string;
+  top: number;
+} | {
+  type: 'break';
+  minutes: number;
+  shiftId: string;
+  breakType: 'start' | 'end';
+  color: string;
+};
+
+interface SwimlaneCalendarProps {
+  schedule: Schedule;
+  currentWeek: WeekType;
+  onUpdateSchedule: (schedule: Schedule) => void;
+}
+
+function BreakStartHandle({ shift }: { shift: Shift }) {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: BREAK_START_ITEM_TYPE,
+    item: { shift, breakType: 'start' as const } as BreakDragItem,
+    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
+  }), [shift]);
+
+  return (
+    <div
+      ref={drag}
+      className="absolute top-0 left-0 right-0 h-2 cursor-ew-resize hover:bg-blue-400/30 active:bg-blue-400/50 flex items-center justify-center z-20 group/break"
+      style={{ opacity: isDragging ? 0.5 : 1 }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+    >
+      <div className="w-6 h-[2px] bg-gray-400 rounded opacity-0 group-hover/break:opacity-100 transition-opacity" />
+    </div>
+  );
+}
+
+function BreakEndHandle({ shift }: { shift: Shift }) {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: BREAK_END_ITEM_TYPE,
+    item: { shift, breakType: 'end' as const } as BreakDragItem,
+    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
+  }), [shift]);
+
+  return (
+    <div
+      ref={drag}
+      className="absolute bottom-0 left-0 right-0 h-2 cursor-ew-resize hover:bg-blue-400/30 active:bg-blue-400/50 flex items-center justify-center z-20 group/break"
+      style={{ opacity: isDragging ? 0.5 : 1 }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+    >
+      <div className="w-6 h-[2px] bg-gray-400 rounded opacity-0 group-hover/break:opacity-100 transition-opacity" />
+    </div>
+  );
+}
+
+function ShiftBar({
+  shift,
+  onEdit,
+  onDelete,
+  top = 4,
+}: {
+  shift: Shift;
+  onEdit: (shift: Shift) => void;
+  onDelete: (shift: Shift) => void;
+  top?: number;
+}) {
+  const { employees } = useApp();
+  const employee = employees.find(e => e.id === shift.employeeId);
+
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: ITEM_TYPE,
+    item: { shift, fromDate: shift.date } as DragItem,
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  }), [shift]);
+
+  if (!employee) return null;
+
+  const startMin = toMinutes(shift.startTime);
+  const endMin = toMinutes(shift.endTime);
+  const left = ((startMin - START_HOUR * 60) / 60) * HOUR_WIDTH;
+  const width = Math.max(((endMin - startMin) / 60) * HOUR_WIDTH, 20);
+  const breakStyle = getBreakStyle(shift);
+
+  return (
+    <motion.div
+      ref={drag}
+      layout
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{
+        opacity: isDragging ? 0.25 : 1,
+        scale: isDragging ? 0.95 : 1,
+        boxShadow: isDragging
+          ? '0 0 0 2px rgba(59,130,246,0.3)'
+          : '0 1px 2px rgba(0,0,0,0.05)',
+      }}
+      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
+      transition={{ type: 'spring', stiffness: 400, damping: 30, mass: 0.8 }}
+      whileHover={{ scale: 1.02, y: -1 }}
+      whileTap={{ scale: 0.98 }}
+      className="absolute rounded overflow-hidden cursor-move group z-10"
+      style={{
+        left: `${left}px`,
+        width: `${width}px`,
+        top: `${top}px`,
+        height: '36px',
+        position: 'absolute',
+        backgroundColor: employee.color + '20',
+        borderLeft: `3px solid ${employee.color}`,
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onEdit(shift);
+      }}
+    >
+      <div className="flex flex-col justify-center h-full px-1.5 text-[10px] leading-tight min-w-0">
+        {shift.label && (
+          <span className="font-semibold truncate text-gray-800 leading-tight">
+            {shift.label}
+          </span>
+        )}
+        <span className="font-medium truncate flex items-center gap-1" style={{ color: employee.color }}>
+          <span className={`inline-flex items-center justify-center w-3 h-3 rounded text-[8px] font-bold leading-none flex-shrink-0 ${
+            shift.week === 'A' ? 'bg-blue-500 text-white' : 'bg-purple-500 text-white'
+          }`}>
+            {shift.week}
+          </span>
+          <span className="text-gray-500 truncate">
+            {shift.startTime}–{shift.endTime}
+          </span>
+        </span>
+      </div>
+
+      {breakStyle && (
+        <div
+          className="absolute top-0 bottom-0 pointer-events-none"
+          style={{
+            left: `${breakStyle.left}px`,
+            width: `${breakStyle.width}px`,
+            backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 6px)`,
+            borderLeft: '2px solid rgba(0,0,0,0.2)',
+            borderRight: '2px solid rgba(0,0,0,0.2)',
+            backgroundColor: 'rgba(0,0,0,0.05)',
+          }}
+        >
+          {breakStyle.width > 28 && (
+            <span className="text-[8px] text-gray-600 font-medium px-0.5 whitespace-nowrap pointer-events-none flex items-center gap-0.5 h-full">
+              <Coffee className="h-2 w-2" />
+              {shift.breakStart}–{shift.breakEnd}
+            </span>
+          )}
+          <BreakStartHandle shift={shift} />
+          <BreakEndHandle shift={shift} />
+        </div>
+      )}
+
+      <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(shift); }}
+          className="p-0.5 hover:bg-gray-200 rounded bg-white/80"
+          aria-label={`Schicht ${employee.name} ${shift.startTime}–${shift.endTime} bearbeiten`}
+        >
+          <Pencil className="h-2.5 w-2.5" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(shift); }}
+          className="p-0.5 hover:bg-red-100 rounded text-red-600 bg-white/80"
+          aria-label={`Schicht ${employee.name} ${shift.startTime}–${shift.endTime} löschen`}
+        >
+          <Trash2 className="h-2.5 w-2.5" />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+function EmployeeCard({ employee }: { employee: Employee }) {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: EMPLOYEE_ITEM_TYPE,
+    item: { employeeId: employee.id } as EmployeeDragItem,
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  }), [employee.id]);
+
+  return (
+    <motion.div
+      ref={drag}
+      layout
+      animate={{
+        opacity: isDragging ? 0.3 : 1,
+        scale: isDragging ? 0.95 : 1,
+      }}
+      whileHover={{ scale: 1.03, y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+      whileTap={{ scale: 0.97 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+      className="p-3 rounded-lg border-2 cursor-move"
+      style={{
+        backgroundColor: employee.color + '15',
+        borderColor: employee.color + '40'
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <div
+          className="w-3 h-3 rounded-full flex-shrink-0"
+          style={{ backgroundColor: employee.color }}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm truncate" style={{ color: employee.color }}>
+            {employee.name}
+          </div>
+          <div className="text-xs text-gray-500 truncate">
+            {employee.roles.length > 0 ? `${employee.roles.length} Rolle(n)` : 'Keine Rollen'}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+interface DayBlockProps {
+  date: Date;
+  weekType: WeekType;
+  shifts: Shift[];
+  employees: Employee[];
+  onDrop: (shift: Shift, newDate: string) => void;
+  onDropInDay: (shift: Shift, newStartTime: string, newEndTime: string) => void;
+  onDropOnEmployee: (shift: Shift, newEmployeeId: string) => void;
+  onEmployeeDrop: (employeeId: string, date: string, weekType: WeekType) => void;
+  onBreakUpdate: (shiftId: string, updatedShift: Shift) => void;
+  onClick: (date: Date) => void;
+  onEdit: (shift: Shift) => void;
+  onDelete: (shift: Shift) => void;
+}
+
+function DayBlock({
+  date, weekType, shifts, employees, onDrop, onDropInDay, onDropOnEmployee,
+  onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete
+}: DayBlockProps) {
+  const dateStr = date.toISOString().split('T')[0];
+  const dayShifts = shifts.filter(s => s.date === dateStr);
+  const sortedEmployees = [...employees].sort((a, b) => a.name.localeCompare(b.name));
+
+  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const employeesRef = useRef(employees);
+  employeesRef.current = employees;
+
+  const onDropRef = useRef(onDrop);
+  onDropRef.current = onDrop;
+  const onDropInDayRef = useRef(onDropInDay);
+  onDropInDayRef.current = onDropInDay;
+  const onDropOnEmployeeRef = useRef(onDropOnEmployee);
+  onDropOnEmployeeRef.current = onDropOnEmployee;
+  const onEmployeeDropRef = useRef(onEmployeeDrop);
+  onEmployeeDropRef.current = onEmployeeDrop;
+  const onBreakUpdateRef = useRef(onBreakUpdate);
+  onBreakUpdateRef.current = onBreakUpdate;
+  const onClickRef = useRef(onClick);
+  onClickRef.current = onClick;
+
+  const snapMinutes = (rawMinutes: number, snap: number) => {
+    return Math.round(rawMinutes / snap) * snap;
+  };
+
+  const [{ isOver }, drop] = useDrop(() => ({
+    accept: [ITEM_TYPE, EMPLOYEE_ITEM_TYPE, BREAK_START_ITEM_TYPE, BREAK_END_ITEM_TYPE],
+    hover: (item: DragItem | EmployeeDragItem | BreakDragItem, monitor) => {
+      const offset = monitor.getClientOffset();
+      if (!offset || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = offset.x - rect.left;
+      const y = offset.y - rect.top;
+      const fromLeftMinutes = (x / HOUR_WIDTH) * 60;
+      const employeeIndex = Math.floor((y - 40) / EMPLOYEE_ROW_HEIGHT);
+      const clampedEmployeeIndex = Math.max(0, Math.min(employeeIndex, sortedEmployees.length - 1));
+      const emp = sortedEmployees[clampedEmployeeIndex];
+      const empColor = emp?.color || '#3b82f6';
+
+      if ('breakType' in item) {
+        const snapped = snapMinutes(fromLeftMinutes + START_HOUR * 60, SNAP_MINUTES_BREAK);
+        const clamped = Math.max(START_HOUR * 60, Math.min(snapped, END_HOUR * 60));
+        setHoverInfo({
+          type: 'break',
+          minutes: clamped,
+          shiftId: item.shift.id,
+          breakType: item.breakType,
+          color: empColor,
+        });
+        return;
+      }
+
+      const hoverTop = 40 + clampedEmployeeIndex * EMPLOYEE_ROW_HEIGHT + 4;
+
+      if ('shift' in item) {
+        const snapped = snapMinutes(fromLeftMinutes + START_HOUR * 60, SNAP_MINUTES_SHIFT);
+        const clamped = Math.max(START_HOUR * 60, Math.min(snapped, END_HOUR * 60));
+        const dur = toMinutes(item.shift.endTime) - toMinutes(item.shift.startTime);
+        const maxEnd = Math.min(clamped + dur, END_HOUR * 60);
+        const positionClamped = Math.max(START_HOUR * 60, maxEnd - dur);
+        setHoverInfo({
+          type: 'shift',
+          minutes: positionClamped - START_HOUR * 60,
+          duration: dur,
+          color: employeesRef.current.find(e => e.id === item.shift.employeeId)?.color || '#3b82f6',
+          top: hoverTop,
+        });
+        return;
+      }
+
+      if ('employeeId' in item) {
+        const dur = 480;
+        const clamped = Math.max(0, Math.min(fromLeftMinutes, (END_HOUR - START_HOUR) * 60 - dur));
+        const emp = employeesRef.current.find(e => e.id === item.employeeId);
+        setHoverInfo({ type: 'shift', minutes: clamped, duration: dur, color: emp?.color || '#3b82f6', top: hoverTop });
+      }
+    },
+    drop: (item: DragItem | EmployeeDragItem | BreakDragItem, monitor) => {
+      setHoverInfo(null);
+      const offset = monitor.getClientOffset();
+      if (!offset || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = offset.x - rect.left;
+      const y = offset.y - rect.top;
+      const fromLeftMinutes = (x / HOUR_WIDTH) * 60;
+      const employeeIndex = Math.floor((y - 40) / EMPLOYEE_ROW_HEIGHT);
+      const clampedEmployeeIndex = Math.max(0, Math.min(employeeIndex, sortedEmployees.length - 1));
+      const targetEmployee = sortedEmployees[clampedEmployeeIndex];
+
+      if ('breakType' in item) {
+        const snapped = snapMinutes(fromLeftMinutes + START_HOUR * 60, SNAP_MINUTES_BREAK);
+        const clamped = Math.max(START_HOUR * 60, Math.min(snapped, END_HOUR * 60));
+        const newTime = formatTime(clamped);
+        const shift = item.shift;
+        const updated = { ...shift };
+
+        if (item.breakType === 'start') {
+          if (toMinutes(newTime) <= toMinutes(shift.startTime)) return;
+          if (shift.breakEnd && toMinutes(newTime) >= toMinutes(shift.breakEnd)) return;
+          updated.breakStart = newTime;
+        } else {
+          if (shift.breakStart && toMinutes(newTime) <= toMinutes(shift.breakStart)) return;
+          if (toMinutes(newTime) >= toMinutes(shift.endTime)) return;
+          updated.breakEnd = newTime;
+        }
+
+        onBreakUpdateRef.current(shift.id, updated);
+        toast.success(`Pause ${item.breakType === 'start' ? 'Start' : 'Ende'} auf ${newTime} geändert`);
+        return;
+      }
+
+      if ('shift' in item) {
+        const snapped = snapMinutes(fromLeftMinutes + START_HOUR * 60, SNAP_MINUTES_SHIFT);
+        const clamped = Math.max(START_HOUR * 60, Math.min(snapped, END_HOUR * 60));
+        const newStartMinutes = clamped;
+        const dur = toMinutes(item.shift.endTime) - toMinutes(item.shift.startTime);
+        const newStart = formatTime(newStartMinutes);
+        const newEnd = formatTime(newStartMinutes + dur);
+
+        if (item.fromDate !== dateStr) {
+          onDropRef.current(item.shift, dateStr);
+          return;
+        }
+
+        if (targetEmployee && targetEmployee.id !== item.shift.employeeId) {
+          const updated = { ...item.shift, employeeId: targetEmployee.id, startTime: newStart, endTime: newEnd };
+          onDropOnEmployeeRef.current(item.shift, targetEmployee.id);
+          return;
+        }
+
+        onDropInDayRef.current(item.shift, newStart, newEnd);
+        return;
+      }
+
+      if ('employeeId' in item) {
+        onEmployeeDropRef.current(item.employeeId, dateStr, weekType);
+      }
+    },
+    collect: (monitor) => ({
+      isOver: monitor.isOver(),
+    }),
+  }), [dateStr, weekType, sortedEmployees]);
+
+  React.useEffect(() => {
+    if (!isOver) setHoverInfo(null);
+  }, [isOver]);
+
+  return (
+    <div className="border rounded-lg mb-4 overflow-hidden">
+      <div className="bg-gray-50 px-4 py-2 font-medium text-sm border-b">
+        {date.toLocaleDateString('de-DE', { timeZone: TIMEZONE, weekday: 'long', day: 'numeric', month: 'long' })}
+      </div>
+      <div className="flex">
+        <div className="w-40 border-r flex-shrink-0">
+          <div className="h-[40px] border-b bg-gray-100" />
+          {sortedEmployees.map(emp => (
+            <div
+              key={emp.id}
+              className="h-[44px] border-b flex items-center px-3 text-sm"
+              style={{ borderLeft: `3px solid ${emp.color}` }}
+            >
+              <span className="truncate">{emp.name}</span>
+            </div>
+          ))}
+        </div>
+        <div className="flex-1 overflow-x-auto relative">
+          <div
+            ref={(node: HTMLDivElement | null) => {
+              containerRef.current = node;
+              drop(node);
+            }}
+            className="relative cursor-pointer"
+            style={{ minWidth: `${HOURS.length * HOUR_WIDTH}px` }}
+            onClick={() => onClick(date)}
+          >
+            <div className="flex h-[40px] border-b bg-gray-50">
+              {HOURS.map(hour => (
+                <div
+                  key={hour}
+                  className="flex-shrink-0 text-[10px] text-gray-400 flex items-center justify-center border-r border-gray-100"
+                  style={{ width: `${HOUR_WIDTH}px` }}
+                >
+                  {`${String(hour).padStart(2, '0')}:00`}
+                </div>
+              ))}
+            </div>
+            {sortedEmployees.map((emp, empIndex) => (
+              <div
+                key={emp.id}
+                className="relative border-b border-gray-100"
+                style={{ height: `${EMPLOYEE_ROW_HEIGHT}px` }}
+              >
+                {HOURS.map(hour => (
+                  <div
+                    key={hour}
+                    className="absolute top-0 bottom-0 border-r border-gray-100"
+                    style={{ left: `${(hour - START_HOUR) * HOUR_WIDTH}px`, width: `${HOUR_WIDTH}px` }}
+                  />
+                ))}
+              </div>
+            ))}
+            {hoverInfo && isOver && hoverInfo.type === 'shift' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.12 }}
+                className="absolute rounded pointer-events-none z-20"
+                style={{
+                  left: `${(hoverInfo.minutes / 60) * HOUR_WIDTH}px`,
+                  width: `${Math.max((hoverInfo.duration / 60) * HOUR_WIDTH, 20)}px`,
+                  top: `${hoverInfo.top}px`,
+                  height: '36px',
+                  backgroundColor: hoverInfo.color + '18',
+                  borderTop: `2px solid ${hoverInfo.color}50`,
+                  borderBottom: `2px solid ${hoverInfo.color}50`,
+                  boxShadow: `0 0 0 1px ${hoverInfo.color}20 inset`,
+                }}
+              />
+            )}
+            {hoverInfo && isOver && hoverInfo.type === 'break' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.1 }}
+                className="absolute pointer-events-none z-30"
+                style={{
+                  left: `${((hoverInfo.minutes - START_HOUR * 60) / 60) * HOUR_WIDTH}px`,
+                  width: '2px',
+                  top: '4px',
+                  bottom: '4px',
+                  backgroundColor: hoverInfo.color,
+                  boxShadow: `0 0 6px ${hoverInfo.color}80`,
+                }}
+              >
+                <span className="absolute -top-3 left-1 text-[10px] font-medium px-1 rounded whitespace-nowrap"
+                  style={{ backgroundColor: hoverInfo.color + '20', color: hoverInfo.color }}>
+                  {formatTime(hoverInfo.minutes)}
+                </span>
+              </motion.div>
+            )}
+            <AnimatePresence mode="popLayout">
+              {dayShifts.map((shift) => {
+                const empIdx = sortedEmployees.findIndex(e => e.id === shift.employeeId);
+                const shiftTop = 40 + (empIdx >= 0 ? empIdx : 0) * EMPLOYEE_ROW_HEIGHT + 4;
+                return (
+                  <ShiftBar
+                    key={shift.id}
+                    shift={shift}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    top={shiftTop}
+                  />
+                );
+              })}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditShiftDialog({
+  shift,
+  open,
+  onClose,
+  onSave,
+}: {
+  shift: Shift | null;
+  open: boolean;
+  onClose: () => void;
+  onSave: (shift: Shift) => void;
+}) {
+  const { employees } = useApp();
+  const [formData, setFormData] = useState<Shift>(
+    shift || {
+      id: '',
+      employeeId: '',
+      date: '',
+      week: 'A',
+      startTime: '08:00',
+      endTime: '18:00',
+      breakStart: '12:00',
+      breakEnd: '13:00',
+    }
+  );
+
+  React.useEffect(() => {
+    if (shift) {
+      setFormData(shift);
+    }
+  }, [shift]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Schicht bearbeiten</DialogTitle>
+          <DialogDescription>
+            Ändern Sie die Schichtdetails und speichern Sie die Änderungen.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="employee">Mitarbeiter</Label>
+            <select
+              id="employee"
+              className="w-full border rounded-md px-3 py-2"
+              value={formData.employeeId}
+              onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+              required
+            >
+              <option value="">Mitarbeiter auswählen</option>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="startTime">Startzeit</Label>
+              <Input
+                id="startTime"
+                type="time"
+                value={formData.startTime}
+                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="endTime">Endzeit</Label>
+              <Input
+                id="endTime"
+                type="time"
+                value={formData.endTime}
+                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                required
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="breakStart">Pause Start</Label>
+              <Input
+                id="breakStart"
+                type="time"
+                value={formData.breakStart || ''}
+                onChange={(e) => setFormData({ ...formData, breakStart: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="breakEnd">Pause Ende</Label>
+              <Input
+                id="breakEnd"
+                type="time"
+                value={formData.breakEnd || ''}
+                onChange={(e) => setFormData({ ...formData, breakEnd: e.target.value })}
+              />
+            </div>
+          </div>
+          <div>
+            <Label>Woche</Label>
+            <div className="flex gap-2 mt-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={formData.week === 'A' ? 'default' : 'outline'}
+                className={formData.week === 'A' ? 'bg-blue-500' : ''}
+                onClick={() => setFormData({ ...formData, week: 'A' })}
+              >
+                A
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={formData.week === 'B' ? 'default' : 'outline'}
+                className={formData.week === 'B' ? 'bg-purple-500' : ''}
+                onClick={() => setFormData({ ...formData, week: 'B' })}
+              >
+                B
+              </Button>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="label">Bezeichnung</Label>
+            <Input
+              id="label"
+              type="text"
+              maxLength={100}
+              placeholder="z.B. Backoffice, Kasse, Fahrt"
+              value={formData.label || ''}
+              onChange={(e) => setFormData({ ...formData, label: sanitizeLabel(e.target.value) })}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Abbrechen
+            </Button>
+            <Button type="submit">
+              Speichern
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AddShiftDialog({
+  date,
+  week,
+  open,
+  onClose,
+  onSave,
+}: {
+  date: Date | null;
+  week: WeekType;
+  open: boolean;
+  onClose: () => void;
+  onSave: (shift: Shift) => void;
+}) {
+  const { employees } = useApp();
+  const [formData, setFormData] = useState<Shift>({
+    id: Date.now().toString(),
+    employeeId: '',
+    date: date?.toISOString().split('T')[0] || '',
+    week: week,
+    startTime: '08:00',
+    endTime: '18:00',
+    breakStart: '12:00',
+    breakEnd: '13:00',
+  });
+
+  React.useEffect(() => {
+    if (date) {
+      setFormData(prev => ({
+        ...prev,
+        date: date.toISOString().split('T')[0],
+        week: week,
+      }));
+    }
+  }, [date, week]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.employeeId) {
+      toast.error('Bitte wählen Sie einen Mitarbeiter');
+      return;
+    }
+    onSave({ ...formData, id: Date.now().toString() });
+    onClose();
+    setFormData({
+      id: Date.now().toString(),
+      employeeId: '',
+      date: date?.toISOString().split('T')[0] || '',
+      week: week,
+      startTime: '08:00',
+      endTime: '18:00',
+      breakStart: '12:00',
+      breakEnd: '13:00',
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            Schicht hinzufügen - {date?.toLocaleDateString('de-DE', { timeZone: TIMEZONE })}
+          </DialogTitle>
+          <DialogDescription>
+            Fügen Sie eine neue Schicht für den ausgewählten Tag hinzu.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="employee">Mitarbeiter</Label>
+            <select
+              id="employee"
+              className="w-full border rounded-md px-3 py-2"
+              value={formData.employeeId}
+              onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+              required
+            >
+              <option value="">Mitarbeiter auswählen</option>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="startTime">Startzeit</Label>
+              <Input
+                id="startTime"
+                type="time"
+                value={formData.startTime}
+                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="endTime">Endzeit</Label>
+              <Input
+                id="endTime"
+                type="time"
+                value={formData.endTime}
+                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                required
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="breakStart">Pause Start</Label>
+              <Input
+                id="breakStart"
+                type="time"
+                value={formData.breakStart || ''}
+                onChange={(e) => setFormData({ ...formData, breakStart: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="breakEnd">Pause Ende</Label>
+              <Input
+                id="breakEnd"
+                type="time"
+                value={formData.breakEnd || ''}
+                onChange={(e) => setFormData({ ...formData, breakEnd: e.target.value })}
+              />
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="add-label">Bezeichnung</Label>
+            <Input
+              id="add-label"
+              type="text"
+              maxLength={100}
+              placeholder="z.B. Backoffice, Kasse, Fahrt"
+              value={formData.label || ''}
+              onChange={(e) => setFormData({ ...formData, label: sanitizeLabel(e.target.value) })}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Abbrechen
+            </Button>
+            <Button type="submit">
+              Hinzufügen
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function SwimlaneCalendar({
+  schedule,
+  currentWeek,
+  onUpdateSchedule,
+}: SwimlaneCalendarProps) {
+  const { employees } = useApp();
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  const handleDrop = (shift: Shift, newDate: string) => {
+    const newWeekType = getWeekType(new Date(newDate));
+    const updatedShifts = schedule.shifts.map(s =>
+      s.id === shift.id ? { ...s, date: newDate, week: newWeekType } : s
+    );
+    onUpdateSchedule({ ...schedule, shifts: updatedShifts });
+    toast.success('Schicht verschoben');
+  };
+
+  const handleDropInDay = (shift: Shift, newStartTime: string, newEndTime: string) => {
+    const startDiff = toMinutes(newStartTime) - toMinutes(shift.startTime);
+    const updatedShifts = schedule.shifts.map(s => {
+      if (s.id !== shift.id) return s;
+      const updated = { ...s, startTime: newStartTime, endTime: newEndTime };
+      if (s.breakStart) {
+        updated.breakStart = formatTime(toMinutes(s.breakStart) + startDiff);
+      }
+      if (s.breakEnd) {
+        updated.breakEnd = formatTime(toMinutes(s.breakEnd) + startDiff);
+      }
+      return updated;
+    });
+    onUpdateSchedule({ ...schedule, shifts: updatedShifts });
+    toast.success('Schicht verschoben');
+  };
+
+  const handleDropOnEmployee = (shift: Shift, newEmployeeId: string) => {
+    const updatedShifts = schedule.shifts.map(s =>
+      s.id === shift.id ? { ...s, employeeId: newEmployeeId } : s
+    );
+    onUpdateSchedule({ ...schedule, shifts: updatedShifts });
+    toast.success('Mitarbeiter geändert');
+  };
+
+  const handleBreakUpdate = (shiftId: string, updatedShift: Shift) => {
+    const updatedShifts = schedule.shifts.map(s =>
+      s.id === shiftId ? updatedShift : s
+    );
+    onUpdateSchedule({ ...schedule, shifts: updatedShifts });
+  };
+
+  const handleEdit = (shift: Shift) => {
+    setEditingShift(shift);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = (updatedShift: Shift) => {
+    const updatedShifts = schedule.shifts.map(s =>
+      s.id === updatedShift.id ? updatedShift : s
+    );
+    onUpdateSchedule({ ...schedule, shifts: updatedShifts });
+    toast.success('Schicht aktualisiert');
+  };
+
+  const handleDelete = (shift: Shift) => {
+    if (confirm('Möchten Sie diese Schicht wirklich löschen?')) {
+      const updatedShifts = schedule.shifts.filter(s => s.id !== shift.id);
+      onUpdateSchedule({ ...schedule, shifts: updatedShifts });
+      toast.success('Schicht gelöscht');
+    }
+  };
+
+  const handleDayClick = (date: Date) => {
+    setSelectedDate(date);
+    setAddDialogOpen(true);
+  };
+
+  const handleAddShift = (newShift: Shift) => {
+    const updatedShifts = [...schedule.shifts, newShift];
+    onUpdateSchedule({ ...schedule, shifts: updatedShifts });
+    toast.success('Schicht hinzugefügt');
+  };
+
+  const handleEmployeeDrop = (employeeId: string, date: string, weekType: WeekType) => {
+    const employee = employees.find(e => e.id === employeeId);
+    if (!employee) return;
+
+    const dateObj = new Date(date);
+    const dayIndex = dateObj.getDay();
+    const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayOfWeek = daysMap[dayIndex] as keyof typeof employee['workingHours']['weekA'];
+    const weekKey = weekType === 'A' ? 'weekA' : 'weekB';
+    const workingHours = employee.workingHours[weekKey][dayOfWeek];
+
+    const newShift: Shift = {
+      id: `${Date.now()}`,
+      employeeId,
+      date,
+      week: weekType,
+      startTime: workingHours.enabled ? workingHours.start : '08:00',
+      endTime: workingHours.enabled ? workingHours.end : '18:00',
+      breakStart: employee.breakTime.start,
+      breakEnd: employee.breakTime.end,
+    };
+
+    const updatedShifts = [...schedule.shifts, newShift];
+    onUpdateSchedule({ ...schedule, shifts: updatedShifts });
+    toast.success(`${employee.name} wurde hinzugefügt`);
+  };
+
+  const startDate = new Date(schedule.startDate);
+  const endDate = new Date(schedule.endDate);
+  const days: Date[] = [];
+  let currentDate = new Date(startDate);
+  while (currentDate <= endDate) {
+    days.push(new Date(currentDate));
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return (
+    <div className="space-y-4 select-none">
+      <div>
+        {days.map(day => (
+          <DayBlock
+            key={day.toISOString()}
+            date={day}
+            weekType={currentWeek}
+            shifts={schedule.shifts.filter(s => s.week === currentWeek)}
+            employees={employees}
+            onDrop={handleDrop}
+            onDropInDay={handleDropInDay}
+            onDropOnEmployee={handleDropOnEmployee}
+            onEmployeeDrop={handleEmployeeDrop}
+            onBreakUpdate={handleBreakUpdate}
+            onClick={handleDayClick}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        ))}
+      </div>
+
+      <EditShiftDialog
+        shift={editingShift}
+        open={editDialogOpen}
+        onClose={() => {
+          setEditDialogOpen(false);
+          setEditingShift(null);
+        }}
+        onSave={handleSaveEdit}
+      />
+
+      <AddShiftDialog
+        date={selectedDate}
+        week={currentWeek}
+        open={addDialogOpen}
+        onClose={() => {
+          setAddDialogOpen(false);
+          setSelectedDate(null);
+        }}
+        onSave={handleAddShift}
+      />
+    </div>
+  );
+}

@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.v1.requests import ShiftWishResponse
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.schedule import Shiftplan
+from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
 from app.schemas.schedule import (
     ScheduleCreate,
@@ -68,7 +70,7 @@ def update_schedule_endpoint(
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    return update_schedule(db, schedule, data)
+    return update_schedule(db, schedule, data, actor_id=admin.id)
 
 
 @router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -80,7 +82,7 @@ def delete_schedule_endpoint(
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    delete_schedule(db, schedule)
+    delete_schedule(db, schedule, actor_id=admin.id)
 
 
 @router.post("/{schedule_id}/submit", response_model=ScheduleResponse)
@@ -92,7 +94,10 @@ async def submit_schedule_endpoint(
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    return await submit_schedule_to_tito(db, schedule)
+    try:
+        return await submit_schedule_to_tito(db, schedule)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
 
 @router.post("/{schedule_id}/retry", response_model=ScheduleResponse)
@@ -104,7 +109,7 @@ async def retry_schedule_endpoint(
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    return await retry_schedule(db, schedule)
+    return await retry_schedule(db, schedule, actor_id=admin.id)
 
 
 @router.get("/{schedule_id}/summary", response_model=ScheduleSummary)
@@ -157,6 +162,12 @@ def update_shiftplan(
         shiftplan.end_time = data.end_time
     if data.week is not None:
         shiftplan.week = data.week
+    if data.break_start is not None:
+        shiftplan.break_start = data.break_start
+    if data.break_end is not None:
+        shiftplan.break_end = data.break_end
+    if data.label is not None:
+        shiftplan.label = data.label
     if data.notes is not None:
         shiftplan.notes = data.notes
     db.add(shiftplan)
@@ -175,4 +186,21 @@ def replace_all_shifts_endpoint(
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    return replace_all_shifts(db, schedule, data.shiftplans)
+    return replace_all_shifts(db, schedule, data.shiftplans, actor_id=current_user.id)
+
+
+@router.get("/{schedule_id}/wishes/pending", response_model=list[ShiftWishResponse])
+def get_pending_wishes(
+    schedule_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    schedule = get_schedule_by_id(db, schedule_id)
+    if not schedule:
+        raise NotFoundException(detail="Schedule not found")
+    wishes = db.query(ShiftWish).filter(
+        ShiftWish.status == "pending",
+        ShiftWish.date >= schedule.start_date,
+        ShiftWish.date <= schedule.end_date,
+    ).order_by(ShiftWish.date).all()
+    return wishes

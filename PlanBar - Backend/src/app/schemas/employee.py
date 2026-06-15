@@ -71,6 +71,11 @@ class TimecardBase(BaseModel):
     week: int = Field(..., ge=1, le=53)
     year: int = Field(..., ge=2020, le=2100)
     balance: float = 0.0
+    scheduled_hours: float = 0.0
+    actual_hours: float = 0.0
+    contract_hours: float = 0.0
+    manual_adjustment_hours: float = 0.0
+    adjustment_reason: Optional[str] = None
 
 
 class TimecardCreate(TimecardBase):
@@ -81,6 +86,11 @@ class TimecardUpdate(BaseModel):
     week: Optional[int] = Field(None, ge=1, le=53)
     year: Optional[int] = Field(None, ge=2020, le=2100)
     balance: Optional[float] = None
+    scheduled_hours: Optional[float] = None
+    actual_hours: Optional[float] = None
+    contract_hours: Optional[float] = None
+    manual_adjustment_hours: Optional[float] = None
+    adjustment_reason: Optional[str] = None
 
 
 class TimecardResponse(TimecardBase):
@@ -90,3 +100,32 @@ class TimecardResponse(TimecardBase):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class TimeAccountEntry(BaseModel):
+    week: int
+    year: int
+    scheduled_hours: float
+    contract_hours: float
+    delta: float
+    balance: float
+    manual_adjustment: float = 0.0
+    adjustment_reason: Optional[str] = None
+
+
+class TimeAccountProjected(BaseModel):
+    from_schedule: float
+    expected_balance_after: float
+
+
+class TimeAccountResponse(BaseModel):
+    employee_id: int
+    employee_name: str
+    current_balance: float
+    history: list[TimeAccountEntry]
+    projected: TimeAccountProjected | None = None
+
+
+class TimeAccountAdjust(BaseModel):
+    delta_hours: float
+    reason: Optional[str] = None

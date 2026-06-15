@@ -23,6 +23,7 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
+from app.services import audit_service
 from app.services.user_service import (
     admin_create_user,
     authenticate_user,
@@ -38,11 +39,12 @@ router = APIRouter()
 
 
 def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: str) -> None:
+    secure = settings.environment == "production"
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
+        secure=secure,
         samesite="lax",
         max_age=settings.access_token_expire_minutes * 60,
     )
@@ -50,7 +52,7 @@ def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: 
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,
+        secure=secure,
         samesite="lax",
         max_age=settings.refresh_token_expire_days * 24 * 3600,
     )
@@ -62,7 +64,8 @@ def _clear_auth_cookies(response: JSONResponse) -> None:
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def register_user(user_in: UserCreate, request: Request, db: Session = Depends(get_db)):
     existing = db.query(User).filter((User.email == user_in.email) | (User.username == user_in.username)).first()
     if existing:
         raise ConflictException(detail="User with email or username already exists")
@@ -71,10 +74,20 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit("5/minute")
+@limiter.limit("80/minute")
 def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db)):
     user = authenticate_user(db, user_data.email, user_data.password)
     if not user:
+        ip = request.client.host if request.client else None
+        audit_service.log(
+            db,
+            user_id=None,
+            action="LOGIN_FAILED",
+            resource_type="user",
+            resource_id=user_data.email,
+            ip_address=ip,
+            user_agent=request.headers.get("user-agent"),
+        )
         raise UnauthorizedException(detail="Invalid email or password")
     user.last_login = datetime.now(timezone.utc)
     db.add(user)
@@ -99,6 +112,7 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/refresh-token", response_model=TokenResponse)
+@limiter.limit("1000/minute")
 def refresh_token(request: Request, token_data: TokenRefreshRequest, db: Session = Depends(get_db)):
     refresh_token_str = token_data.refresh_token or request.cookies.get("refresh_token")
     if not refresh_token_str:
@@ -158,7 +172,7 @@ def update_user_endpoint(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if current_user.id != user_id and current_user.role != "admin":
+    if current_user.role != "admin":
         raise UnauthorizedException(detail="Insufficient permissions")
 
     user = get_user_by_id(db, user_id)
@@ -174,7 +188,7 @@ def update_user_endpoint(
         if existing:
             raise ConflictException(detail="Username already in use")
 
-    return update_user(db, user, user_in)
+    return update_user(db, user, user_in, actor_id=current_user.id)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -187,7 +201,7 @@ def delete_user_endpoint(
     if user is None:
         raise NotFoundException(detail="User not found")
 
-    delete_user(db, user)
+    delete_user(db, user, actor_id=admin.id)
     return None
 
 
@@ -201,7 +215,7 @@ def admin_create_user_endpoint(
     if existing:
         raise ConflictException(detail="User with email or username already exists")
 
-    user, password = admin_create_user(db, user_in)
+    user, password = admin_create_user(db, user_in, actor_id=admin.id)
 
     return AdminUserCreateResponse(
         id=user.id,
@@ -217,8 +231,10 @@ def admin_create_user_endpoint(
 
 
 @router.post("/change-password", response_model=UserResponse)
+@limiter.limit("10/minute")
 def change_password_endpoint(
     data: ChangePasswordRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

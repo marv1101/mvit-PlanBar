@@ -25,6 +25,12 @@ const requestTypeColors = {
   'nicht-verfügbar': 'bg-red-100 text-red-800',
 };
 
+const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  approved: { label: 'Freigegeben', variant: 'outline' },
+  pending: { label: 'Ausstehend', variant: 'default' },
+  rejected: { label: 'Abgelehnt', variant: 'destructive' },
+};
+
 export function Requests() {
   const { requests, deleteRequest, employees, loading } = useApp();
   const { user } = useAuth();
@@ -239,6 +245,14 @@ export function Requests() {
                 <Badge className={requestTypeColors[request.type]}>
                   {requestTypeLabels[request.type]}
                 </Badge>
+                {request.status && (
+                  <Badge variant={statusLabels[request.status]?.variant || 'outline'}>
+                    {statusLabels[request.status]?.label || request.status}
+                  </Badge>
+                )}
+                {request.rejectionReason && (
+                  <p className="text-xs text-red-600 mt-1">Grund: {request.rejectionReason}</p>
+                )}
                 {request.notes && (
                   <p className="text-sm text-gray-600 mt-2">{request.notes}</p>
                 )}

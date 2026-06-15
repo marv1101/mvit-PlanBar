@@ -56,6 +56,8 @@ def test_employees_two(db_session: Session) -> dict[str, Employee]:
 @pytest.fixture
 def test_shift_wish(db_session: Session, test_employee: Employee) -> ShiftWish:
     """Create a test shift wish."""
+    db_session.query(ShiftWish).delete()
+    db_session.commit()
     wish = ShiftWish(
         employee_id=test_employee.id,
         date=date(2026, 5, 24),

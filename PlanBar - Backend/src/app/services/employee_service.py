@@ -11,9 +11,10 @@ from app.schemas.employee import (
     TimecardCreate,
     TimecardUpdate,
 )
+from app.services import audit_service
 
 
-def create_employee(db: Session, data: EmployeeCreate) -> Employee:
+def create_employee(db: Session, data: EmployeeCreate, actor_id: int | None = None) -> Employee:
     employee = Employee(
         user_id=data.user_id,
         first_name=data.first_name,
@@ -31,6 +32,7 @@ def create_employee(db: Session, data: EmployeeCreate) -> Employee:
     db.add(employee)
     db.commit()
     db.refresh(employee)
+    audit_service.log_create(db, user_id=actor_id, resource_type="employee", resource_id=str(employee.id))
     return employee
 
 
@@ -42,7 +44,7 @@ def list_employees(db: Session) -> list[Employee]:
     return db.query(Employee).order_by(Employee.last_name, Employee.first_name).all()
 
 
-def update_employee(db: Session, employee: Employee, data: EmployeeUpdate) -> Employee:
+def update_employee(db: Session, employee: Employee, data: EmployeeUpdate, actor_id: int | None = None) -> Employee:
     if data.first_name is not None:
         employee.first_name = data.first_name
     if data.last_name is not None:
@@ -67,18 +69,20 @@ def update_employee(db: Session, employee: Employee, data: EmployeeUpdate) -> Em
     db.add(employee)
     db.commit()
     db.refresh(employee)
+    audit_service.log_update(db, user_id=actor_id, resource_type="employee", resource_id=str(employee.id))
     return employee
 
 
-def delete_employee(db: Session, employee: Employee) -> None:
+def delete_employee(db: Session, employee: Employee, actor_id: int | None = None) -> None:
     db.query(Contract).filter(Contract.employee_id == employee.id).delete()
     db.query(Timecard).filter(Timecard.employee_id == employee.id).delete()
     db.query(ShiftWish).filter(ShiftWish.employee_id == employee.id).delete()
     db.delete(employee)
     db.commit()
+    audit_service.log_delete(db, user_id=actor_id, resource_type="employee", resource_id=str(employee.id))
 
 
-def create_contract(db: Session, data: ContractCreate) -> Contract:
+def create_contract(db: Session, data: ContractCreate, actor_id: int | None = None) -> Contract:
     contract = Contract(
         employee_id=data.employee_id,
         weekly_working_hours=data.weekly_working_hours,
@@ -88,6 +92,7 @@ def create_contract(db: Session, data: ContractCreate) -> Contract:
     db.add(contract)
     db.commit()
     db.refresh(contract)
+    audit_service.log_create(db, user_id=actor_id, resource_type="contract", resource_id=str(contract.id))
     return contract
 
 
@@ -99,7 +104,7 @@ def list_contracts(db: Session) -> list[Contract]:
     return db.query(Contract).order_by(Contract.id).all()
 
 
-def update_contract(db: Session, contract: Contract, data: ContractUpdate) -> Contract:
+def update_contract(db: Session, contract: Contract, data: ContractUpdate, actor_id: int | None = None) -> Contract:
     if data.weekly_working_hours is not None:
         contract.weekly_working_hours = data.weekly_working_hours
     if data.break_time is not None:
@@ -109,19 +114,24 @@ def update_contract(db: Session, contract: Contract, data: ContractUpdate) -> Co
     db.add(contract)
     db.commit()
     db.refresh(contract)
+    audit_service.log_update(db, user_id=actor_id, resource_type="contract", resource_id=str(contract.id))
     return contract
 
 
-def create_timecard(db: Session, data: TimecardCreate) -> Timecard:
+def create_timecard(db: Session, data: TimecardCreate, actor_id: int | None = None) -> Timecard:
     timecard = Timecard(
         employee_id=data.employee_id,
         week=data.week,
         year=data.year,
         balance=data.balance,
+        scheduled_hours=data.scheduled_hours,
+        actual_hours=data.actual_hours,
+        contract_hours=data.contract_hours,
     )
     db.add(timecard)
     db.commit()
     db.refresh(timecard)
+    audit_service.log_create(db, user_id=actor_id, resource_type="timecard", resource_id=str(timecard.id))
     return timecard
 
 
@@ -133,14 +143,21 @@ def list_timecards(db: Session) -> list[Timecard]:
     return db.query(Timecard).order_by(Timecard.year.desc(), Timecard.week.desc()).all()
 
 
-def update_timecard(db: Session, timecard: Timecard, data: TimecardUpdate) -> Timecard:
+def update_timecard(db: Session, timecard: Timecard, data: TimecardUpdate, actor_id: int | None = None) -> Timecard:
     if data.week is not None:
         timecard.week = data.week
     if data.year is not None:
         timecard.year = data.year
     if data.balance is not None:
         timecard.balance = data.balance
+    if data.scheduled_hours is not None:
+        timecard.scheduled_hours = data.scheduled_hours
+    if data.actual_hours is not None:
+        timecard.actual_hours = data.actual_hours
+    if data.contract_hours is not None:
+        timecard.contract_hours = data.contract_hours
     db.add(timecard)
     db.commit()
     db.refresh(timecard)
+    audit_service.log_update(db, user_id=actor_id, resource_type="timecard", resource_id=str(timecard.id))
     return timecard

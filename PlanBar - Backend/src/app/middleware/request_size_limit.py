@@ -9,6 +9,8 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
         self.max_size = max_size
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
+        if request.headers.get("upgrade", "").lower() == "websocket":
+            return await call_next(request)
         content_length = request.headers.get("content-length")
         if content_length:
             try:

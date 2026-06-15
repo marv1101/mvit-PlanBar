@@ -120,6 +120,8 @@ services:
     depends_on:
       db_backend:
         condition: service_healthy
+    volumes:
+      - pinboard_uploads:/app/uploads/pinboard
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/health/ping').status == 200 else 1)"]
@@ -155,3 +157,4 @@ services:
 volumes:
   postgres_data:
   planbar_postgres_data:
+  pinboard_uploads:

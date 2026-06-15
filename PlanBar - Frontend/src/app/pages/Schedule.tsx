@@ -6,14 +6,17 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Calendar, Sparkles, Download, Eye, Trash2, CalendarDays, Loader2, Send, RotateCcw, Pen, X } from 'lucide-react';
-import { Schedule as ScheduleType, WeekType } from '../types';
+import { Schedule as ScheduleType, WeekType, ShiftTemplateEntry } from '../types';
 import { ScheduleCalendar } from '../components/ScheduleCalendar';
 import { EditableScheduleCalendar } from '../components/EditableScheduleCalendar';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import * as scheduleService from '../services/scheduleService';
+import * as requestService from '../services/requestService';
 import { scheduleFromResponse, shiftplanToShift } from '../lib/mappers';
 import { TIMEZONE } from '../lib/timezone';
+import { FairnessMeter } from '../components/FairnessMeter';
+import { WishReviewDialog } from '../components/WishReviewDialog';
 
 const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   draft: { label: 'Entwurf', variant: 'secondary' },
@@ -49,19 +52,21 @@ export function Schedule() {
   const [scheduleName, setScheduleName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [roleRequirements, setRoleRequirements] = useState<Record<string, number>>({});
+  const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplateEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [currentScheduleId, setCurrentScheduleId] = useState<string | null>(null);
   const [currentScheduleStatus, setCurrentScheduleStatus] = useState<string | null>(null);
   const [pollResult, setPollResult] = useState<ScheduleType | null>(null);
 
   const [creationMode, setCreationMode] = useState<'tito' | 'manual'>('tito');
-  const [titoWeekType, setTitoWeekType] = useState<WeekType>('A');
+  const [titoWeekType, setTitoWeekType] = useState<WeekType | ''>('A');
   const [manualName, setManualName] = useState('');
   const [manualStartDate, setManualStartDate] = useState('');
   const [manualEndDate, setManualEndDate] = useState('');
-  const [manualWeekType, setManualWeekType] = useState<WeekType>('A');
+  const [manualWeekType, setManualWeekType] = useState<WeekType | ''>('A');
   const [manuallyCreatedSchedule, setManuallyCreatedSchedule] = useState<ScheduleType | null>(null);
+
+  const [wishReviewScheduleId, setWishReviewScheduleId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!currentScheduleId || currentScheduleStatus !== 'submitted') return;
@@ -95,13 +100,43 @@ export function Schedule() {
     return () => clearInterval(interval);
   }, [currentScheduleId, currentScheduleStatus, refresh]);
 
-  const handleRoleRequirementChange = (roleId: string, value: number) => {
-    setRoleRequirements(prev => ({ ...prev, [roleId]: value }));
+  const addShiftTemplate = () => {
+    const id = `shift_${Date.now()}`;
+    setShiftTemplates(prev => [...prev, {
+      id,
+      name: '',
+      startTime: '06:00',
+      endTime: '14:00',
+      requirements: {},
+    }]);
+  };
+
+  const removeShiftTemplate = (index: number) => {
+    setShiftTemplates(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateShiftTemplate = (index: number, field: string, value: string | Record<string, number>) => {
+    setShiftTemplates(prev => prev.map((st, i) =>
+      i === index ? { ...st, [field]: value } : st
+    ));
+  };
+
+  const updateRequirement = (templateIndex: number, roleId: string, count: number) => {
+    setShiftTemplates(prev => prev.map((st, i) =>
+      i === templateIndex
+        ? { ...st, requirements: { ...st.requirements, [roleId]: count } }
+        : st
+    ));
   };
 
   const createAndSubmit = async () => {
     if (!scheduleName || !startDate || !endDate) {
       toast.error('Bitte Name, Start- und Enddatum eingeben');
+      return;
+    }
+
+    if (shiftTemplates.length === 0 || shiftTemplates.some(st => !st.name || !st.startTime || !st.endTime)) {
+      toast.error('Bitte mindestens ein vollständiges Schicht-Template definieren');
       return;
     }
 
@@ -115,14 +150,31 @@ export function Schedule() {
         name: scheduleName,
         start_date: startDate,
         end_date: endDate,
-        week_type: titoWeekType,
-        role_requirements: Object.keys(roleRequirements).length > 0 ? roleRequirements : undefined,
+        week_type: titoWeekType || undefined,
+        shift_templates: shiftTemplates.map(st => ({
+          ...st,
+          requirements: Object.fromEntries(
+            Object.entries(st.requirements).filter(([_, count]) => count > 0)
+          ),
+        })),
         shiftplans: [],
       });
 
       const mapped = scheduleFromResponse(created);
       addSchedule(mapped);
 
+      // Check for pending wishes
+      try {
+        const pending = await requestService.getPendingShiftWishes(created.id);
+        if (pending.length > 0) {
+          setWishReviewScheduleId(created.id);
+          return;
+        }
+      } catch {
+        // If the endpoint fails, just proceed
+      }
+
+      // No pending wishes, submit directly
       setCurrentScheduleId(mapped.id);
       setCurrentScheduleStatus('submitted');
 
@@ -149,7 +201,7 @@ export function Schedule() {
         name: manualName,
         start_date: manualStartDate,
         end_date: manualEndDate,
-        week_type: manualWeekType,
+        week_type: manualWeekType || undefined,
         shiftplans: [],
       });
 
@@ -197,6 +249,21 @@ export function Schedule() {
   };
 
   const handleSubmitExisting = async (schedule: ScheduleType) => {
+    // Check for pending wishes first
+    try {
+      const pending = await requestService.getPendingShiftWishes(Number(schedule.id));
+      if (pending.length > 0) {
+        setWishReviewScheduleId(Number(schedule.id));
+        return;
+      }
+    } catch {
+      // If the endpoint fails, just proceed
+    }
+
+    doSubmitExisting(schedule);
+  };
+
+  const doSubmitExisting = async (schedule: ScheduleType) => {
     try {
       await scheduleService.submitScheduleToTito(Number(schedule.id));
       toast.success('Schichtplan an TiTO übermittelt');
@@ -206,6 +273,33 @@ export function Schedule() {
     } catch {
       toast.error('Fehler beim Übermitteln an TiTO');
     }
+  };
+
+  const handleWishReviewComplete = () => {
+    const scheduleId = wishReviewScheduleId;
+    setWishReviewScheduleId(null);
+    if (scheduleId) {
+      refresh();
+      setCurrentScheduleId(String(scheduleId));
+      setCurrentScheduleStatus('submitted');
+      scheduleService.submitScheduleToTito(scheduleId)
+        .then(res => {
+          setCurrentScheduleStatus(res.status);
+          toast.success('Schichtplan an TiTO übermittelt');
+        })
+        .catch(() => {
+          setSubmitting(false);
+          setCurrentScheduleId(null);
+          setCurrentScheduleStatus(null);
+          toast.error('Fehler beim Übermitteln an TiTO');
+        });
+    }
+  };
+
+  const handleWishReviewCancel = () => {
+    setWishReviewScheduleId(null);
+    setSubmitting(false);
+    toast.info('Submit abgebrochen – bitte alle ausstehenden Wünsche prüfen');
   };
 
   const handleRetry = async (schedule: ScheduleType) => {
@@ -377,31 +471,100 @@ export function Schedule() {
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label>Rollenanforderungen pro Tag</Label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {roles.map(role => (
-                          <div key={role.id}>
-                            <Label htmlFor={`role-${role.id}`} className="flex items-center gap-2">
-                              <div
-                                className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: role.color }}
-                              />
-                              {role.name}
-                            </Label>
-                            <Input
-                              id={`role-${role.id}`}
-                              type="number"
-                              min="0"
-                              value={roleRequirements[role.id] || 0}
-                              onChange={(e) => handleRoleRequirementChange(role.id, parseInt(e.target.value) || 0)}
-                              disabled={submitting}
-                            />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label>Schicht-Templates</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addShiftTemplate}
+                          disabled={submitting}
+                        >
+                          <Calendar className="h-4 w-4 mr-1" />
+                          Schicht hinzufügen
+                        </Button>
+                      </div>
+
+                      {shiftTemplates.length === 0 && (
+                        <p className="text-sm text-gray-500">
+                          Keine Schichten definiert. Klicken Sie auf "Schicht hinzufügen", um eine zu erstellen.
+                        </p>
+                      )}
+
+                      <div className="space-y-3">
+                        {shiftTemplates.map((st, index) => (
+                          <div key={st.id} className="border rounded-lg p-4 space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                              <div>
+                                <Label className="text-xs">Name</Label>
+                                <Input
+                                  value={st.name}
+                                  onChange={(e) => updateShiftTemplate(index, 'name', e.target.value)}
+                                  placeholder="z.B. Frühschicht"
+                                  disabled={submitting}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Startzeit</Label>
+                                <Input
+                                  type="time"
+                                  value={st.startTime}
+                                  onChange={(e) => updateShiftTemplate(index, 'startTime', e.target.value)}
+                                  disabled={submitting}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Endzeit</Label>
+                                <Input
+                                  type="time"
+                                  value={st.endTime}
+                                  onChange={(e) => updateShiftTemplate(index, 'endTime', e.target.value)}
+                                  disabled={submitting}
+                                />
+                              </div>
+                              <div className="flex items-end">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeShiftTemplate(index)}
+                                  disabled={submitting}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div>
+                              <Label className="text-xs">Rollen-Anforderungen pro Tag</Label>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
+                                {roles.map(role => (
+                                  <div key={role.id} className="flex items-center gap-2">
+                                    <div
+                                      className="w-2 h-2 rounded-full shrink-0"
+                                      style={{ backgroundColor: role.color }}
+                                    />
+                                    <span className="text-xs truncate">{role.name}</span>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={st.requirements[role.id] || 0}
+                                      onChange={(e) => updateRequirement(index, role.id, parseInt(e.target.value) || 0)}
+                                      className="w-16 h-8 text-xs"
+                                      disabled={submitting}
+                                    />
+                                  </div>
+                                ))}
+                                {roles.length === 0 && (
+                                  <p className="text-xs text-gray-500 col-span-full">
+                                    Keine Rollen vorhanden. Erstellen Sie zuerst Rollen.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         ))}
-                        {roles.length === 0 && (
-                          <p className="text-sm text-gray-500 col-span-2">Keine Rollen verfügbar. Bitte erstellen Sie zuerst Rollen.</p>
-                        )}
                       </div>
                     </div>
 
@@ -411,11 +574,12 @@ export function Schedule() {
                         id="titoWeekType"
                         className="w-full border rounded-md px-3 py-2"
                         value={titoWeekType}
-                        onChange={(e) => setTitoWeekType(e.target.value as WeekType)}
+                        onChange={(e) => setTitoWeekType(e.target.value as WeekType | '')}
                         disabled={submitting}
                       >
-                        <option value="A">Woche A</option>
-                        <option value="B">Woche B</option>
+                        <option value="A">Nur Woche A</option>
+                        <option value="B">Nur Woche B</option>
+                        <option value="">Beide (A & B)</option>
                       </select>
                     </div>
 
@@ -473,10 +637,11 @@ export function Schedule() {
                         id="manualWeekType"
                         className="w-full border rounded-md px-3 py-2"
                         value={manualWeekType}
-                        onChange={(e) => setManualWeekType(e.target.value as WeekType)}
+                        onChange={(e) => setManualWeekType(e.target.value as WeekType | '')}
                       >
-                        <option value="A">Woche A</option>
-                        <option value="B">Woche B</option>
+                        <option value="A">Nur Woche A</option>
+                        <option value="B">Nur Woche B</option>
+                        <option value="">Beide (A & B)</option>
                       </select>
                     </div>
 
@@ -529,7 +694,7 @@ export function Schedule() {
                           setScheduleName('');
                           setStartDate('');
                           setEndDate('');
-                          setRoleRequirements({});
+                          setShiftTemplates([]);
                           setTitoWeekType('A');
                         }}
                       >
@@ -561,6 +726,14 @@ export function Schedule() {
                   />
                 </CardContent>
               </Card>
+
+              {pollResult.metrics?.employeeFairness && (
+                <FairnessMeter
+                  employees={employees}
+                  roles={roles}
+                  employeeFairness={pollResult.metrics.employeeFairness}
+                />
+              )}
             </>
           )}
 
@@ -580,6 +753,15 @@ export function Schedule() {
                   </div>
                   {pollResult.diagnostics && (
                     <p className="text-red-700 text-sm">{pollResult.diagnostics.info}</p>
+                  )}
+                  {pollResult.diagnostics?.aggregatedMessages && pollResult.diagnostics.aggregatedMessages.length > 0 && (
+                    <div className="space-y-1">
+                      {pollResult.diagnostics.aggregatedMessages.map((m, i) => (
+                        <p key={i} className="text-red-700 text-sm font-medium">
+                          🔴 {m.message}
+                        </p>
+                      ))}
+                    </div>
                   )}
                   {pollResult.metrics?.violations && pollResult.metrics.violations.length > 0 && (
                     <details className="mt-2">
@@ -613,7 +795,7 @@ export function Schedule() {
                       setScheduleName('');
                       setStartDate('');
                       setEndDate('');
-                      setRoleRequirements({});
+                      setShiftTemplates([]);
                     }}
                   >
                     Neu erstellen
@@ -878,6 +1060,15 @@ export function Schedule() {
                           <span>Berechnung fehlgeschlagen</span>
                         </div>
                         <p className="text-red-700 text-sm">{selectedSchedule.diagnostics.info}</p>
+                        {selectedSchedule.diagnostics.aggregatedMessages && selectedSchedule.diagnostics.aggregatedMessages.length > 0 && (
+                          <div className="space-y-1">
+                            {selectedSchedule.diagnostics.aggregatedMessages.map((m, i) => (
+                              <p key={i} className="text-red-700 text-sm font-medium">
+                                🔴 {m.message}
+                              </p>
+                            ))}
+                          </div>
+                        )}
                         {selectedSchedule.metrics?.violations && selectedSchedule.metrics.violations.length > 0 && (
                           <details className="mt-2">
                             <summary className="text-red-600 text-sm cursor-pointer hover:underline">
@@ -905,12 +1096,23 @@ export function Schedule() {
                         onSaveShifts={handleManageSave}
                       />
                     ) : (
-                      <ScheduleCalendar
-                        shifts={selectedSchedule.shifts}
-                        startDate={selectedSchedule.startDate}
-                        endDate={selectedSchedule.endDate}
-                        currentWeek={currentWeek}
-                      />
+                      <>
+                        <ScheduleCalendar
+                          shifts={selectedSchedule.shifts}
+                          startDate={selectedSchedule.startDate}
+                          endDate={selectedSchedule.endDate}
+                          currentWeek={currentWeek}
+                        />
+                        {selectedSchedule.metrics?.employeeFairness && (
+                          <div className="mt-4">
+                            <FairnessMeter
+                              employees={employees}
+                              roles={roles}
+                              employeeFairness={selectedSchedule.metrics.employeeFairness}
+                            />
+                          </div>
+                        )}
+                      </>
                     )}
                   </CardContent>
                 </Card>
@@ -919,6 +1121,17 @@ export function Schedule() {
           )}
         </TabsContent>
       </Tabs>
+
+      {wishReviewScheduleId && (
+        <WishReviewDialog
+          scheduleId={wishReviewScheduleId}
+          open={true}
+          onOpenChange={() => setWishReviewScheduleId(null)}
+          onComplete={handleWishReviewComplete}
+          onCancel={handleWishReviewCancel}
+          employees={employees}
+        />
+      )}
     </div>
   );
 }

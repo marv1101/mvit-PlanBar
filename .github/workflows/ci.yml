@@ -4,7 +4,7 @@ on:
   push:
     branches: [dev, main]
   pull_request:
-    branches: [dev, main]
+    branches: [main]
 
 env:
   REGISTRY: ghcr.io
@@ -65,7 +65,7 @@ jobs:
         run: pnpm run build
 
   docker-build:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [backend, tito, frontend]
     runs-on: ubuntu-latest
     permissions:

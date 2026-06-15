@@ -10,6 +10,7 @@ class TiTOAssignment(BaseModel):
     shiftId: str
     startTime: str
     endTime: str
+    name: str = ""
 
 
 class TiTOMetadata(BaseModel):
