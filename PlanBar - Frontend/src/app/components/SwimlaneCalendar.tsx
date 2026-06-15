@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDrag, useDrop } from 'react-dnd';
 import { useApp } from '../context/AppContext';
@@ -6,7 +6,7 @@ import { Shift, Schedule, WeekType } from '../types';
 import { Button } from './ui/button';
 import { getWeekType } from '../lib/week';
 import { TIMEZONE } from '../lib/timezone';
-import { Pencil, Trash2, Users, Save, Loader2, Coffee } from 'lucide-react';
+import { Pencil, Trash2, Coffee } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Employee } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
@@ -80,7 +80,6 @@ interface SwimlaneCalendarProps {
   schedule: Schedule;
   currentWeek: WeekType;
   onUpdateSchedule: (schedule: Schedule) => void;
-  onSaveShifts?: (shifts: Shift[]) => Promise<void>;
 }
 
 function BreakStartHandle({ shift }: { shift: Shift }) {
@@ -851,15 +850,12 @@ export function SwimlaneCalendar({
   schedule,
   currentWeek,
   onUpdateSchedule,
-  onSaveShifts,
 }: SwimlaneCalendarProps) {
   const { employees } = useApp();
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [showEmployeePanel, setShowEmployeePanel] = useState(true);
-  const [saving, setSaving] = useState(false);
 
   const handleDrop = (shift: Shift, newDate: string) => {
     const newWeekType = getWeekType(new Date(newDate));
@@ -961,19 +957,6 @@ export function SwimlaneCalendar({
     toast.success(`${employee.name} wurde hinzugefügt`);
   };
 
-  const handleSave = async () => {
-    if (!onSaveShifts) return;
-    setSaving(true);
-    try {
-      await onSaveShifts(schedule.shifts);
-      toast.success('Alle Schichten gespeichert');
-    } catch {
-      toast.error('Fehler beim Speichern der Schichten');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const startDate = new Date(schedule.startDate);
   const endDate = new Date(schedule.endDate);
   const days: Date[] = [];
@@ -994,49 +977,6 @@ export function SwimlaneCalendar({
 
   return (
     <div className="space-y-4 select-none">
-      {showEmployeePanel && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="h-5 w-5 text-blue-600" />
-            <h3 className="font-medium">Mitarbeiterpool</h3>
-            <span className="text-sm text-gray-500">({employees.length} Mitarbeiter)</span>
-          </div>
-          <p className="text-sm text-gray-600 mb-4">
-            Ziehen Sie Mitarbeiter per Drag & Drop auf einen Tag, um sie hinzuzufügen.
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-60 overflow-y-auto">
-            {employees.map(employee => (
-              <EmployeeCard key={employee.id} employee={employee} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {onSaveShifts && (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowEmployeePanel(!showEmployeePanel)}
-          >
-            <Users className="h-4 w-4 mr-2" />
-            {showEmployeePanel ? 'Mitarbeiterpool ausblenden' : 'Mitarbeiterpool anzeigen'}
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Speichern...</>
-            ) : (
-              <><Save className="h-4 w-4 mr-2" />Speichern</>
-            )}
-          </Button>
-        </div>
-      )}
-
       <div>
         {filteredDays.map(day => (
           <DayBlock

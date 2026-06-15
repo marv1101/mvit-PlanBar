@@ -4,7 +4,6 @@ import { SwimlaneCalendar } from './SwimlaneCalendar';
 import { TestWrapper, mockSchedule } from '../../test/test-utils';
 
 const mockOnUpdate = vi.fn();
-const mockOnSave = vi.fn();
 
 function renderSwimlane(props = {}) {
   return render(
@@ -13,7 +12,6 @@ function renderSwimlane(props = {}) {
         schedule={mockSchedule}
         currentWeek="A"
         onUpdateSchedule={mockOnUpdate}
-        onSaveShifts={mockOnSave}
         {...props}
       />
     </TestWrapper>
@@ -56,13 +54,4 @@ describe('SwimlaneCalendar', () => {
     expect(rows.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('zeigt Speichern-Button', () => {
-    renderSwimlane();
-    expect(screen.getByRole('button', { name: /Speichern/i })).toBeInTheDocument();
-  });
-
-  it('zeigt Mitarbeiterpool', () => {
-    renderSwimlane();
-    expect(screen.getAllByText(/Mitarbeiterpool/i).length).toBeGreaterThan(0);
-  });
 });

@@ -1167,7 +1167,6 @@ export function EditableScheduleCalendar({
             schedule={schedule}
             currentWeek={currentWeek}
             onUpdateSchedule={onUpdateSchedule}
-            onSaveShifts={onSaveShifts}
           />
         )}
       </div>
