@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Calendar, Sparkles, Download, Eye, Trash2, CalendarDays, Loader2, Send, RotateCcw, Pen, X } from 'lucide-react';
-import { Schedule as ScheduleType, WeekType } from '../types';
+import { Schedule as ScheduleType, WeekType, ShiftTemplateEntry } from '../types';
 import { ScheduleCalendar } from '../components/ScheduleCalendar';
 import { EditableScheduleCalendar } from '../components/EditableScheduleCalendar';
 import { Badge } from '../components/ui/badge';
@@ -52,7 +52,7 @@ export function Schedule() {
   const [scheduleName, setScheduleName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [roleRequirements, setRoleRequirements] = useState<Record<string, number>>({});
+  const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplateEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [currentScheduleId, setCurrentScheduleId] = useState<string | null>(null);
   const [currentScheduleStatus, setCurrentScheduleStatus] = useState<string | null>(null);
@@ -100,13 +100,43 @@ export function Schedule() {
     return () => clearInterval(interval);
   }, [currentScheduleId, currentScheduleStatus, refresh]);
 
-  const handleRoleRequirementChange = (roleId: string, value: number) => {
-    setRoleRequirements(prev => ({ ...prev, [roleId]: value }));
+  const addShiftTemplate = () => {
+    const id = `shift_${Date.now()}`;
+    setShiftTemplates(prev => [...prev, {
+      id,
+      name: '',
+      startTime: '06:00',
+      endTime: '14:00',
+      requirements: {},
+    }]);
+  };
+
+  const removeShiftTemplate = (index: number) => {
+    setShiftTemplates(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateShiftTemplate = (index: number, field: string, value: string | Record<string, number>) => {
+    setShiftTemplates(prev => prev.map((st, i) =>
+      i === index ? { ...st, [field]: value } : st
+    ));
+  };
+
+  const updateRequirement = (templateIndex: number, roleId: string, count: number) => {
+    setShiftTemplates(prev => prev.map((st, i) =>
+      i === templateIndex
+        ? { ...st, requirements: { ...st.requirements, [roleId]: count } }
+        : st
+    ));
   };
 
   const createAndSubmit = async () => {
     if (!scheduleName || !startDate || !endDate) {
       toast.error('Bitte Name, Start- und Enddatum eingeben');
+      return;
+    }
+
+    if (shiftTemplates.length === 0 || shiftTemplates.some(st => !st.name || !st.startTime || !st.endTime)) {
+      toast.error('Bitte mindestens ein vollständiges Schicht-Template definieren');
       return;
     }
 
@@ -121,7 +151,12 @@ export function Schedule() {
         start_date: startDate,
         end_date: endDate,
         week_type: titoWeekType,
-        role_requirements: Object.keys(roleRequirements).length > 0 ? roleRequirements : undefined,
+        shift_templates: shiftTemplates.map(st => ({
+          ...st,
+          requirements: Object.fromEntries(
+            Object.entries(st.requirements).filter(([_, count]) => count > 0)
+          ),
+        })),
         shiftplans: [],
       });
 
@@ -436,31 +471,100 @@ export function Schedule() {
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label>Rollenanforderungen pro Tag</Label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {roles.map(role => (
-                          <div key={role.id}>
-                            <Label htmlFor={`role-${role.id}`} className="flex items-center gap-2">
-                              <div
-                                className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: role.color }}
-                              />
-                              {role.name}
-                            </Label>
-                            <Input
-                              id={`role-${role.id}`}
-                              type="number"
-                              min="0"
-                              value={roleRequirements[role.id] || 0}
-                              onChange={(e) => handleRoleRequirementChange(role.id, parseInt(e.target.value) || 0)}
-                              disabled={submitting}
-                            />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label>Schicht-Templates</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addShiftTemplate}
+                          disabled={submitting}
+                        >
+                          <Calendar className="h-4 w-4 mr-1" />
+                          Schicht hinzufügen
+                        </Button>
+                      </div>
+
+                      {shiftTemplates.length === 0 && (
+                        <p className="text-sm text-gray-500">
+                          Keine Schichten definiert. Klicken Sie auf "Schicht hinzufügen", um eine zu erstellen.
+                        </p>
+                      )}
+
+                      <div className="space-y-3">
+                        {shiftTemplates.map((st, index) => (
+                          <div key={st.id} className="border rounded-lg p-4 space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                              <div>
+                                <Label className="text-xs">Name</Label>
+                                <Input
+                                  value={st.name}
+                                  onChange={(e) => updateShiftTemplate(index, 'name', e.target.value)}
+                                  placeholder="z.B. Frühschicht"
+                                  disabled={submitting}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Startzeit</Label>
+                                <Input
+                                  type="time"
+                                  value={st.startTime}
+                                  onChange={(e) => updateShiftTemplate(index, 'startTime', e.target.value)}
+                                  disabled={submitting}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Endzeit</Label>
+                                <Input
+                                  type="time"
+                                  value={st.endTime}
+                                  onChange={(e) => updateShiftTemplate(index, 'endTime', e.target.value)}
+                                  disabled={submitting}
+                                />
+                              </div>
+                              <div className="flex items-end">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeShiftTemplate(index)}
+                                  disabled={submitting}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div>
+                              <Label className="text-xs">Rollen-Anforderungen pro Tag</Label>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
+                                {roles.map(role => (
+                                  <div key={role.id} className="flex items-center gap-2">
+                                    <div
+                                      className="w-2 h-2 rounded-full shrink-0"
+                                      style={{ backgroundColor: role.color }}
+                                    />
+                                    <span className="text-xs truncate">{role.name}</span>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={st.requirements[role.id] || 0}
+                                      onChange={(e) => updateRequirement(index, role.id, parseInt(e.target.value) || 0)}
+                                      className="w-16 h-8 text-xs"
+                                      disabled={submitting}
+                                    />
+                                  </div>
+                                ))}
+                                {roles.length === 0 && (
+                                  <p className="text-xs text-gray-500 col-span-full">
+                                    Keine Rollen vorhanden. Erstellen Sie zuerst Rollen.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         ))}
-                        {roles.length === 0 && (
-                          <p className="text-sm text-gray-500 col-span-2">Keine Rollen verfügbar. Bitte erstellen Sie zuerst Rollen.</p>
-                        )}
                       </div>
                     </div>
 
@@ -588,7 +692,7 @@ export function Schedule() {
                           setScheduleName('');
                           setStartDate('');
                           setEndDate('');
-                          setRoleRequirements({});
+                          setShiftTemplates([]);
                           setTitoWeekType('A');
                         }}
                       >
@@ -680,7 +784,7 @@ export function Schedule() {
                       setScheduleName('');
                       setStartDate('');
                       setEndDate('');
-                      setRoleRequirements({});
+                      setShiftTemplates([]);
                     }}
                   >
                     Neu erstellen

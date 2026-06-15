@@ -311,6 +311,41 @@ def test_balance_recovery_changes_behavior():
     )
 
 
+def test_solver_uses_contractHours_field():
+    """Solver reads contractHours when no contract dict is present."""
+    payload = {
+        "metadata": {"jobId": "job-contract-hours"},
+        "config": {
+            "schemaVersion": "1.0",
+            "startDate": "2026-01-01",
+            "endDate": "2026-01-31",
+            "maxConsecutiveDays": 6,
+            "minRestTimeHours": 11,
+        },
+        "shiftTemplates": [
+            {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
+        ],
+        "requirements": [
+            {"date": "2026-01-04", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+            {"date": "2026-01-05", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+            {"date": "2026-01-06", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+        ],
+        "employees": [
+            {
+                "id": "emp_001",
+                "skills": ["Apotheker"],
+                "forbiddenDates": [],
+                "contractHours": 14.0,
+            },
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] == "INFEASIBLE"
+
+
 def test_solver_respects_weekly_hours():
     payload = {
         "metadata": {"jobId": "job-003"},
@@ -343,3 +378,59 @@ def test_solver_respects_weekly_hours():
     result = solve_model(model, timeout_seconds=10)
 
     assert result["metadata"]["status"] == "INFEASIBLE"
+
+
+def test_solver_empty_requirements_returns_success():
+    payload = {
+        "metadata": {"jobId": "job-empty"},
+        "config": {
+            "startDate": "2026-06-15",
+            "endDate": "2026-06-21",
+        },
+        "shiftTemplates": [],
+        "requirements": [],
+        "employees": [
+            {"id": "emp_001", "name": "Test1", "contractHours": 40.0},
+            {"id": "emp_002", "name": "Test2", "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] == "SUCCESS"
+    assert result["solution"]["assignments"] == []
+    assert result["metrics"]["wishFulfillmentRate"] == 100.0
+
+
+def test_solver_contractHours_works_without_contract_dict():
+    payload = {
+        "metadata": {"jobId": "job-contractHours"},
+        "config": {
+            "startDate": "2026-01-01",
+            "endDate": "2026-01-07",
+        },
+        "shiftTemplates": [
+            {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
+        ],
+        "requirements": [
+            {"date": "2026-01-04", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+            {"date": "2026-01-05", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+        ],
+        "employees": [
+            {
+                "id": "emp_001",
+                "name": "Test",
+                "skills": ["Apotheker"],
+                "forbiddenDates": [],
+                "contractHours": 40.0,
+            },
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] == "SUCCESS"
+    assert len(result["solution"]["assignments"]) == 2
+    assert result["metrics"]["employeeFairness"]["emp_001"]["targetHours"] > 0

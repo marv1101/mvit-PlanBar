@@ -16,6 +16,7 @@ class Schedule(Base):
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
     role_requirements = Column(JSON, nullable=True)
+    shift_templates = Column(JSON, nullable=True)
     tito_job_id = Column(Integer, nullable=True)
     metadata_json = Column(JSON, nullable=True)
     metrics_json = Column(JSON, nullable=True)

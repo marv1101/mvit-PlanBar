@@ -31,12 +31,21 @@ export interface ShiftplanResponseDTO {
   updated_at: string;
 }
 
+export interface ShiftTemplateEntryDTO {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  requirements: Record<string, number>;
+}
+
 export interface ScheduleCreateDTO {
   name: string;
   week_type?: string;
   start_date?: string;
   end_date?: string;
   role_requirements?: Record<string, number>;
+  shift_templates?: ShiftTemplateEntryDTO[];
   shiftplans: ShiftplanCreateDTO[];
 }
 
@@ -54,6 +63,7 @@ export interface ScheduleResponseDTO {
   start_date: string | null;
   end_date: string | null;
   role_requirements: Record<string, number> | null;
+  shift_templates: ShiftTemplateEntryDTO[] | null;
   tito_job_id: number | null;
   metadata_json: unknown;
   metrics_json: unknown;

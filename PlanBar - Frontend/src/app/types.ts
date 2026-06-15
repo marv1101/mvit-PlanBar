@@ -113,6 +113,14 @@ export interface AppUser {
   lastLogin: string | null;
 }
 
+export interface ShiftTemplateEntry {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  requirements: Record<string, number>;
+}
+
 export interface Schedule {
   id: string;
   name: string;
@@ -121,6 +129,7 @@ export interface Schedule {
   endDate: string;
   shifts: Shift[];
   roleRequirements?: Record<EmployeeRole, number>;
+  shiftTemplates?: ShiftTemplateEntry[];
   titoJobId?: number | null;
   diagnostics?: TiTODiagnostics | null;
   metrics?: TiTOMetrics | null;
