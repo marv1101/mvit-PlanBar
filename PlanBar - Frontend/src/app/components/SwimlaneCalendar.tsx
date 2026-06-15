@@ -966,24 +966,15 @@ export function SwimlaneCalendar({
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
-  const filteredDays = days.filter(day => {
-    const year = day.getFullYear();
-    const month = day.getMonth();
-    const date = day.getDate();
-    const utcDate = new Date(Date.UTC(year, month, date));
-    const weekType = getWeekType(utcDate);
-    return weekType === currentWeek;
-  });
-
   return (
     <div className="space-y-4 select-none">
       <div>
-        {filteredDays.map(day => (
+        {days.map(day => (
           <DayBlock
             key={day.toISOString()}
             date={day}
             weekType={currentWeek}
-            shifts={schedule.shifts}
+            shifts={schedule.shifts.filter(s => s.week === currentWeek)}
             employees={employees}
             onDrop={handleDrop}
             onDropInDay={handleDropInDay}

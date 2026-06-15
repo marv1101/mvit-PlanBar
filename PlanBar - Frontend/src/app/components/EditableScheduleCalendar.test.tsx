@@ -68,6 +68,28 @@ describe('EditableScheduleCalendar - Swimlane-Ansicht', () => {
   });
 });
 
+describe('EditableScheduleCalendar - Week-Filter', () => {
+  it('zeigt alle Tage in der Swimlane-Ansicht auch wenn currentWeek nicht passt', () => {
+    renderCalendar({ currentWeek: 'B' });
+    // Tage müssen sichtbar sein – kein Day-Filter nach getWeekType mehr
+    expect(screen.getByText(/15\.?\s*Juni/)).toBeInTheDocument();
+    expect(screen.getByText(/16\.?\s*Juni/)).toBeInTheDocument();
+  });
+
+  it('zeigt alle Tage in der Timeline-Ansicht auch wenn currentWeek nicht passt', async () => {
+    const user = userEvent.setup();
+    renderCalendar({ currentWeek: 'B' });
+
+    const toggleButton = screen.getAllByRole('button', { name: /Timeline-Ansicht/i })[0];
+    await user.click(toggleButton);
+
+    // Tage müssen sichtbar sein – kein Week-Filter mehr
+    // In der Timeline-Ansicht wird Datum als "15.06." formatiert
+    expect(screen.getByText(/15\.\s*06\./)).toBeInTheDocument();
+    expect(screen.getByText(/16\.\s*06\./)).toBeInTheDocument();
+  });
+});
+
 describe('EditableScheduleCalendar - View-Toggle', () => {
   it('behält den View-Mode im State', async () => {
     const { rerender } = renderCalendar();

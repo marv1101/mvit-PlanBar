@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Employee, Request, Schedule, WeekType, Role } from '../types';
+import { getWeekType } from '../lib/week';
 import { toast } from 'sonner';
 import * as employeeService from '../services/employeeService';
 import * as roleService from '../services/roleService';
@@ -68,7 +69,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [currentSchedule, setCurrentSchedule] = useState<Schedule | null>(null);
-  const [currentWeek, setCurrentWeek] = useState<WeekType>('A');
+  const [currentWeek, setCurrentWeek] = useState<WeekType>(() => getWeekType(new Date()));
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {

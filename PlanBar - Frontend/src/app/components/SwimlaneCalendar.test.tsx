@@ -54,4 +54,12 @@ describe('SwimlaneCalendar', () => {
     expect(rows.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('zeigt alle Tage auch wenn currentWeek nicht mit dem Datum übereinstimmt', () => {
+    renderSwimlane({ currentWeek: 'B' });
+    // Alle Tage müssen sichtbar sein – kein Day-Filter nach getWeekType mehr
+    expect(screen.getByText(/15\.?\s*Juni/)).toBeInTheDocument();
+    expect(screen.getByText(/16\.?\s*Juni/)).toBeInTheDocument();
+    // Aber keine Schicht-Inhalte (alle shifts haben week='A' im mockSchedule)
+    expect(screen.queryByLabelText(/Schicht.*bearbeiten/)).not.toBeInTheDocument();
+  });
 });

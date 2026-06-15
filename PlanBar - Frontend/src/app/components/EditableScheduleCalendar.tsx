@@ -1111,10 +1111,6 @@ export function EditableScheduleCalendar({
         {viewMode === 'timeline' ? (
           <div className="border rounded-lg overflow-x-auto">
             {weeks.map((week, weekIndex) => {
-              const weekType = getWeekType(new Date(week[0].toISOString().split('T')[0] + 'T00:00:00Z'));
-
-              if (weekType !== currentWeek) return null;
-
               const visibleDays = week.filter(day => {
                 const d = day.getDay();
                 if (d === 6 && !showSaturday) return false;
@@ -1146,8 +1142,8 @@ export function EditableScheduleCalendar({
                       <DayColumn
                         key={day.toISOString()}
                         date={day}
-                        weekType={weekType}
-                        shifts={schedule.shifts}
+                        weekType={currentWeek}
+                        shifts={schedule.shifts.filter(s => s.week === currentWeek)}
                         onDrop={handleDrop}
                         onDropInDay={handleDropInDay}
                         onEmployeeDrop={handleEmployeeDrop}
