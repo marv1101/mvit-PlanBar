@@ -39,11 +39,12 @@ router = APIRouter()
 
 
 def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: str) -> None:
+    secure = settings.environment == "production"
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
+        secure=secure,
         samesite="lax",
         max_age=settings.access_token_expire_minutes * 60,
     )
@@ -51,7 +52,7 @@ def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: 
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,
+        secure=secure,
         samesite="lax",
         max_age=settings.refresh_token_expire_days * 24 * 3600,
     )
