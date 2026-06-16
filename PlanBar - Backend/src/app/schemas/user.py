@@ -32,6 +32,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: str
     must_change_password: bool = True
+    employee_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     last_login: Optional[datetime] = None

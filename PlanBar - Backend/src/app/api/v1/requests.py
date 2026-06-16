@@ -57,7 +57,7 @@ def create_shift_wish(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.id != data.employee_id and current_user.role != "admin":
+    if current_user.employee_id != data.employee_id and current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
@@ -106,7 +106,7 @@ def update_shift_wish(
     wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
     if not wish:
         raise NotFoundException(detail="Shift wish not found")
-    if current_user.id != wish.employee_id and current_user.role != "admin":
+    if current_user.employee_id != wish.employee_id and current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
@@ -138,7 +138,7 @@ def delete_shift_wish(
     wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
     if not wish:
         raise NotFoundException(detail="Shift wish not found")
-    if current_user.id != wish.employee_id and current_user.role != "admin":
+    if current_user.employee_id != wish.employee_id and current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",

@@ -23,12 +23,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function mapBackendUser(data: { id: number; username: string; email: string; role: string }): User {
+function mapBackendUser(data: { id: number; username: string; email: string; role: string; employee_id?: number | null }): User {
   return {
     id: String(data.id),
     name: data.username,
     email: data.email,
     role: data.role === 'user' ? 'employee' : (data.role as 'admin' | 'employee'),
+    employeeId: data.employee_id ? String(data.employee_id) : undefined,
   };
 }
 
