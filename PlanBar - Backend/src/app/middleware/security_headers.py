@@ -18,6 +18,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         if env in ("production", "demo", "staging"):
             csp = (
+                "default-src 'self'; "
                 "script-src 'self'; "
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data: blob:; "
@@ -26,6 +27,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             )
         else:
             csp = (
+                "default-src 'self'; "
                 "script-src 'self' 'unsafe-eval' 'unsafe-inline'; "
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data: blob:; "
