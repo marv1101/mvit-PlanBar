@@ -53,6 +53,16 @@ def test_employees_two(db_session: Session) -> dict[str, Employee]:
     return {"001": emp1, "002": emp2}
 
 
+@pytest.fixture(autouse=True)
+def _dev_environment():
+    """Ensure callback processing tests run in development mode (no auth required)."""
+    from app.config import settings
+    original = settings.environment
+    settings.environment = "development"
+    yield
+    settings.environment = original
+
+
 @pytest.fixture
 def test_shift_wish(db_session: Session, test_employee: Employee) -> ShiftWish:
     """Create a test shift wish."""
@@ -424,11 +434,13 @@ def test_callback_auth_missing_header(client, test_schedule):
 
 
 def test_callback_auth_no_key_configured(client, db_session, test_schedule):
-    """When tito_api_key is None, requests are allowed (dev fallback)."""
+    """When tito_api_key is None in development, requests are allowed (dev fallback)."""
     from app.config import settings
 
-    original = settings.tito_api_key
+    original_key = settings.tito_api_key
+    original_env = settings.environment
     settings.tito_api_key = None
+    settings.environment = "development"
     test_schedule.tito_job_id = 600
     test_schedule.status = "submitted"
     db_session.commit()
@@ -439,4 +451,27 @@ def test_callback_auth_no_key_configured(client, db_session, test_schedule):
         )
         assert response.status_code == 200
     finally:
-        settings.tito_api_key = original
+        settings.tito_api_key = original_key
+        settings.environment = original_env
+
+
+def test_callback_auth_no_key_rejects_in_production(client, db_session, test_schedule):
+    """When tito_api_key is None in production, requests are rejected with 503."""
+    from app.config import settings
+
+    original_key = settings.tito_api_key
+    original_env = settings.environment
+    settings.tito_api_key = None
+    settings.environment = "production"
+    test_schedule.tito_job_id = 700
+    test_schedule.status = "submitted"
+    db_session.commit()
+    try:
+        response = client.post(
+            "/api/v1/callbacks/tito",
+            json=_minimal_callback_payload(700),
+        )
+        assert response.status_code == 503
+    finally:
+        settings.tito_api_key = original_key
+        settings.environment = original_env

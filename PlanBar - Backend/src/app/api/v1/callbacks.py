@@ -1,7 +1,7 @@
 import hmac
 import logging
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -25,6 +25,11 @@ def verify_tito_callback_auth(request: Request) -> None:
         ):
             raise UnauthorizedException(detail="Invalid or missing API key")
     else:
+        if settings.environment != "development":
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="TiTO callback not available: API key not configured",
+            )
         logger.warning("tito_api_key is not set — allowing TiTO callback without authentication")
 
 
