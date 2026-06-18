@@ -414,3 +414,65 @@ def test_callback_endpoint_with_invalid_job_id(client):
 
     # Should return error or 404
     assert response.status_code in [404, 400, 500]
+
+
+def test_callback_clears_manual_adjustment_on_reschedule(
+    client, db_session: Session, test_employee: Employee
+):
+    """When a callback updates a timecard that has manual_adjustment_hours (from an
+    earlier adjustment that was applied on top of schedule data), the manual_adjustment_hours
+    and adjustment_reason should be cleared because the balance is recalculated."""
+    emp = test_employee
+    contract = Contract(employee_id=emp.id, weekly_working_hours=40.0, break_time=30)
+    db_session.add(contract)
+    db_session.commit()
+
+    tc = Timecard(
+        employee_id=emp.id, week=21, year=2026,
+        scheduled_hours=38.0, contract_hours=40.0,
+        manual_adjustment_hours=5.0, adjustment_reason="Korrektur",
+        balance=3.0,
+    )
+    db_session.add(tc)
+    db_session.commit()
+
+    schedule = Schedule(
+        name="Reschedule",
+        start_date=date(2026, 5, 18),
+        end_date=date(2026, 5, 24),
+        status="submitted",
+        tito_job_id=300,
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    callback_payload = {
+        "job_id": 300,
+        "status": "SUCCESS",
+        "metadata": {"status": "success", "solveTimeSeconds": 1.0, "timestamp": "2026-05-18T12:00:00"},
+        "solution": {
+            "assignments": [
+                {"employeeId": f"emp_{emp.id:03d}", "date": "2026-05-18", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+                {"employeeId": f"emp_{emp.id:03d}", "date": "2026-05-19", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+                {"employeeId": f"emp_{emp.id:03d}", "date": "2026-05-20", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+                {"employeeId": f"emp_{emp.id:03d}", "date": "2026-05-21", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+                {"employeeId": f"emp_{emp.id:03d}", "date": "2026-05-22", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+            ],
+            "unassignedRequirements": [],
+        },
+        "metrics": {"wishFulfillmentRate": 1.0, "totalObjectiveScore": 100.0, "employeeUtilization": {}, "violations": None},
+        "diagnostics": {"isOptimal": True, "info": "Optimal"},
+    }
+
+    response = client.post("/api/v1/callbacks/tito", json=callback_payload)
+    assert response.status_code == 200
+
+    updated_tc = db_session.query(Timecard).filter(
+        Timecard.employee_id == emp.id, Timecard.week == 21, Timecard.year == 2026
+    ).first()
+
+    assert updated_tc is not None
+    assert updated_tc.scheduled_hours == 37.5
+    assert updated_tc.contract_hours == 40.0
+    assert updated_tc.manual_adjustment_hours == 0.0
+    assert updated_tc.adjustment_reason is None

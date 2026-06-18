@@ -161,6 +161,9 @@ def update_timecards_from_schedule(db: Session, schedule: Schedule) -> None:
                 existing.scheduled_hours = scheduled_hours
                 existing.contract_hours = contract_hours
                 existing.balance = new_balance
+                if not is_adjustment:
+                    existing.manual_adjustment_hours = 0.0
+                    existing.adjustment_reason = None
             else:
                 tc = Timecard(
                     employee_id=emp_id,

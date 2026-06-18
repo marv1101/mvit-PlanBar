@@ -193,14 +193,13 @@ import type {
   MessageResponseDTO,
   DocumentResponseDTO,
 } from '../services/pinboardService';
+import type { TimeAccountResponseDTO } from '../services/employeeService';
 import {
   PinboardThread,
   PinboardThreadDetail,
   PinboardMessage,
   PinboardDocument,
   EmployeeTimeAccount,
-  TimeAccountEntry,
-  TimeAccountProjected,
 } from '../types';
 
 export function userFromResponse(dto: UserResponseDTO): AppUser {
@@ -280,6 +279,7 @@ export function timeAccountFromResponse(dto: TimeAccountResponseDTO): EmployeeTi
       balance: e.balance,
       manualAdjustment: e.manual_adjustment,
       adjustmentReason: e.adjustment_reason,
+      totalChange: e.total_change,
     })),
     projected: dto.projected ? {
       fromSchedule: dto.projected.from_schedule,

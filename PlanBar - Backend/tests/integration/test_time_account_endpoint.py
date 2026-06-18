@@ -1,3 +1,4 @@
+import pytest
 from datetime import date, time, datetime, timezone
 
 from app.db.models.employee import Contract, Employee, Timecard
@@ -21,12 +22,15 @@ def test_get_time_account_empty(client, auth_headers):
     assert data["projected"] is None
 
 
-def _entry(week, year, scheduled_hours, contract_hours, delta, balance, manual_adjustment=0.0, adjustment_reason=None):
+def _entry(week, year, scheduled_hours, contract_hours, delta, balance, manual_adjustment=0.0, adjustment_reason=None, total_change=None):
+    if total_change is None:
+        total_change = delta + manual_adjustment
     return dict(
         week=week, year=year,
         scheduled_hours=scheduled_hours, contract_hours=contract_hours,
         delta=delta, balance=balance,
         manual_adjustment=manual_adjustment, adjustment_reason=adjustment_reason,
+        total_change=total_change,
     )
 
 
@@ -98,6 +102,57 @@ def test_get_time_account_not_found(client, auth_headers):
     assert resp.status_code == 404
 
 
+def test_get_time_account_projected_multiweek(client, auth_headers, db_session):
+    emp_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Multiweek", "last_name": "Proj"},
+        headers=auth_headers,
+    )
+    emp_id = emp_resp.json()["id"]
+
+    contract = Contract(employee_id=emp_id, weekly_working_hours=40.0, break_time=30)
+    db_session.add(contract)
+    db_session.commit()
+
+    tc = Timecard(employee_id=emp_id, week=21, year=2026, scheduled_hours=40.0, contract_hours=40.0, balance=0.0)
+    db_session.add(tc)
+    db_session.commit()
+
+    schedule = Schedule(
+        name="Multiweek Submitted",
+        start_date=date(2026, 5, 18),
+        end_date=date(2026, 6, 15),
+        status="submitted",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    sp1 = Shiftplan(
+        schedule_id=schedule.id, employee_id=emp_id, date=date(2026, 5, 18),
+        shift_id="früh", start_time=time(6, 0), end_time=time(14, 0),
+    )
+    sp2 = Shiftplan(
+        schedule_id=schedule.id, employee_id=emp_id, date=date(2026, 5, 25),
+        shift_id="früh", start_time=time(6, 0), end_time=time(14, 0),
+    )
+    db_session.add_all([sp1, sp2])
+    db_session.commit()
+
+    resp = client.get(f"/api/v1/employees/{emp_id}/time-account", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["projected"] is not None
+
+    from_schedule = data["projected"]["from_schedule"]
+    expected_balance = data["projected"]["expected_balance_after"]
+
+    effective_per_shift = 7.5
+    assert from_schedule == pytest.approx(2 * effective_per_shift)
+
+    contract_weekly = 40.0
+    assert expected_balance == pytest.approx(0.0 + from_schedule - 2 * contract_weekly)
+
+
 def test_get_all_time_accounts_batch(client, auth_headers, db_session):
     emp1_resp = client.post(
         "/api/v1/employees",
@@ -165,6 +220,39 @@ def test_adjust_time_account_add_hours(client, auth_headers, db_session):
     assert entry["manual_adjustment"] == 5.0
     assert entry["adjustment_reason"] == "Korrektur Überstunden"
     assert entry["balance"] == 3.0
+    assert entry["total_change"] == 3.0
+
+
+def test_adjust_time_account_cumulative_reason(client, auth_headers, db_session):
+    emp_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Cumul", "last_name": "Reason"},
+        headers=auth_headers,
+    )
+    emp_id = emp_resp.json()["id"]
+
+    tc = Timecard(employee_id=emp_id, week=22, year=2026, scheduled_hours=40.0, contract_hours=40.0, balance=0.0)
+    db_session.add(tc)
+    db_session.commit()
+
+    resp1 = client.post(
+        f"/api/v1/employees/{emp_id}/time-account/adjust",
+        json={"delta_hours": 3.0, "reason": "Überstunden Juni"},
+        headers=auth_headers,
+    )
+    assert resp1.status_code == 200
+
+    resp2 = client.post(
+        f"/api/v1/employees/{emp_id}/time-account/adjust",
+        json={"delta_hours": 2.0, "reason": "Korrektur Juli"},
+        headers=auth_headers,
+    )
+    assert resp2.status_code == 200
+    data = resp2.json()
+    assert data["current_balance"] == 5.0
+    entry = data["history"][0]
+    assert entry["manual_adjustment"] == 5.0
+    assert entry["adjustment_reason"] == "Überstunden Juni; Korrektur Juli"
 
 
 def test_adjust_time_account_subtract_hours(client, auth_headers, db_session):

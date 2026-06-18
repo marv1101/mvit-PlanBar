@@ -111,6 +111,7 @@ class TimeAccountEntry(BaseModel):
     balance: float
     manual_adjustment: float = 0.0
     adjustment_reason: Optional[str] = None
+    total_change: float = 0.0
 
 
 class TimeAccountProjected(BaseModel):

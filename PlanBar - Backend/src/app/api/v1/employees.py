@@ -203,15 +203,18 @@ def _build_time_account_response(employee: Employee, db: Session) -> TimeAccount
 
     history = []
     for tc in timecards:
+        delta = tc.scheduled_hours - tc.contract_hours
+        total_change = delta + (tc.manual_adjustment_hours or 0.0)
         history.append(TimeAccountEntry(
             week=tc.week,
             year=tc.year,
             scheduled_hours=tc.scheduled_hours,
             contract_hours=tc.contract_hours,
-            delta=tc.scheduled_hours - tc.contract_hours,
+            delta=delta,
             balance=tc.balance,
             manual_adjustment=tc.manual_adjustment_hours or 0.0,
             adjustment_reason=tc.adjustment_reason,
+            total_change=total_change,
         ))
 
     current_balance = timecards[-1].balance if timecards else 0.0
@@ -232,7 +235,9 @@ def _build_time_account_response(employee: Employee, db: Session) -> TimeAccount
                 _calc_effective_hours(sp, contract) for sp in shiftplans
             )
             weekly_hours = contract.weekly_working_hours if contract else 40.0
-            expected_balance_after = current_balance + from_schedule - weekly_hours
+            iso_weeks = {sp.date.isocalendar()[:2] for sp in shiftplans}
+            num_weeks = len(iso_weeks)
+            expected_balance_after = current_balance + from_schedule - (weekly_hours * num_weeks)
             projected = TimeAccountProjected(
                 from_schedule=from_schedule,
                 expected_balance_after=expected_balance_after,
@@ -277,7 +282,9 @@ def adjust_employee_time_account(
     if latest_tc:
         latest_tc.balance = latest_tc.balance + data.delta_hours
         latest_tc.manual_adjustment_hours = (latest_tc.manual_adjustment_hours or 0) + data.delta_hours
-        latest_tc.adjustment_reason = data.reason
+        if data.reason:
+            existing_reason = latest_tc.adjustment_reason or ""
+            latest_tc.adjustment_reason = f"{existing_reason}; {data.reason}".strip("; ") if existing_reason else data.reason
     else:
         now_utc = datetime.now(timezone.utc)
         tc = Timecard(
