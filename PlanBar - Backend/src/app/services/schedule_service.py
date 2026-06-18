@@ -255,6 +255,22 @@ def _build_tito_payload(
 
     shift_templates = _build_shift_templates(schedule)
 
+    # Batch-query latest timecard per employee to avoid N+1 queries
+    timecard_balance_by_emp: dict[int, float] = {}
+    if db is not None and employees:
+        employee_ids = [emp.id for emp in employees]
+        latest_timecards = (
+            db.query(Timecard)
+            .filter(Timecard.employee_id.in_(employee_ids))
+            .order_by(Timecard.employee_id, Timecard.year.desc(), Timecard.week.desc())
+            .all()
+        )
+        seen_emp_ids: set[int] = set()
+        for tc in latest_timecards:
+            if tc.employee_id not in seen_emp_ids:
+                timecard_balance_by_emp[tc.employee_id] = tc.balance
+                seen_emp_ids.add(tc.employee_id)
+
     employee_list = []
     for emp in employees:
         contract_hours = 40.0
@@ -266,16 +282,7 @@ def _build_tito_payload(
             break_minutes = c.break_time
             role = c.hired_role
 
-        current_balance = 0.0
-        if db is not None:
-            latest_timecard = (
-                db.query(Timecard)
-                .filter(Timecard.employee_id == emp.id)
-                .order_by(Timecard.year.desc(), Timecard.week.desc())
-                .first()
-            )
-            if latest_timecard:
-                current_balance = latest_timecard.balance
+        current_balance = timecard_balance_by_emp.get(emp.id, 0.0)
 
         entry: dict[str, Any] = {
             "id": f"emp_{emp.id:03d}",
