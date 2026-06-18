@@ -7,6 +7,8 @@ import {
   CalendarDays,
   Download,
   Eye,
+  FileText,
+  FileUp,
   Trash2,
   Loader2,
   Send,
@@ -138,11 +140,29 @@ export function ScheduleManageList({
   };
 
   const handleDeleteSchedule = (schedule: ScheduleType) => {
-    if (confirm(`Möchten Sie den Schichtplan "${schedule.name}" wirklich löschen?`)) {
+    if (confirm(`M\u00f6chten Sie den Schichtplan "${schedule.name}" wirklich l\u00f6schen?`)) {
       deleteSchedule(schedule.id);
       if (selectedSchedule?.id === schedule.id) {
         setSelectedSchedule(null);
       }
+    }
+  };
+
+  const handleExportPdf = async (schedule: ScheduleType) => {
+    try {
+      await scheduleService.downloadSchedulePdf(Number(schedule.id), schedule.name);
+      toast.success('PDF exportiert');
+    } catch {
+      toast.error('Fehler beim PDF-Export');
+    }
+  };
+
+  const handleExportIcal = async (schedule: ScheduleType) => {
+    try {
+      await scheduleService.downloadScheduleIcal(Number(schedule.id), schedule.name);
+      toast.success('iCal-Datei exportiert');
+    } catch {
+      toast.error('Fehler beim iCal-Export');
     }
   };
 
@@ -257,6 +277,22 @@ export function ScheduleManageList({
                   aria-label="Schichtplan exportieren"
                 >
                   <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleExportPdf(schedule)}
+                  aria-label="PDF exportieren"
+                >
+                  <FileText className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleExportIcal(schedule)}
+                  aria-label="iCal exportieren"
+                >
+                  <FileUp className="h-4 w-4" />
                 </Button>
                 <Button
                   size="sm"
