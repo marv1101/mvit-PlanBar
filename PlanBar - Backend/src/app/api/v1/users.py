@@ -33,6 +33,7 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services import audit_service
 from app.services.user_service import (
     admin_create_user,
@@ -187,12 +188,18 @@ def logout(request: Request, db: Session = Depends(get_db)):
     return response
 
 
-@router.get("", response_model=list[UserResponse])
+@router.get("", response_model=PaginatedResponse[UserResponse])
 def list_users_endpoint(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
+    pagination: PaginationParams = Depends(),
 ):
-    return list_users(db)
+    users = list_users(db)
+    total = len(users)
+    items = users[pagination.offset : pagination.offset + pagination.limit]
+    return PaginatedResponse(
+        items=items, total=total, offset=pagination.offset, limit=pagination.limit
+    )
 
 
 @router.get("/{user_id}", response_model=UserResponse)
