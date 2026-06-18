@@ -5,13 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.enums import WishStatus
+from app.core.enums import NotificationType, WishStatus
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
 from app.schemas.pagination import PaginatedResponse, PaginationParams
-from app.core.enums import WishStatus
+from app.services.notification_service import create_notification
+
 router = APIRouter()
 
 
@@ -174,6 +175,20 @@ def approve_shift_wish(
     db.add(wish)
     db.commit()
     db.refresh(wish)
+
+    # Create notification for the employee's linked user
+    from app.db.models.employee import Employee
+    employee = db.query(Employee).filter(Employee.id == wish.employee_id).first()
+    if employee and employee.user_id:
+        create_notification(
+            db=db,
+            user_id=employee.user_id,
+            notification_type=NotificationType.WISH_APPROVED.value,
+            title="Wunsch genehmigt",
+            message=f"Dein Schichtwunsch für {wish.date} wurde genehmigt.",
+            data={"wish_id": wish.id, "date": str(wish.date), "type": wish.type},
+        )
+
     return wish
 
 
@@ -194,4 +209,19 @@ def reject_shift_wish(
     db.add(wish)
     db.commit()
     db.refresh(wish)
+
+    # Create notification for the employee's linked user
+    from app.db.models.employee import Employee
+    employee = db.query(Employee).filter(Employee.id == wish.employee_id).first()
+    if employee and employee.user_id:
+        reason_text = f" Grund: {body.rejection_reason}" if body.rejection_reason else ""
+        create_notification(
+            db=db,
+            user_id=employee.user_id,
+            notification_type=NotificationType.WISH_REJECTED.value,
+            title="Wunsch abgelehnt",
+            message=f"Dein Schichtwunsch für {wish.date} wurde abgelehnt.{reason_text}",
+            data={"wish_id": wish.id, "date": str(wish.date), "type": wish.type, "rejection_reason": body.rejection_reason},
+        )
+
     return wish

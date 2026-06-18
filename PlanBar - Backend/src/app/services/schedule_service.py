@@ -12,6 +12,7 @@ from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
 from app.services import audit_service
 from app.services.arbzg_validator import ArbZgResult, validate_schedule
+from app.services.notification_service import create_notification
 from app.services.tito_proxy import tito_proxy
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate, actor
     if data.week_type is not None:
         schedule.week_type = data.week_type
     if data.status is not None:
+        old_status = schedule.status
         schedule.status = data.status.value
     if data.shift_templates is not None:
         schedule.shift_templates = data.shift_templates
@@ -74,6 +76,24 @@ def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate, actor
     db.commit()
     db.refresh(schedule)
     audit_service.log_update(db, user_id=actor_id, resource_type="schedule", resource_id=str(schedule.id))
+
+    # Notify all assigned employees when schedule becomes completed
+    if data.status is not None and data.status.value == "completed":
+        shiftplans = db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).all()
+        notified_user_ids: set[int] = set()
+        for sp in shiftplans:
+            employee = db.query(Employee).filter(Employee.id == sp.employee_id).first()
+            if employee and employee.user_id and employee.user_id not in notified_user_ids:
+                create_notification(
+                    db=db,
+                    user_id=employee.user_id,
+                    notification_type="schedule_published",
+                    title="Dienstplan veröffentlicht",
+                    message=f'Der Dienstplan "{schedule.name}" wurde veröffentlicht. Bitte überprüfe deine Schichten.',
+                    data={"schedule_id": schedule.id, "schedule_name": schedule.name},
+                )
+                notified_user_ids.add(employee.user_id)
+
     return schedule
 
 

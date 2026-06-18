@@ -29,3 +29,10 @@ class WishStatus(str, Enum):
 class WeekType(str, Enum):
     A = "A"
     B = "B"
+
+
+class NotificationType(str, Enum):
+    WISH_APPROVED = "wish_approved"
+    WISH_REJECTED = "wish_rejected"
+    SCHEDULE_PUBLISHED = "schedule_published"
+    SHIFT_CHANGED = "shift_changed"
