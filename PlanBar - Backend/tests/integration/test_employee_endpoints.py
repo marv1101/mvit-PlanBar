@@ -20,8 +20,9 @@ def test_list_employees(client, auth_headers):
     response = client.get("/api/v1/employees", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
-    assert len(data) >= 1
-    assert any(e["first_name"] == "Jane" for e in data)
+    assert "items" in data
+    assert len(data["items"]) >= 1
+    assert any(e["first_name"] == "Jane" for e in data["items"])
 
 
 def test_get_employee(client, auth_headers):
