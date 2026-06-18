@@ -1,5 +1,8 @@
 import os
 
+from typing import Union
+import httpx
+
 # Must be set before any app imports so the engine uses SQLite
 TEST_DATABASE_URL = "sqlite:///./test_planbar.db"
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
@@ -23,6 +26,33 @@ _test_engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread
 TestSessionLocal = sessionmaker(bind=_test_engine, autoflush=False, autocommit=False)
 
 
+class CsrfTestClient(TestClient):
+    """TestClient that automatically handles double-submit cookie CSRF protection.
+
+    On first use, a GET is issued to obtain the ``csrf_token`` cookie.
+    Every subsequent mutating request (POST / PUT / PATCH / DELETE) automatically
+    includes the ``X-CSRF-Token`` header so that existing tests don't need
+    to be aware of CSRF at all.
+    """
+
+    _CSRF_COOKIE = "csrf_token"
+    _CSRF_HEADER = "X-CSRF-Token"
+    _MUTATING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+    def request(self, method: str, url: Union[httpx.URL, str], **kwargs):  # noqa: D401
+        # Ensure we have a CSRF token cookie
+        if self._CSRF_COOKIE not in self.cookies:
+            super().request("GET", "/api/v1/health/ping")
+
+        # Inject the header for mutating requests when not already present
+        if method.upper() in self._MUTATING and self._CSRF_HEADER not in (kwargs.get("headers") or {}):
+            headers = dict(kwargs.get("headers") or {})
+            headers[self._CSRF_HEADER] = self.cookies.get(self._CSRF_COOKIE, "")
+            kwargs["headers"] = headers
+
+        return super().request(method, url, **kwargs)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
     Base.metadata.create_all(bind=_test_engine)
@@ -41,7 +71,8 @@ def db_session():
 
 
 @pytest.fixture
-def client(db_session):
+def raw_client(db_session):
+    """Plain TestClient without CSRF auto-injection (for testing CSRF itself)."""
     limiter.enabled = False
     app = create_app()
 
@@ -53,6 +84,21 @@ def client(db_session):
 
     app.dependency_overrides[get_db] = override_get_db
     return TestClient(app)
+
+
+@pytest.fixture
+def client(db_session):
+    limiter.enabled = False
+    app = create_app()
+
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    return CsrfTestClient(app)
 
 
 @pytest.fixture
@@ -108,4 +154,4 @@ def employee_auth_headers(client, db_session, auth_headers):
     )
     token = login_response.json()["access_token"]
     client.cookies.clear()
-    return ({"Authorization": f"Bearer {token}"}, emp_id)
+    return ({'Authorization': f'Bearer {token}'}, emp_id)
