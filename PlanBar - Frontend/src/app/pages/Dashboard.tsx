@@ -1,15 +1,33 @@
 import React, { useMemo } from 'react';
-import { useApp } from '../context/AppContext';
+import { useEmployees } from '../hooks/useEmployees';
+import { useSchedules } from '../hooks/useSchedules';
+import { useRoles } from '../hooks/useRoles';
+import { useShiftWishes } from '../hooks/useShiftWishes';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Users, ClipboardList, Calendar, Clock, TrendingUp, Briefcase, Loader2, RotateCcw, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useNavigate } from 'react-router';
-import { Shift } from '../types';
 import { TIMEZONE } from '../lib/timezone';
 
 export function Dashboard() {
-  const { employees, requests, schedules, roles, loading, error, refresh } = useApp();
+  const { data: employees = [], isLoading: loadingEmployees, error: errorEmployees, refetch: refetchEmployees } = useEmployees();
+  const { data: schedules = [], isLoading: loadingSchedules, error: errorSchedules, refetch: refetchSchedules } = useSchedules();
+  const { data: roles = [], isLoading: loadingRoles, error: errorRoles, refetch: refetchRoles } = useRoles();
+  const { data: requests = [], isLoading: loadingRequests, error: errorRequests, refetch: refetchRequests } = useShiftWishes();
   const navigate = useNavigate();
+
+  const loading = loadingEmployees || loadingSchedules || loadingRoles || loadingRequests;
+  const error = errorEmployees || errorSchedules || errorRoles || errorRequests;
+  const errorMessage = error ? 'Fehler beim Laden der Daten. Bitte versuchen Sie es erneut.' : null;
+
+  const refresh = async () => {
+    await Promise.all([
+      refetchEmployees(),
+      refetchSchedules(),
+      refetchRoles(),
+      refetchRequests(),
+    ]);
+  };
 
   // Get the most recent schedule
   const latestSchedule = useMemo(() => {
@@ -157,7 +175,7 @@ export function Dashboard() {
     );
   }
 
-  if (error) {
+  if (errorMessage) {
     return (
       <div className="space-y-6">
         <div>
@@ -167,7 +185,7 @@ export function Dashboard() {
         <Card>
           <CardContent className="py-12 text-center">
             <AlertTriangle className="h-8 w-8 mx-auto text-red-500 mb-4" />
-            <p className="text-red-600 font-medium mb-4">{error}</p>
+            <p className="text-red-600 font-medium mb-4">{errorMessage}</p>
             <Button onClick={refresh} variant="outline">
               <RotateCcw className="h-4 w-4 mr-2" />
               Erneut versuchen
