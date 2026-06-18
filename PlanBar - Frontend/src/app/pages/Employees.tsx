@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, RotateCcw, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { EmployeeForm } from '../components/EmployeeForm';
 import { Employee } from '../types';
 import { Badge } from '../components/ui/badge';
 
 export function Employees() {
-  const { employees, deleteEmployee, roles, loading } = useApp();
+  const { employees, deleteEmployee, roles, loading, error, refresh } = useApp();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
@@ -44,6 +44,27 @@ export function Employees() {
           <CardContent className="py-12 text-center">
             <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
             <p className="text-gray-600">Lade Mitarbeiter...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="font-semibold text-2xl mb-2">Mitarbeiter</h2>
+          <p className="text-gray-600">Verwalten Sie Ihre Mitarbeiter und deren Arbeitszeiten</p>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="h-8 w-8 mx-auto text-red-500 mb-4" />
+            <p className="text-red-600 font-medium mb-4">{error}</p>
+            <Button onClick={refresh} variant="outline">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Erneut versuchen
+            </Button>
           </CardContent>
         </Card>
       </div>

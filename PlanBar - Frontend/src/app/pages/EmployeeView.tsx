@@ -4,14 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { User, Calendar, Clock, Coffee, Download, Loader2 } from 'lucide-react';
+import { User, Calendar, Clock, Coffee, Download, Loader2, RotateCcw, AlertTriangle } from 'lucide-react';
 import { WeekType, Shift } from '../types';
 import { toast } from 'sonner';
 import { TIMEZONE } from '../lib/timezone';
 import { TimeAccountCard } from '../components/TimeAccountCard';
 
 export function EmployeeView() {
-  const { employees, schedules, roles, loading } = useApp();
+  const { employees, schedules, roles, loading, error, refresh } = useApp();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>('');
   const [currentWeek, setCurrentWeek] = useState<WeekType>('A');
@@ -193,6 +193,27 @@ export function EmployeeView() {
           <CardContent className="py-12 text-center">
             <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
             <p className="text-gray-600">Lade Daten...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="font-semibold text-2xl mb-2">Mitarbeiteransicht</h2>
+          <p className="text-gray-600">Persönliche Schichtübersicht für Mitarbeiter</p>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="h-8 w-8 mx-auto text-red-500 mb-4" />
+            <p className="text-red-600 font-medium mb-4">{error}</p>
+            <Button onClick={refresh} variant="outline">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Erneut versuchen
+            </Button>
           </CardContent>
         </Card>
       </div>

@@ -8,7 +8,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { MessageSquare, Plus, ArrowLeft, Send, Paperclip, Trash2, Pin, Loader2 } from 'lucide-react';
+import { MessageSquare, Plus, ArrowLeft, Send, Paperclip, Trash2, Pin, Loader2, RotateCcw, AlertTriangle } from 'lucide-react';
 import { PinboardDocument, PinboardThread, PinboardThreadDetail, PinboardMessage } from '../types';
 import * as pinboardService from '../services/pinboardService';
 import {
@@ -28,6 +28,7 @@ export function PinboardPage() {
   const [threads, setThreads] = useState<PinboardThread[]>([]);
   const [selectedThread, setSelectedThread] = useState<PinboardThreadDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [newThreadTitle, setNewThreadTitle] = useState('');
   const [newMessageContent, setNewMessageContent] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -35,10 +36,13 @@ export function PinboardPage() {
   const [sendingMessage, setSendingMessage] = useState(false);
 
   const loadThreads = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const data = await pinboardService.getThreads();
       setThreads(data.map(pinboardThreadFromResponse));
     } catch {
+      setError('Fehler beim Laden der Threads. Bitte versuchen Sie es erneut.');
       toast.error('Fehler beim Laden der Threads');
     } finally {
       setLoading(false);
@@ -163,6 +167,27 @@ export function PinboardPage() {
           <CardContent className="py-12 text-center">
             <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
             <p className="text-gray-600">Lade Beiträge...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="font-semibold text-2xl mb-2">Pinnwand</h2>
+          <p className="text-gray-600">Interne Kommunikation und Ankündigungen</p>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="h-8 w-8 mx-auto text-red-500 mb-4" />
+            <p className="text-red-600 font-medium mb-4">{error}</p>
+            <Button onClick={loadThreads} variant="outline">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Erneut versuchen
+            </Button>
           </CardContent>
         </Card>
       </div>
