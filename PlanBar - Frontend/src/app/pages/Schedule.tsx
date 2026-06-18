@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Sparkles, CalendarDays } from 'lucide-react';
-import { Schedule as ScheduleType, WeekType } from '../types';
+import { Schedule as ScheduleType } from '../types';
 import { WishReviewDialog } from '../components/WishReviewDialog';
 import { ScheduleCreateForm } from '../components/schedule/ScheduleCreateForm';
 import { ScheduleManageList } from '../components/schedule/ScheduleManageList';
@@ -13,7 +13,6 @@ import { scheduleFromResponse } from '../lib/mappers';
 export function Schedule() {
   const {
     employees,
-    requests,
     schedules,
     addSchedule,
     updateSchedule,
@@ -142,7 +141,6 @@ export function Schedule() {
             setCurrentWeek={setCurrentWeek}
             refresh={refresh}
             submitting={submitting}
-            setSubmitting={setSubmitting}
             deleteSchedule={deleteSchedule}
             updateSchedule={updateSchedule}
             onWishReview={(id) => setWishReviewScheduleId(id)}
