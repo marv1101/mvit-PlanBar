@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlalchemy.orm import Session
 
-from app.db.models.employee import Employee
+from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ShiftplanCreate
@@ -320,6 +320,68 @@ def test_callback_endpoint_with_multiple_assignments(client, db_session: Session
     shiftplans = db_session.query(Shiftplan).filter(Shiftplan.schedule_id == test_schedule.id).all()
     assert len(shiftplans) == 2
     assert {sp.employee_id for sp in shiftplans} == {alice.id, bob.id}
+
+
+def test_callback_multiweek_schedule_balance_chaining(
+    client, db_session: Session, test_employee: Employee
+):
+    """Test that balance chains correctly across multiple weeks in one schedule."""
+    contract = Contract(employee_id=test_employee.id, weekly_working_hours=40.0, break_time=30)
+    db_session.add(contract)
+    db_session.commit()
+
+    schedule = Schedule(
+        name="Multi-Week Test",
+        week_type="A",
+        status="submitted",
+        start_date=date(2026, 5, 25),
+        end_date=date(2026, 6, 7),
+        tito_job_id=200,
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    callback_payload = {
+        "job_id": 200,
+        "status": "SUCCESS",
+        "metadata": {"status": "success", "solveTimeSeconds": 1.0, "timestamp": "2026-05-25T12:00:00"},
+        "solution": {
+            "assignments": [
+                # ISO week 22: 2026-05-25 (Mon) to 2026-05-31 (Sun)
+                {"employeeId": f"emp_{test_employee.id:03d}", "date": "2026-05-25", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+                {"employeeId": f"emp_{test_employee.id:03d}", "date": "2026-05-26", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+                {"employeeId": f"emp_{test_employee.id:03d}", "date": "2026-05-27", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+                {"employeeId": f"emp_{test_employee.id:03d}", "date": "2026-05-28", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+                # ISO week 23: 2026-06-01 (Mon) to 2026-06-07 (Sun)
+                {"employeeId": f"emp_{test_employee.id:03d}", "date": "2026-06-01", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+                {"employeeId": f"emp_{test_employee.id:03d}", "date": "2026-06-02", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+                {"employeeId": f"emp_{test_employee.id:03d}", "date": "2026-06-03", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+                {"employeeId": f"emp_{test_employee.id:03d}", "date": "2026-06-04", "shiftId": "morning", "startTime": "08:00", "endTime": "16:00"},
+            ],
+            "unassignedRequirements": [],
+        },
+        "metrics": {"wishFulfillmentRate": 1.0, "totalObjectiveScore": 100.0, "employeeUtilization": {}, "violations": None},
+        "diagnostics": {"isOptimal": True, "info": "Optimal solution found"},
+    }
+
+    response = client.post("/api/v1/callbacks/tito", json=callback_payload)
+    assert response.status_code == 200
+
+    timecards = db_session.query(Timecard).filter(
+        Timecard.employee_id == test_employee.id
+    ).order_by(Timecard.year, Timecard.week).all()
+
+    assert len(timecards) == 2
+
+    tc_w22 = timecards[0]
+    assert tc_w22.scheduled_hours == 30.0
+    assert tc_w22.contract_hours == 40.0
+    assert tc_w22.balance == -10.0
+
+    tc_w23 = timecards[1]
+    assert tc_w23.scheduled_hours == 30.0
+    assert tc_w23.contract_hours == 40.0
+    assert tc_w23.balance == -20.0
 
 
 def test_callback_endpoint_with_invalid_job_id(client):

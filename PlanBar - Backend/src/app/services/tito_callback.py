@@ -51,6 +51,8 @@ def process_tito_callback(db: Session, payload: TiTOCallbackPayload) -> Schedule
                 start_time=time(int(start_parts[0]), int(start_parts[1])),
                 end_time=time(int(end_parts[0]), int(end_parts[1])),
                 label=assignment.name or None,
+                break_start=employee.break_start,
+                break_end=employee.break_end,
             )
             db.add(shiftplan)
 
@@ -117,7 +119,10 @@ def update_timecards_from_schedule(db: Session, schedule: Schedule) -> None:
         effective_hours = _calc_effective_hours(sp, contract)
         weekly_data[(year, week)][sp.employee_id] += effective_hours
 
-    for (year, week), emp_hours in weekly_data.items():
+    employee_balance_cache: dict[int, float] = {}
+
+    for (year, week) in sorted(weekly_data.keys(), key=lambda x: (x[0], x[1])):
+        emp_hours = weekly_data[(year, week)]
         for emp_id, scheduled_hours in emp_hours.items():
             contract = weekly_emp_contracts.get(emp_id)
             contract_hours = float(contract.weekly_working_hours) if contract else 40.0
@@ -129,15 +134,28 @@ def update_timecards_from_schedule(db: Session, schedule: Schedule) -> None:
             ).first()
 
             if existing:
-                prev_balance = existing.balance - (existing.scheduled_hours - existing.contract_hours) - (existing.manual_adjustment_hours or 0)
+                is_adjustment = (
+                    existing.scheduled_hours == 0.0
+                    and existing.contract_hours == 0.0
+                    and existing.manual_adjustment_hours != 0.0
+                )
+
+                if is_adjustment:
+                    prev_balance = existing.balance
+                else:
+                    prev_balance = existing.balance - (existing.scheduled_hours - existing.contract_hours) - (existing.manual_adjustment_hours or 0)
             else:
-                prev_tc = db.query(Timecard).filter(
-                    Timecard.employee_id == emp_id,
-                ).order_by(Timecard.year.desc(), Timecard.week.desc()).first()
-                prev_balance = prev_tc.balance if prev_tc else 0.0
+                prev_balance = employee_balance_cache.get(emp_id)
+                if prev_balance is None:
+                    prev_tc = db.query(Timecard).filter(
+                        Timecard.employee_id == emp_id,
+                    ).order_by(Timecard.year.desc(), Timecard.week.desc()).first()
+                    prev_balance = prev_tc.balance if prev_tc else 0.0
 
             delta = scheduled_hours - contract_hours
             new_balance = prev_balance + delta
+
+            employee_balance_cache[emp_id] = new_balance
 
             if existing:
                 existing.scheduled_hours = scheduled_hours

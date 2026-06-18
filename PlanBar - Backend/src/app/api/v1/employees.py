@@ -218,7 +218,7 @@ def _build_time_account_response(employee: Employee, db: Session) -> TimeAccount
 
     projected = None
     latest_schedule = db.query(Schedule).filter(
-        Schedule.status.in_(["completed", "submitted"]),
+        Schedule.status == "submitted",
     ).order_by(Schedule.end_date.desc()).first()
 
     if latest_schedule:
@@ -275,25 +275,22 @@ def adjust_employee_time_account(
     ).order_by(Timecard.year.desc(), Timecard.week.desc()).first()
 
     if latest_tc:
-        prev_balance = latest_tc.balance
+        latest_tc.balance = latest_tc.balance + data.delta_hours
+        latest_tc.manual_adjustment_hours = (latest_tc.manual_adjustment_hours or 0) + data.delta_hours
+        latest_tc.adjustment_reason = data.reason
     else:
-        prev_balance = 0.0
-
-    new_balance = prev_balance + data.delta_hours
-
-    now_utc = datetime.now(timezone.utc)
-    tc = Timecard(
-        employee_id=employee_id,
-        week=now_utc.isocalendar()[1],
-        year=now_utc.year,
-        scheduled_hours=0.0,
-        contract_hours=0.0,
-        manual_adjustment_hours=data.delta_hours,
-        adjustment_reason=data.reason,
-        balance=new_balance,
-    )
-    db.add(tc)
+        now_utc = datetime.now(timezone.utc)
+        tc = Timecard(
+            employee_id=employee_id,
+            week=now_utc.isocalendar()[1],
+            year=now_utc.year,
+            scheduled_hours=0.0,
+            contract_hours=0.0,
+            manual_adjustment_hours=data.delta_hours,
+            adjustment_reason=data.reason,
+            balance=data.delta_hours,
+        )
+        db.add(tc)
     db.commit()
-    db.refresh(tc)
 
     return _build_time_account_response(employee, db)
