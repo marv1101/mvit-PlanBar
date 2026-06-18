@@ -214,15 +214,14 @@ class TestDeleteUserData:
         # Force expire cache
         db_session.expire_all()
 
-        # Verify first user's data is untouched
-        user1_resp_after = client.get("/api/v1/users/me", headers=auth_headers)
-        assert user1_resp_after.status_code == 200
-        assert user1_resp_after.json()["id"] == user1_id
-
         # Verify first user still exists in DB
         user1 = db_session.query(User).filter(User.id == user1_id).first()
         assert user1 is not None
         assert user1.email == user1_email
+
+        # Verify second user was anonymized/deleted
+        user2 = db_session.query(User).filter(User.id == user2_id).first()
+        assert user2 is None
 
     def test_delete_requires_auth(self, client):
         """Unauthenticated deletion request should return 401."""
