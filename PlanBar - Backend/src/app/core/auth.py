@@ -13,9 +13,26 @@ from app.config import settings
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
-def generate_password(length: int = 12) -> str:
-    chars = string.ascii_letters + string.digits
-    return "".join(secrets.choice(chars) for _ in range(length))
+def generate_password(length: int = 14) -> str:
+    """Generate a password meeting BSI IT-Grundschutz complexity requirements.
+
+    Ensures at least one uppercase, one lowercase, one digit, and one special char.
+    """
+    special_chars = "!@#$%^&*"
+    # Guarantee at least one of each required class
+    pw = [
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.digits),
+        secrets.choice(special_chars),
+    ]
+    pool = string.ascii_letters + string.digits + special_chars
+    pw.extend(secrets.choice(pool) for _ in range(length - len(pw)))
+    # Shuffle to avoid predictable positions
+    pw_list = list(pw)
+    import random
+    random.SystemRandom().shuffle(pw_list)
+    return "".join(pw_list)
 
 
 def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
