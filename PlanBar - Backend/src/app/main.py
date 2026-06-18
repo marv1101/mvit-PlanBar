@@ -25,7 +25,20 @@ from app.db.models.user import User
 import logging
 import uuid
 
+from pathlib import Path
+
 logger = logging.getLogger(__name__)
+
+
+def _write_credentials_to_file(email: str, password: str) -> None:
+    """Write initial credentials to a one-time file (production only).
+
+    The file is meant to be read once during initial setup and then deleted.
+    Passwords are never written to logs or stdout in production.
+    """
+    creds_path = Path("initial-credentials.txt")
+    with open(creds_path, "a") as f:
+        f.write(f"{email}: {password}\n")
 
 
 def _verify_production_settings():
@@ -82,6 +95,7 @@ def run_database_setup() -> None:
 
 
 def seed_initial_users() -> None:
+    env = settings.environment
     db = SessionLocal()
     try:
         if db.query(User).filter(User.email == "admin@mphion.de").first() is None:
@@ -95,9 +109,15 @@ def seed_initial_users() -> None:
                 ),
                 role="admin",
             )
-            logger.info("=" * 60)
-            logger.info("Initial-Passwort fuer admin@mphion.de: %s", admin_password)
-            logger.info("=" * 60)
+            if env == "development":
+                print(f"\n{'=' * 60}")
+                print(f"Initial-Passwort fuer admin@mphion.de: {admin_password}")
+                print(f"{'=' * 60}\n")
+            elif env in ("production", "demo", "staging"):
+                _write_credentials_to_file("admin@mphion.de", admin_password)
+                logger.warning(
+                    "Initial credentials for admin@mphion.de written to initial-credentials.txt"
+                )
 
         if db.query(User).filter(User.email == "testuser@mphion.de").first() is None:
             test_password = uuid.uuid4().hex[:12]
@@ -109,9 +129,15 @@ def seed_initial_users() -> None:
                     password=test_password,
                 ),
             )
-            logger.info("=" * 60)
-            logger.info("Initial-Passwort fuer testuser@mphion.de: %s", test_password)
-            logger.info("=" * 60)
+            if env == "development":
+                print(f"\n{'=' * 60}")
+                print(f"Initial-Passwort fuer testuser@mphion.de: {test_password}")
+                print(f"{'=' * 60}\n")
+            elif env in ("production", "demo", "staging"):
+                _write_credentials_to_file("testuser@mphion.de", test_password)
+                logger.warning(
+                    "Initial credentials for testuser@mphion.de written to initial-credentials.txt"
+                )
     finally:
         db.close()
 
