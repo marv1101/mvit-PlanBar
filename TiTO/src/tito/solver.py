@@ -472,6 +472,27 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                         if len(window_assignments) > max_same_shift_consecutive:
                             cp_model.add(LinearExpr.sum(window_assignments) <= max_same_shift_consecutive)
 
+    # Constraint 3b: OFF-Wünsche als harte Constraints
+    # Wenn ein Mitarbeiter einen OFF-Wunsch für ein Datum hat, darf er an diesem
+    # Tag keiner Schicht zugewiesen werden.
+    for wish in wishes:
+        if wish.get("type") != "OFF":
+            continue
+        employee_id = wish.get("employeeId")
+        off_date = wish.get("date")
+
+        emp_idx = next(
+            (i for i, e in enumerate(employees) if e.get("id") == employee_id),
+            None
+        )
+        if emp_idx is None:
+            continue
+
+        # Finde alle Requirements an diesem Datum
+        for req_idx, requirement in enumerate(requirements):
+            if requirement.get("date") == off_date:
+                cp_model.add(assignments[(emp_idx, req_idx)] == 0)
+
     # Constraint 4: Wünsche als weiche Constraints
     wish_penalty_vars = []
     for wish in wishes:
