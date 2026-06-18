@@ -109,7 +109,7 @@ def auth_headers(client, db_session):
     register_data = {
         "username": "testadmin",
         "email": "admin@test.com",
-        "password": "testpassword123",
+        "password": "TestPass@123",
     }
     client.post("/api/v1/users", json=register_data)
     user = db_session.query(User).filter(User.email == "admin@test.com").first()
@@ -119,7 +119,7 @@ def auth_headers(client, db_session):
         db_session.commit()
     login_response = client.post(
         "/api/v1/users/login",
-        json={"email": "admin@test.com", "password": "testpassword123"},
+        json={"email": "admin@test.com", "password": "TestPass@123"},
     )
     token = login_response.json()["access_token"]
     client.cookies.clear()
@@ -133,7 +133,7 @@ def employee_auth_headers(client, db_session, auth_headers):
     register_data = {
         "username": "testemployee",
         "email": "employee@test.com",
-        "password": "testpassword123",
+        "password": "TestPass@123",
     }
     client.post("/api/v1/users", json=register_data)
 
@@ -151,7 +151,7 @@ def employee_auth_headers(client, db_session, auth_headers):
 
     login_response = client.post(
         "/api/v1/users/login",
-        json={"email": "employee@test.com", "password": "testpassword123"},
+        json={"email": "employee@test.com", "password": "TestPass@123"},
     )
     token = login_response.json()["access_token"]
     client.cookies.clear()

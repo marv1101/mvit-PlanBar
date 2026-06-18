@@ -3,7 +3,7 @@
 import uuid
 
 
-def _create_user(client, password="testpassword123"):
+def _create_user(client, password="TestPass@123"):
     email = f"{uuid.uuid4().hex[:8]}@example.com"
     resp = client.post(
         "/api/v1/users",
@@ -17,7 +17,7 @@ def _create_user(client, password="testpassword123"):
     return email
 
 
-def _login(client, email, password="testpassword123"):
+def _login(client, email, password="TestPass@123"):
     return client.post(
         "/api/v1/users/login",
         json={"email": email, "password": password},

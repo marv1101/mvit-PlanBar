@@ -3,7 +3,7 @@
 import uuid
 
 
-def _create_user(client, password="testpassword123"):
+def _create_user(client, password="TestPass@123"):
     email = f"{uuid.uuid4().hex[:8]}@example.com"
     resp = client.post(
         "/api/v1/users",
@@ -17,7 +17,7 @@ def _create_user(client, password="testpassword123"):
     return email
 
 
-def _login(client, email, password="testpassword123"):
+def _login(client, email, password="TestPass@123"):
     return client.post(
         "/api/v1/users/login",
         json={"email": email, "password": password},
@@ -115,12 +115,12 @@ def test_change_password_clears_must_change_flag(client, db_session):
 
     change_resp = client.post(
         "/api/v1/users/change-password",
-        json={"old_password": "testpassword123", "new_password": "newpassword456"},
+        json={"old_password": "TestPass@123", "new_password": "NewPass@456"},
         headers=headers,
     )
     assert change_resp.status_code == 200
 
-    login_resp2 = _login(client, email, "newpassword456")
+    login_resp2 = _login(client, email, "NewPass@456")
     assert login_resp2.json()["must_change_password"] is False
 
 
@@ -132,12 +132,12 @@ def test_login_after_password_change(client, db_session):
 
     client.post(
         "/api/v1/users/change-password",
-        json={"old_password": "testpassword123", "new_password": "changed5678"},
+        json={"old_password": "TestPass@123", "new_password": "Changed@5678"},
         headers=headers,
     )
 
-    response = _login(client, email, "changed5678")
+    response = _login(client, email, "Changed@5678")
     assert response.status_code == 200
 
-    response = _login(client, email, "testpassword123")
+    response = _login(client, email, "TestPass@123")
     assert response.status_code == 401
