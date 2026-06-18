@@ -10,7 +10,7 @@ def test_register_login_and_refresh_token(client):
     new_user = {
         "username": "integrationtestuser",
         "email": "testuser@example.com",
-        "password": "securepassword",
+        "password": "SecureP@ss1",
     }
 
     response = client.post("/api/v1/users", json=new_user)
