@@ -6,6 +6,7 @@ import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Plus, Loader2, Trash2, Copy, Check, RotateCcw, AlertTriangle } from 'lucide-react';
 import { AppUser } from '../types';
@@ -18,6 +19,8 @@ export function Users() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -36,14 +39,21 @@ export function Users() {
     loadUsers();
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Möchten Sie diesen Benutzer wirklich löschen?')) return;
+  const handleDeleteClick = (user: AppUser) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!userToDelete) return;
     try {
-      await userService.deleteUser(Number(id));
-      setUsers(prev => prev.filter(u => u.id !== id));
+      await userService.deleteUser(Number(userToDelete.id));
+      setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
     } catch {
       // error handled by api interceptor
     }
+    setUserToDelete(null);
+    setDeleteDialogOpen(false);
   };
 
   if (loading) {
@@ -127,7 +137,7 @@ export function Users() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleDelete(user.id)}
+                  onClick={() => handleDeleteClick(user)}
                   aria-label="Benutzer löschen"
                 >
                   <Trash2 className="h-4 w-4 text-red-600" />
@@ -166,6 +176,22 @@ export function Users() {
           </CardContent>
         </Card>
       )}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Möchten Sie diesen Benutzer wirklich löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 text-white hover:bg-red-700">
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
