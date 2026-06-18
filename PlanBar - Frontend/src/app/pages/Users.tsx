@@ -7,7 +7,7 @@ import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, Loader2, Trash2, Copy, Check } from 'lucide-react';
+import { Plus, Loader2, Trash2, Copy, Check, RotateCcw, AlertTriangle } from 'lucide-react';
 import { AppUser } from '../types';
 import { userFromResponse } from '../lib/mappers';
 import * as userService from '../services/userService';
@@ -16,15 +16,17 @@ import { TIMEZONE } from '../lib/timezone';
 export function Users() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const loadUsers = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await userService.getUsers();
       setUsers(data.map(userFromResponse));
     } catch {
-      // error handled by api interceptor
+      setError('Fehler beim Laden der Benutzer. Bitte versuchen Sie es erneut.');
     } finally {
       setLoading(false);
     }
@@ -55,6 +57,27 @@ export function Users() {
           <CardContent className="py-12 text-center">
             <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
             <p className="text-gray-600">Lade Benutzer...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="font-semibold text-2xl mb-2">Benutzer</h2>
+          <p className="text-gray-600">Verwalten Sie die Benutzerkonten für den Zugriff auf PlanBar</p>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="h-8 w-8 mx-auto text-red-500 mb-4" />
+            <p className="text-red-600 font-medium mb-4">{error}</p>
+            <Button onClick={loadUsers} variant="outline">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Erneut versuchen
+            </Button>
           </CardContent>
         </Card>
       </div>

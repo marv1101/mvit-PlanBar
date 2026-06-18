@@ -1,14 +1,14 @@
 import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Users, ClipboardList, Calendar, Clock, TrendingUp, Briefcase, Loader2 } from 'lucide-react';
+import { Users, ClipboardList, Calendar, Clock, TrendingUp, Briefcase, Loader2, RotateCcw, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useNavigate } from 'react-router';
 import { Shift } from '../types';
 import { TIMEZONE } from '../lib/timezone';
 
 export function Dashboard() {
-  const { employees, requests, schedules, roles, loading } = useApp();
+  const { employees, requests, schedules, roles, loading, error, refresh } = useApp();
   const navigate = useNavigate();
 
   // Get the most recent schedule
@@ -151,6 +151,27 @@ export function Dashboard() {
           <CardContent className="py-12 text-center">
             <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
             <p className="text-gray-600">Lade Daten...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="font-semibold text-2xl mb-2">Dashboard</h2>
+          <p className="text-gray-600">Überblick über Ihre Schichtplanung</p>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="h-8 w-8 mx-auto text-red-500 mb-4" />
+            <p className="text-red-600 font-medium mb-4">{error}</p>
+            <Button onClick={refresh} variant="outline">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Erneut versuchen
+            </Button>
           </CardContent>
         </Card>
       </div>
