@@ -8,14 +8,17 @@ from app.db.models.schedule import Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
 from app.schemas.schedule import (
+    ArbZgViolationResponse,
     ScheduleCreate,
     ScheduleResponse,
     ScheduleSummary,
     ScheduleUpdate,
+    ScheduleWithArbzgResponse,
     ShiftplanBatchReplace,
     ShiftplanResponse,
     ShiftplanUpdate,
 )
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services.schedule_service import (
     create_schedule,
     delete_schedule,
@@ -40,12 +43,18 @@ def create_schedule_endpoint(
     return create_schedule(db, data, admin.id)
 
 
-@router.get("", response_model=list[ScheduleResponse])
+@router.get("", response_model=PaginatedResponse[ScheduleResponse])
 def list_schedules_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    return list_schedules(db)
+    schedules = list_schedules(db)
+    total = len(schedules)
+    items = schedules[pagination.offset : pagination.offset + pagination.limit]
+    return PaginatedResponse(
+        items=items, total=total, offset=pagination.offset, limit=pagination.limit
+    )
 
 
 @router.get("/{schedule_id}", response_model=ScheduleResponse)
@@ -176,7 +185,7 @@ def update_shiftplan(
     return shiftplan
 
 
-@router.put("/{schedule_id}/shifts", response_model=ScheduleResponse)
+@router.put("/{schedule_id}/shifts", response_model=ScheduleWithArbzgResponse)
 def replace_all_shifts_endpoint(
     schedule_id: int,
     data: ShiftplanBatchReplace,
@@ -186,7 +195,34 @@ def replace_all_shifts_endpoint(
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    return replace_all_shifts(db, schedule, data.shiftplans, actor_id=current_user.id)
+    schedule, arbzg_result = replace_all_shifts(db, schedule, data.shiftplans, actor_id=current_user.id)
+    warnings = [
+        ArbZgViolationResponse(
+            rule=v.rule,
+            message=v.message,
+            employee_id=v.employee_id,
+            shift_date=v.shift_date,
+            details=v.details,
+        )
+        for v in arbzg_result.violations
+    ]
+    return ScheduleWithArbzgResponse(
+        id=schedule.id,
+        name=schedule.name,
+        status=schedule.status,
+        start_date=schedule.start_date,
+        end_date=schedule.end_date,
+        role_requirements=schedule.role_requirements,
+        shift_templates=schedule.shift_templates,
+        tito_job_id=schedule.tito_job_id,
+        metadata_json=schedule.metadata_json,
+        metrics_json=schedule.metrics_json,
+        diagnostics_json=schedule.diagnostics_json,
+        shiftplans=schedule.shiftplans,
+        created_at=schedule.created_at,
+        updated_at=schedule.updated_at,
+        arbZgWarnings=warnings,
+    )
 
 
 @router.get("/{schedule_id}/wishes/pending", response_model=list[ShiftWishResponse])

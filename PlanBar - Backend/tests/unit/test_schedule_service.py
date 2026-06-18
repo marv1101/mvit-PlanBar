@@ -105,11 +105,15 @@ def test_replace_all_shifts(db_session):
             shift_id="spät",
             start_time=time(14, 0),
             end_time=time(22, 0),
+            break_start="18:00",
+            break_end="18:30",
         ),
     ]
-    replaced = replace_all_shifts(db_session, schedule, new_shifts)
+    replaced, arbzg_result = replace_all_shifts(db_session, schedule, new_shifts)
     assert len(replaced.shiftplans) == 1
     assert replaced.shiftplans[0].shift_id == "spät"
+    # Valid single shift should have no violations
+    assert arbzg_result.is_valid
 
 
 def test_get_schedule_summary_with_shifts(db_session):
