@@ -137,3 +137,27 @@ export async function replaceAllShifts(scheduleId: number, shifts: ShiftplanCrea
   const { data } = await api.put(`/schedules/${scheduleId}/shifts`, { shiftplans: shifts });
   return data;
 }
+
+export async function downloadSchedulePdf(scheduleId: number, scheduleName: string): Promise<void> {
+  const response = await api.get(`/exports/schedule/${scheduleId}/pdf`, {
+    responseType: 'blob',
+  });
+  const blob = new Blob([response.data], { type: 'application/pdf' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `schichtplan-${scheduleName}.pdf`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+export async function downloadScheduleIcal(scheduleId: number, scheduleName: string): Promise<void> {
+  const response = await api.get(`/exports/schedule/${scheduleId}/ical`, {
+    responseType: 'blob',
+  });
+  const blob = new Blob([response.data], { type: 'text/calendar' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `schichtplan-${scheduleName}.ics`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
