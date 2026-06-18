@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Plus, Edit, Trash2, Loader2, RotateCcw, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { EmployeeForm } from '../components/EmployeeForm';
 import { Employee } from '../types';
 import { Badge } from '../components/ui/badge';
@@ -12,15 +13,24 @@ export function Employees() {
   const { employees, deleteEmployee, roles, loading, error, refresh } = useApp();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
 
   const handleEdit = (employee: Employee) => {
     setEditingEmployee(employee);
     setDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Möchten Sie diesen Mitarbeiter wirklich löschen?')) {
-      deleteEmployee(id);
+  const handleDeleteClick = (employee: Employee) => {
+    setEmployeeToDelete(employee);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (employeeToDelete) {
+      deleteEmployee(employeeToDelete.id);
+      setEmployeeToDelete(null);
+      setDeleteDialogOpen(false);
     }
   };
 
@@ -128,7 +138,7 @@ export function Employees() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleDelete(employee.id)}
+                    onClick={() => handleDeleteClick(employee)}
                     aria-label="Mitarbeiter löschen"
                   >
                     <Trash2 className="h-4 w-4 text-red-600" />
@@ -205,6 +215,22 @@ export function Employees() {
           </CardContent>
         </Card>
       )}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Möchten Sie diesen Mitarbeiter wirklich löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 text-white hover:bg-red-700">
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
