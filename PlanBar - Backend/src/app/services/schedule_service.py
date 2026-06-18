@@ -11,6 +11,7 @@ from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
 from app.services import audit_service
+from app.services.arbzg_validator import ArbZgResult, validate_schedule
 from app.services.tito_proxy import tito_proxy
 
 logger = logging.getLogger(__name__)
@@ -155,7 +156,12 @@ def replace_all_shifts(
     schedule: Schedule,
     shiftplans_data: list[ShiftplanCreate],
     actor_id: int | None = None,
-) -> Schedule:
+) -> tuple[Schedule, ArbZgResult]:
+    """Replace all shifts in a schedule and validate ArbZG compliance.
+
+    Returns a tuple of (schedule, arbzg_result) where arbzg_result
+    contains any labor law violations found in the new shifts.
+    """
     db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).delete()
     for sp_data in shiftplans_data:
         shiftplan = Shiftplan(
@@ -181,7 +187,29 @@ def replace_all_shifts(
         resource_id=str(schedule.id),
         details="replace_all_shifts",
     )
-    return schedule
+
+    # Validate ArbZG compliance for the manually created shifts
+    shift_dicts = [
+        {
+            "employee_id": sp_data.employee_id,
+            "date": sp_data.date,
+            "start_time": sp_data.start_time,
+            "end_date": sp_data.date,
+            "end_time": sp_data.end_time,
+            "break_start": sp_data.break_start,
+            "break_end": sp_data.break_end,
+        }
+        for sp_data in shiftplans_data
+    ]
+    arbzg_result = validate_schedule(shift_dicts)
+    if not arbzg_result.is_valid:
+        logger.warning(
+            "ArbZG violations in schedule %s after manual shift update: %d violation(s)",
+            schedule.id,
+            arbzg_result.warning_count,
+        )
+
+    return schedule, arbzg_result
 
 
 def get_schedule_summary(db: Session, schedule: Schedule) -> dict[str, Any]:
