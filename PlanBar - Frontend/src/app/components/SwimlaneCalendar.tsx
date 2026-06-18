@@ -2,44 +2,29 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDrag, useDrop } from 'react-dnd';
 import { useApp } from '../context/AppContext';
-import { Shift, Schedule, WeekType } from '../types';
+import { Shift, Schedule, WeekType } from '../../types';
 import { Button } from './ui/button';
 import { getWeekType } from '../lib/week';
 import { TIMEZONE } from '../lib/timezone';
 import { sanitizeLabel } from '../lib/sanitize';
 import { Pencil, Trash2, Coffee } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Employee } from '../types';
+import type { Employee } from '../../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import {
+  ITEM_TYPE, EMPLOYEE_ITEM_TYPE, BREAK_START_ITEM_TYPE, BREAK_END_ITEM_TYPE,
+  START_HOUR, END_HOUR, SNAP_MINUTES_SHIFT, SNAP_MINUTES_BREAK,
+  HOURS, toMinutes, formatTime,
+} from './schedule/shared/CalendarUtils';
+import type { DragItem, EmployeeDragItem, BreakDragItem } from './schedule/shared/CalendarUtils';
+import { BreakStartHandle, BreakEndHandle } from './schedule/shared/CalendarComponents';
 
-const ITEM_TYPE = 'SHIFT';
-const EMPLOYEE_ITEM_TYPE = 'EMPLOYEE';
-const BREAK_START_ITEM_TYPE = 'BREAK_START';
-const BREAK_END_ITEM_TYPE = 'BREAK_END';
 const HOUR_WIDTH = 64;
-const START_HOUR = 6;
-const END_HOUR = 22;
 const EMPLOYEE_ROW_HEIGHT = 44;
-const SNAP_MINUTES_SHIFT = 30;
-const SNAP_MINUTES_BREAK = 15;
-
-const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
-
-function toMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
-}
-
-function formatTime(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-function getBreakStyle(shift: Shift) {
+function getBreakStyleHorizontal(shift: Shift) {
   if (!shift.breakStart || !shift.breakEnd) return null;
   const shiftStart = toMinutes(shift.startTime);
   const breakStart = toMinutes(shift.breakStart);
@@ -49,21 +34,6 @@ function getBreakStyle(shift: Shift) {
   const width = Math.max(((breakEnd - breakStart) / 60) * HOUR_WIDTH, 16);
   return { left, width };
 }
-
-interface DragItem {
-  shift: Shift;
-  fromDate: string;
-}
-
-interface EmployeeDragItem {
-  employeeId: string;
-}
-
-interface BreakDragItem {
-  shift: Shift;
-  breakType: 'start' | 'end';
-}
-
 type HoverInfo = {
   type: 'shift';
   minutes: number;
@@ -84,45 +54,7 @@ interface SwimlaneCalendarProps {
   onUpdateSchedule: (schedule: Schedule) => void;
 }
 
-function BreakStartHandle({ shift }: { shift: Shift }) {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: BREAK_START_ITEM_TYPE,
-    item: { shift, breakType: 'start' as const } as BreakDragItem,
-    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  }), [shift]);
 
-  return (
-    <div
-      ref={drag}
-      className="absolute top-0 left-0 right-0 h-2 cursor-ew-resize hover:bg-blue-400/30 active:bg-blue-400/50 flex items-center justify-center z-20 group/break"
-      style={{ opacity: isDragging ? 0.5 : 1 }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-    >
-      <div className="w-6 h-[2px] bg-gray-400 rounded opacity-0 group-hover/break:opacity-100 transition-opacity" />
-    </div>
-  );
-}
-
-function BreakEndHandle({ shift }: { shift: Shift }) {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: BREAK_END_ITEM_TYPE,
-    item: { shift, breakType: 'end' as const } as BreakDragItem,
-    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  }), [shift]);
-
-  return (
-    <div
-      ref={drag}
-      className="absolute bottom-0 left-0 right-0 h-2 cursor-ew-resize hover:bg-blue-400/30 active:bg-blue-400/50 flex items-center justify-center z-20 group/break"
-      style={{ opacity: isDragging ? 0.5 : 1 }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-    >
-      <div className="w-6 h-[2px] bg-gray-400 rounded opacity-0 group-hover/break:opacity-100 transition-opacity" />
-    </div>
-  );
-}
 
 function ShiftBar({
   shift,
@@ -152,7 +84,7 @@ function ShiftBar({
   const endMin = toMinutes(shift.endTime);
   const left = ((startMin - START_HOUR * 60) / 60) * HOUR_WIDTH;
   const width = Math.max(((endMin - startMin) / 60) * HOUR_WIDTH, 20);
-  const breakStyle = getBreakStyle(shift);
+  const breakStyle = getBreakStyleHorizontal(shift);
 
   return (
     <motion.div
@@ -246,49 +178,7 @@ function ShiftBar({
   );
 }
 
-function EmployeeCard({ employee }: { employee: Employee }) {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: EMPLOYEE_ITEM_TYPE,
-    item: { employeeId: employee.id } as EmployeeDragItem,
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-  }), [employee.id]);
 
-  return (
-    <motion.div
-      ref={drag}
-      layout
-      animate={{
-        opacity: isDragging ? 0.3 : 1,
-        scale: isDragging ? 0.95 : 1,
-      }}
-      whileHover={{ scale: 1.03, y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-      whileTap={{ scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-      className="p-3 rounded-lg border-2 cursor-move"
-      style={{
-        backgroundColor: employee.color + '15',
-        borderColor: employee.color + '40'
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <div
-          className="w-3 h-3 rounded-full flex-shrink-0"
-          style={{ backgroundColor: employee.color }}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm truncate" style={{ color: employee.color }}>
-            {employee.name}
-          </div>
-          <div className="text-xs text-gray-500 truncate">
-            {employee.roles.length > 0 ? `${employee.roles.length} Rolle(n)` : 'Keine Rollen'}
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
 
 interface DayBlockProps {
   date: Date;
