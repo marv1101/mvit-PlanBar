@@ -10,7 +10,7 @@ def test_register_login_and_refresh_token(client):
     new_user = {
         "username": "integrationtestuser",
         "email": "testuser@example.com",
-        "password": "securepassword",
+        "password": "SecureP@ss1",
     }
 
     response = client.post("/api/v1/users", json=new_user)
@@ -60,11 +60,7 @@ def test_refresh_token_invalid(client):
 def test_get_user_by_id(client, auth_headers):
     create_resp = client.post(
         "/api/v1/users",
-        json={
-            "username": "getuserbyid",
-            "email": "getbyid@example.com",
-            "password": "password123",
-        },
+        json={"username": "getuserbyid", "email": "getbyid@example.com", "password": "Password@123"},
     )
     user_id = create_resp.json()["id"]
 
@@ -81,11 +77,7 @@ def test_get_user_not_found(client, auth_headers):
 def test_update_user_by_id(client, auth_headers):
     create_resp = client.post(
         "/api/v1/users",
-        json={
-            "username": "updatable",
-            "email": "updatable@example.com",
-            "password": "password123",
-        },
+        json={"username": "updatable", "email": "updatable@example.com", "password": "Password@123"},
     )
     user_id = create_resp.json()["id"]
 
@@ -110,11 +102,7 @@ def test_update_user_not_found(client, auth_headers):
 def test_delete_user_by_id(client, auth_headers):
     create_resp = client.post(
         "/api/v1/users",
-        json={
-            "username": "deletable",
-            "email": "deletable@example.com",
-            "password": "password123",
-        },
+        json={"username": "deletable", "email": "deletable@example.com", "password": "Password@123"},
     )
     user_id = create_resp.json()["id"]
 
@@ -130,20 +118,14 @@ def test_delete_user_not_found(client, auth_headers):
 def test_change_password(client, auth_headers):
     register_resp = client.post(
         "/api/v1/users",
-        json={
-            "username": "changepwuser",
-            "email": "changepw@example.com",
-            "password": "oldpassword123",
-        },
+        json={"username": "changepwuser", "email": "changepw@example.com", "password": "oldPassword@123"},
     )
-    register_resp.json()["id"]
-    user_auth = {
-        "Authorization": f"Bearer {client.post('/api/v1/users/login', json={'email': 'changepw@example.com', 'password': 'oldpassword123'}).json()['access_token']}"
-    }
+    user_id = register_resp.json()["id"]
+    user_auth = {"Authorization": f"Bearer {client.post('/api/v1/users/login', json={'email': 'changepw@example.com', 'password': 'oldPassword@123'}).json()['access_token']}"}
 
     response = client.post(
         "/api/v1/users/change-password",
-        json={"old_password": "oldpassword123", "new_password": "newpassword123"},
+        json={"old_password": "oldPassword@123", "new_password": "newPassword@123"},
         headers=user_auth,
     )
     assert response.status_code == 200
@@ -152,19 +134,13 @@ def test_change_password(client, auth_headers):
 def test_change_password_wrong_old(client, auth_headers):
     client.post(
         "/api/v1/users",
-        json={
-            "username": "changepwfail",
-            "email": "changepwfail@example.com",
-            "password": "oldpassword123",
-        },
+        json={"username": "changepwfail", "email": "changepwfail@example.com", "password": "oldPassword@123"},
     )
-    user_auth = {
-        "Authorization": f"Bearer {client.post('/api/v1/users/login', json={'email': 'changepwfail@example.com', 'password': 'oldpassword123'}).json()['access_token']}"
-    }
+    user_auth = {"Authorization": f"Bearer {client.post('/api/v1/users/login', json={'email': 'changepwfail@example.com', 'password': 'oldPassword@123'}).json()['access_token']}"}
 
     response = client.post(
         "/api/v1/users/change-password",
-        json={"old_password": "wrongpassword", "new_password": "newpassword123"},
+        json={"old_password": "wrongpassword", "new_password": "newPassword@123"},
         headers=user_auth,
     )
     assert response.status_code == 401
