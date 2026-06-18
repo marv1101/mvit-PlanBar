@@ -13,6 +13,7 @@ from app.db.models import (  # noqa: E402
     AuditLog,
     Employee,
     User,
+    RevokedToken,
 )
 
 config = context.config
