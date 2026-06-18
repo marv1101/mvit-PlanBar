@@ -6,6 +6,7 @@ from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.pinboard import PinboardThread, PinboardMessage, PinboardDocument
 from app.db.models.audit_log import AuditLog
 from app.db.models.revoked_token import RevokedToken
+from app.db.models.notification import Notification
 
 __all__ = [
     "User",
@@ -21,4 +22,5 @@ __all__ = [
     "PinboardDocument",
     "AuditLog",
     "RevokedToken",
+    "Notification",
 ]

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.v1.requests import ShiftWishResponse
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db, require_admin
+from app.db.models.employee import Employee
 from app.db.models.schedule import Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
@@ -19,6 +20,7 @@ from app.schemas.schedule import (
     ShiftplanUpdate,
 )
 from app.schemas.pagination import PaginatedResponse, PaginationParams
+from app.services.notification_service import create_notification
 from app.services.schedule_service import (
     create_schedule,
     delete_schedule,
@@ -186,6 +188,24 @@ def update_shiftplan(
     db.add(shiftplan)
     db.commit()
     db.refresh(shiftplan)
+
+    # Notify the employee about the shift change
+    employee = db.query(Employee).filter(Employee.id == shiftplan.employee_id).first()
+    if employee and employee.user_id:
+        create_notification(
+            db=db,
+            user_id=employee.user_id,
+            notification_type="shift_changed",
+            title="Schicht geändert",
+            message=f"Deine Schicht am {shiftplan.date} wurde geändert.",
+            data={
+                "shiftplan_id": shiftplan.id,
+                "schedule_id": schedule_id,
+                "date": str(shiftplan.date),
+                "shift_id": shiftplan.shift_id,
+            },
+        )
+
     return shiftplan
 
 
