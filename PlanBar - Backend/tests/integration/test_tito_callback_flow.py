@@ -65,7 +65,7 @@ def _dev_environment():
 
 @pytest.fixture
 def test_shift_wish(db_session: Session, test_employee: Employee) -> ShiftWish:
-    """Create a test shift wish."""
+    """Create a test shift wish (approved, so it doesn't block TiTO submission)."""
     db_session.query(ShiftWish).delete()
     db_session.commit()
     wish = ShiftWish(
@@ -73,6 +73,7 @@ def test_shift_wish(db_session: Session, test_employee: Employee) -> ShiftWish:
         date=date(2026, 5, 24),
         type="preferred",
         note="Morning shift preferred",
+        status="approved",
     )
     db_session.add(wish)
     db_session.commit()
