@@ -30,7 +30,7 @@ class Employee(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
-    user = relationship("User", backref="employees", lazy="selectin")
+    user = relationship("User", foreign_keys=[user_id], backref="employees", lazy="selectin")
     contracts = relationship("Contract", back_populates="employee", lazy="selectin")
     timecards = relationship("Timecard", back_populates="employee", lazy="selectin")
     shift_wishes = relationship("ShiftWish", back_populates="employee", lazy="selectin")

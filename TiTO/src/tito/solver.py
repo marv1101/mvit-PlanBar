@@ -118,6 +118,40 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             expanded_requirements.append(expanded)
     requirements = expanded_requirements
 
+    if not requirements:
+        solve_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+        return {
+            "metadata": {
+                "status": "SUCCESS",
+                "solveTimeSeconds": round(solve_time, 2),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            "solution": {
+                "assignments": [],
+                "unassignedRequirements": [],
+            },
+            "metrics": {
+                "wishFulfillmentRate": 100.0,
+                "totalObjectiveScore": 0,
+                "employeeUtilization": {emp["id"]: 0.0 for emp in employees},
+                "employeeFairness": {
+                    emp["id"]: {
+                        "currentBalanceHours": round(float(emp.get("currentBalanceHours", 0.0) or 0.0), 2),
+                        "scheduledHours": 0.0,
+                        "targetHours": 0.0,
+                        "projectedBalance": round(float(emp.get("currentBalanceHours", 0.0) or 0.0), 2),
+                        "fairnessDeviation": 0.0,
+                    }
+                    for emp in employees
+                },
+                "violations": [],
+            },
+            "diagnostics": {
+                "isOptimal": True,
+                "info": "Keine Anforderungen zu planen.",
+            },
+        }
+
     date_requirements: Dict[str, List[int]] = defaultdict(list)
     week_requirements: Dict[Tuple[int, int], List[int]] = defaultdict(list)
     for req_idx, requirement in enumerate(requirements):
@@ -242,7 +276,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         for emp_idx in group_emp_indices:
             emp = employees[emp_idx]
             contract_hours = float(
-                (emp.get("contract") or {}).get("weeklyHours", default_weekly_hours)
+                emp.get("contractHours") or (emp.get("contract") or {}).get("weeklyHours", default_weekly_hours)
             )
             group_contract_minutes += contract_hours * weeks_in_period * 60
 
@@ -254,7 +288,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         for emp_idx in group_emp_indices:
             emp = employees[emp_idx]
             contract_hours = float(
-                (emp.get("contract") or {}).get("weeklyHours", default_weekly_hours)
+                emp.get("contractHours") or (emp.get("contract") or {}).get("weeklyHours", default_weekly_hours)
             )
             emp_contract_minutes = contract_hours * weeks_in_period * 60
             anteil = emp_contract_minutes / group_contract_minutes
@@ -285,7 +319,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     )
 
     total_contract_minutes = sum(
-        float((emp.get("contract") or {}).get("weeklyHours", default_weekly_hours))
+        float(emp.get("contractHours") or (emp.get("contract") or {}).get("weeklyHours", default_weekly_hours))
         * weeks_in_period * 60
         for emp in employees
     )
@@ -295,7 +329,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
 
         for emp_idx, employee in enumerate(employees):
             contract_hours = float(
-                (employee.get("contract") or {}).get("weeklyHours", default_weekly_hours)
+                employee.get("contractHours") or (employee.get("contract") or {}).get("weeklyHours", default_weekly_hours)
             )
             emp_contract_minutes = contract_hours * weeks_in_period * 60
             anteil = emp_contract_minutes / total_contract_minutes
@@ -408,7 +442,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
 
         # Wochenarbeitszeit basierend auf Vertrag
         weekly_hours = float(
-            (employee.get("contract") or {}).get("weeklyHours", default_weekly_hours)
+            employee.get("contractHours") or (employee.get("contract") or {}).get("weeklyHours", default_weekly_hours)
         )
         weekly_limit_minutes = int(weekly_hours * 60)
         for week_key, req_indices in week_requirements.items():
@@ -551,6 +585,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                         "shiftId": shift_id,
                         "startTime": shift.get("startTime", "00:00"),
                         "endTime": shift.get("endTime", "00:00"),
+                        "name": shift.get("name", ""),
                     })
                     assigned = True
                     break
@@ -673,12 +708,12 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         current_balance = float(emp.get("currentBalanceHours", 0.0) or 0.0)
         
         contract_hours = float(
-            (emp.get("contract") or {}).get("weeklyHours", default_weekly_hours)
+            emp.get("contractHours") or (emp.get("contract") or {}).get("weeklyHours", default_weekly_hours)
         )
         
         # Berechne target (proportionale Stunden basierend auf Contract)
         total_contract_minutes = sum(
-            float((e.get("contract") or {}).get("weeklyHours", default_weekly_hours)) * weeks_in_period * 60
+            float(e.get("contractHours") or (e.get("contract") or {}).get("weeklyHours", default_weekly_hours)) * weeks_in_period * 60
             for e in employees
         )
         total_requirement_minutes = sum(

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db.models.employee import Employee, Timecard
+from app.db.models.role import Role
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
@@ -22,6 +23,7 @@ def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = Non
         start_date=data.start_date,
         end_date=data.end_date,
         role_requirements=data.role_requirements,
+        shift_templates=data.shift_templates,
         status="draft",
     )
     db.add(schedule)
@@ -39,6 +41,7 @@ def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = Non
             week=shiftplan_data.week,
             break_start=shiftplan_data.break_start,
             break_end=shiftplan_data.break_end,
+            label=shiftplan_data.label,
             notes=shiftplan_data.notes,
         )
         db.add(shiftplan)
@@ -64,6 +67,8 @@ def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate, actor
         schedule.week_type = data.week_type
     if data.status is not None:
         schedule.status = data.status.value
+    if data.shift_templates is not None:
+        schedule.shift_templates = data.shift_templates
     db.add(schedule)
     db.commit()
     db.refresh(schedule)
@@ -150,6 +155,7 @@ def replace_all_shifts(
             week=sp_data.week,
             break_start=sp_data.break_start,
             break_end=sp_data.break_end,
+            label=sp_data.label,
             notes=sp_data.notes,
         )
         db.add(shiftplan)
@@ -194,6 +200,11 @@ def _build_tito_payload(
     if not schedule.start_date or not schedule.end_date:
         raise ValueError("Schedule must have start_date and end_date to submit to TiTO")
 
+    # Load role name map (for skills resolution)
+    role_name_by_id: dict[int, str] = {}
+    if db is not None:
+        role_name_by_id = {r.id: r.name for r in db.query(Role).all()}
+
     shift_templates = _build_shift_templates(schedule)
 
     employee_list = []
@@ -224,6 +235,7 @@ def _build_tito_payload(
             "contractHours": contract_hours,
             "breakMinutes": break_minutes,
             "currentBalanceHours": current_balance,
+            "skills": [r.name for r in emp.roles],
         }
         if role:
             entry["role"] = role
@@ -240,10 +252,30 @@ def _build_tito_payload(
             "comment": wish.note or "",
         })
 
-    # Expand role_requirements into per-date requirements,
-    # filtering by week_type if the schedule is scoped to A or B
+    # Build requirements from shift_templates or role_requirements.
+    # Iterate per-date, filtering by week_type if scoped to A or B.
     requirements = []
-    if schedule.role_requirements:
+    if schedule.shift_templates:
+        current = schedule.start_date
+        while current <= schedule.end_date:
+            if schedule.week_type and _get_week_type(current) != schedule.week_type:
+                current += timedelta(days=1)
+                continue
+            for st in schedule.shift_templates:
+                for role_id_str, count in st.get("requirements", {}).items():
+                    if int(count) > 0:
+                        role_id = int(role_id_str)
+                        skill_name = role_name_by_id.get(role_id) or f"ROLE_{role_id_str}"
+                        requirements.append({
+                            "shiftTemplateId": st["id"],
+                            "shiftId": st["id"],
+                            "date": current.isoformat(),
+                            "count": int(count),
+                            "skills": [skill_name],
+                        })
+            current += timedelta(days=1)
+
+    elif schedule.role_requirements:
         current = schedule.start_date
         while current <= schedule.end_date:
             if schedule.week_type and _get_week_type(current) != schedule.week_type:
@@ -283,7 +315,18 @@ def _build_tito_payload(
 
 
 def _build_shift_templates(schedule: Schedule) -> list[dict[str, Any]]:
-    """Derive shift templates from existing shiftplans or role_requirements."""
+    """Derive shift templates from shift_templates, existing shiftplans, or role_requirements."""
+    if schedule.shift_templates:
+        return [
+            {
+                "id": st["id"],
+                "name": st.get("name", st["id"]),
+                "startTime": st["startTime"],
+                "endTime": st["endTime"],
+            }
+            for st in schedule.shift_templates
+        ]
+
     if schedule.shiftplans:
         seen: dict[str, dict[str, Any]] = {}
         for sp in schedule.shiftplans:

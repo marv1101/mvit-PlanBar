@@ -72,6 +72,7 @@ export interface Shift {
   endTime: string;
   breakStart?: string;
   breakEnd?: string;
+  label?: string;
 }
 
 export interface TiTOViolation {
@@ -84,6 +85,16 @@ export interface TiTOViolation {
 export interface TiTODiagnostics {
   isOptimal: boolean;
   info: string;
+  aggregatedMessages?: TiTOAggregatedMessage[];
+}
+
+export interface TiTOAggregatedMessage {
+  severity: string;
+  skill: string;
+  message: string;
+  totalMissingShifts: number;
+  totalMissingHours: number;
+  affectedDays: number;
 }
 
 export interface EmployeeFairnessEntry {
@@ -113,6 +124,14 @@ export interface AppUser {
   lastLogin: string | null;
 }
 
+export interface ShiftTemplateEntry {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  requirements: Record<string, number>;
+}
+
 export interface Schedule {
   id: string;
   name: string;
@@ -121,6 +140,8 @@ export interface Schedule {
   endDate: string;
   shifts: Shift[];
   roleRequirements?: Record<EmployeeRole, number>;
+  shiftTemplates?: ShiftTemplateEntry[];
+  weekType?: WeekType | null;
   titoJobId?: number | null;
   diagnostics?: TiTODiagnostics | null;
   metrics?: TiTOMetrics | null;

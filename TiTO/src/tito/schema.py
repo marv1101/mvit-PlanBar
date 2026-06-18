@@ -107,6 +107,10 @@ class Employee(BaseModel):
         if self.contract and self.currentBalanceHours == 0.0:
             self.currentBalanceHours = self.contract.get('currentBalanceHours', 0.0)
         
+        # Reverse: build contract dict from contractHours for solver compatibility
+        if self.contractHours is not None and self.contract is None:
+            self.contract = {"weeklyHours": self.contractHours}
+        
         return self
 
 
@@ -246,6 +250,7 @@ class Assignment(BaseModel):
     shiftTemplateId: str
     startTime: str
     endTime: str
+    name: str = ""
 
 
 class SolverStatus:

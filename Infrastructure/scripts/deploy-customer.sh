@@ -2,9 +2,10 @@
 # Deploy a new PlanBar customer stack or update an existing one.
 #
 # Usage:
-#   ./deploy-customer.sh <customer-id> [frontend-port] [tito-port] [backend-port]
+#   ./deploy-customer.sh [--no-caddy] <customer-id> [frontend-port] [tito-port] [backend-port]
 #
 # Example:
+#   ./deploy-customer.sh --no-caddy kunde1 8081 5001 8001
 #   ./deploy-customer.sh kunde1 8081 5001 8001
 #
 # Prerequisites:
@@ -23,7 +24,32 @@
 
 set -euo pipefail
 
-CUSTOMER="${1:?Usage: $0 <customer-id> [frontend-port] [tito-port] [backend-port]}"
+SKIP_CADDY=false
+POSITIONAL_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --no-caddy|-n)
+            SKIP_CADDY=true
+            shift
+            ;;
+        --)
+            shift
+            POSITIONAL_ARGS+=("$@")
+            break
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+        *)
+            POSITIONAL_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+set -- "${POSITIONAL_ARGS[@]}"
+
+CUSTOMER="${1:?Usage: $0 [--no-caddy] <customer-id> [frontend-port] [tito-port] [backend-port]}"
 FRONTEND_PORT="${2:-8080}"
 TITO_PORT="${3:-5000}"
 BACKEND_PORT="${4:-8000}"
@@ -92,12 +118,15 @@ EOF
         docker exec -i db_tito psql -U tito -d "${TITO_DB_NAME}" < "${BASE_DIR}/Infrastructure/init-db.sql"
     fi
 
-    # Add Caddy entry (optional, skip when CADDYFILE is empty)
-    CADDYFILE="${CADDYFILE:-/etc/caddy/Caddyfile}"
-    if [ -n "${CADDYFILE}" ]; then
-        echo "Adding Caddy entry for ${DOMAIN} to ${CADDYFILE}..."
-        mkdir -p "$(dirname "${CADDYFILE}")"
-        cat >> "${CADDYFILE}" << EOF
+    # Add Caddy entry (skip with --no-caddy, CADDYFILE empty, or env var)
+    if [ "${SKIP_CADDY}" = true ]; then
+        echo "Skipping Caddy config (--no-caddy). Configure reverse proxy manually."
+    else
+        CADDYFILE="${CADDYFILE:-/etc/caddy/Caddyfile}"
+        if [ -n "${CADDYFILE}" ]; then
+            echo "Adding Caddy entry for ${DOMAIN} to ${CADDYFILE}..."
+            mkdir -p "$(dirname "${CADDYFILE}")"
+            cat >> "${CADDYFILE}" << EOF
 
 ${DOMAIN} {
     handle /api/* {
@@ -108,12 +137,13 @@ ${DOMAIN} {
     }
 }
 EOF
-        CADDY_RELOAD_CMD="${CADDY_RELOAD_CMD:-systemctl reload caddy}"
-        if [ -n "${CADDY_RELOAD_CMD}" ]; then
-            ${CADDY_RELOAD_CMD} || echo "Warning: could not reload Caddy"
+            CADDY_RELOAD_CMD="${CADDY_RELOAD_CMD:-systemctl reload caddy}"
+            if [ -n "${CADDY_RELOAD_CMD}" ]; then
+                ${CADDY_RELOAD_CMD} || echo "Warning: could not reload Caddy"
+            fi
+        else
+            echo "Skipping Caddy config (CADDYFILE is empty). Configure reverse proxy manually."
         fi
-    else
-        echo "Skipping Caddy config (CADDYFILE is empty). Configure reverse proxy manually."
     fi
 
     echo "Customer ${CUSTOMER} initialized."

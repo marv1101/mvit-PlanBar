@@ -5,7 +5,6 @@ import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { User, Calendar, Clock, Coffee, Download, Loader2 } from 'lucide-react';
-import { getWeekType } from '../lib/week';
 import { WeekType, Shift } from '../types';
 import { toast } from 'sonner';
 import { TIMEZONE } from '../lib/timezone';
@@ -363,11 +362,6 @@ export function EmployeeView() {
                     </div>
                     
                     {calendarWeeks.map((week, weekIndex) => {
-                      // Determine week type
-                      const weekType = getWeekType(week[0]);
-                      
-                      if (weekType !== currentWeek) return null;
-
                       return (
                         <div key={weekIndex} className="grid grid-cols-7">
                           {week.map((day, dayIndex) => {

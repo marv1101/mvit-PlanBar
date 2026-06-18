@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Employee, Request, Schedule, WeekType, Role } from '../types';
+import { getWeekType } from '../lib/week';
 import { toast } from 'sonner';
 import * as employeeService from '../services/employeeService';
 import * as roleService from '../services/roleService';
@@ -45,7 +46,7 @@ interface AppContextType {
   refresh: () => Promise<void>;
 }
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 async function loadAll() {
   const [empRes, roleRes, reqRes, schedRes] = await Promise.all([
@@ -68,7 +69,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [currentSchedule, setCurrentSchedule] = useState<Schedule | null>(null);
-  const [currentWeek, setCurrentWeek] = useState<WeekType>('A');
+  const [currentWeek, setCurrentWeek] = useState<WeekType>(() => getWeekType(new Date()));
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -154,7 +155,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateSchedule = useCallback((id: string, schedule: Schedule) => {
-    scheduleService.updateSchedule(Number(id), { name: schedule.name, week_type: undefined, status: schedule.status })
+    scheduleService.updateSchedule(Number(id), { name: schedule.name, week_type: schedule.weekType || undefined, status: schedule.status })
       .then(() => {
         setSchedules(prev => prev.map(s => s.id === id ? schedule : s));
         toast.success('Schichtplan aktualisiert');

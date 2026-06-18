@@ -77,3 +77,35 @@ def auth_headers(client, db_session):
     token = login_response.json()["access_token"]
     client.cookies.clear()
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def employee_auth_headers(client, db_session, auth_headers):
+    from app.db.models.user import User
+
+    register_data = {
+        "username": "testemployee",
+        "email": "employee@test.com",
+        "password": "testpassword123",
+    }
+    client.post("/api/v1/users", json=register_data)
+
+    emp_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Test", "last_name": "Employee"},
+        headers=auth_headers,
+    )
+    emp_id = emp_resp.json()["id"]
+
+    user = db_session.query(User).filter(User.email == "employee@test.com").first()
+    user.employee_id = emp_id
+    db_session.add(user)
+    db_session.commit()
+
+    login_response = client.post(
+        "/api/v1/users/login",
+        json={"email": "employee@test.com", "password": "testpassword123"},
+    )
+    token = login_response.json()["access_token"]
+    client.cookies.clear()
+    return ({"Authorization": f"Bearer {token}"}, emp_id)

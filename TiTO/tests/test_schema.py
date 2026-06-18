@@ -289,6 +289,24 @@ def test_employee_accepts_current_balance_via_payload():
     assert result.employees[0].currentBalanceHours == 3.5
 
 
+def test_employee_contractHours_reverse_normalizer():
+    """Employee with contractHours (no contract dict) builds contract.weeklyHours."""
+    emp = Employee(id="E001", name="Test", contractHours=20.0)
+    assert emp.contractHours == 20.0
+    assert emp.contract == {"weeklyHours": 20.0}
+
+
+def test_employee_contractHours_with_existing_contract_not_overwritten():
+    """contract dict takes precedence when both are provided."""
+    emp = Employee(
+        id="E001", name="Test",
+        contractHours=20.0,
+        contract={"weeklyHours": 35.0}
+    )
+    assert emp.contractHours == 20.0
+    assert emp.contract == {"weeklyHours": 35.0}
+
+
 def test_schema_with_minimal_required_fields():
     """Test that minimal valid payloads work."""
     payload = {
