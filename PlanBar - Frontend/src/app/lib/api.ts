@@ -8,6 +8,28 @@ const api = axios.create({
   timeout: 15000,
 });
 
+// --- CSRF double-submit cookie helper ----------------------------------------
+
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+const CSRF_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+
+api.interceptors.request.use((config) => {
+  const method = (config.method || '').toLowerCase();
+  if (CSRF_METHODS.has(method)) {
+    const token = getCsrfToken();
+    if (token) {
+      config.headers.set('X-CSRF-Token', token);
+    }
+  }
+  return config;
+});
+
+// --- Existing interceptors -------------------------------------------------
+
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (value: unknown) => void;
