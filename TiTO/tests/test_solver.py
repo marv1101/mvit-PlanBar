@@ -719,3 +719,125 @@ def test_off_wish_vs_prefer_shift():
                 f"OFF wish should take priority over PREFER_SHIFT, "
                 f"but emp_001 was assigned on 2026-01-02"
             )
+
+
+def test_holiday_treated_like_sunday():
+    """Test that work on a public holiday counts toward the Sunday/holiday limit.
+
+    According to ArbZG §9, public holidays are treated like Sundays for work
+    limit purposes.
+
+    Scenario:
+    - Period: 2026-01-01 (Thu/holiday) through 2026-01-11 (Sun)
+    - Sundays in period: Jan 4, Jan 11 (2 Sundays)
+    - Holiday in period: Jan 1 (Neujahr)
+    - minFreeSundaysPerYear=49 → allows 1 protected day work per employee
+      (required_free = round(49*3/52)=3, allowed = 3 - min(3,2) = 1)
+
+    Without holiday awareness: employee could work Jan 1 (holiday, not counted)
+    + Jan 4 (Sunday, counted) = 2 protected days.
+
+    With holiday awareness: employee should work at most 1 protected day total
+    (Sunday OR holiday). Need 3 employees to cover all 3 protected days.
+    """
+    payload = {
+        "metadata": {"jobId": "job-holiday-1"},
+        "config": {
+            "startDate": "2026-01-01",
+            "endDate": "2026-01-11",
+            "minFreeSundaysPerYear": 49,
+            "holidayDates": ["2026-01-01"],
+        },
+        "shiftTemplates": [
+            {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
+        ],
+        "requirements": [
+            # Jan 1 = Thursday (holiday), Jan 4 = Sunday, Jan 5 = Monday, Jan 11 = Sunday
+            {"date": "2026-01-01", "shiftId": "S_FRUEH", "count": 1},
+            {"date": "2026-01-04", "shiftId": "S_FRUEH", "count": 1},
+            {"date": "2026-01-05", "shiftId": "S_FRUEH", "count": 1},
+            {"date": "2026-01-11", "shiftId": "S_FRUEH", "count": 1},
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=30)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+
+    # Verify: no single employee should be assigned on both a holiday and a Sunday
+    protected_dates = {"2026-01-01", "2026-01-04", "2026-01-11"}  # holiday + Sundays
+    emp_protected_count = {}
+    for a in result["solution"]["assignments"]:
+        if a["date"] in protected_dates:
+            emp_protected_count[a["employeeId"]] = emp_protected_count.get(a["employeeId"], 0) + 1
+
+    for emp_id, count in emp_protected_count.items():
+        assert count <= 1, (
+            f"Employee {emp_id} worked on {count} protected days (Sunday/holiday). "
+            f"With minFreeSundaysPerYear=49 and holidayDates=[2026-01-01], "
+            f"should work on at most 1 protected day total (ArbZG §9)"
+        )
+
+
+def test_holiday_rest_constraint():
+    """Test that minimum rest time is enforced across holiday boundaries.
+
+    If an employee works a late shift ending at 22:00 on a holiday,
+    they must not start before the minimum rest time on the next day.
+    """
+    payload = {
+        "metadata": {"jobId": "job-holiday-rest-1"},
+        "config": {
+            "startDate": "2026-01-01",
+            "endDate": "2026-01-05",
+            "minRestTimeHours": 11,
+            "minFreeSundaysPerYear": 15,
+            "holidayDates": ["2026-01-01"],
+        },
+        "shiftTemplates": [
+            {"id": "S_SPAET", "startTime": "14:00", "endTime": "22:00"},
+            {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
+        ],
+        "requirements": [
+            # Jan 1 (holiday): late shift 14:00-22:00
+            # Jan 2 (Friday): early shift 06:00-14:00 — only 8h gap, violates 11h rest
+            {"date": "2026-01-01", "shiftId": "S_SPAET", "count": 1},
+            {"date": "2026-01-02", "shiftId": "S_FRUEH", "count": 1},
+            # Also add shifts on Jan 3-4 to give other employees something to do
+            {"date": "2026-01-03", "shiftId": "S_FRUEH", "count": 1},
+            {"date": "2026-01-04", "shiftId": "S_FRUEH", "count": 1},
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=30)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+
+    # Verify: no employee should work S_SPAET on Jan 1 AND S_FRUEH on Jan 2
+    # (that would be only 8h rest, violating 11h minimum)
+    assignments = result["solution"]["assignments"]
+    for emp_id in ["emp_001", "emp_002"]:
+        emp_assignments = [a for a in assignments if a["employeeId"] == emp_id]
+        works_late_jan1 = any(
+            a["date"] == "2026-01-01" and a["shiftId"] == "S_SPAET"
+            for a in emp_assignments
+        )
+        works_early_jan2 = any(
+            a["date"] == "2026-01-02" and a["shiftId"] == "S_FRUEH"
+            for a in emp_assignments
+        )
+        assert not (works_late_jan1 and works_early_jan2), (
+            f"Employee {emp_id} must not work S_SPAET on Jan 1 (holiday, ends 22:00) "
+            f"and S_FRUEH on Jan 2 (starts 06:00) — only 8h rest, violates 11h minimum"
+        )
