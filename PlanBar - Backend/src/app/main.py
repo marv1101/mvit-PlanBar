@@ -16,6 +16,7 @@ from app.middleware.error_handler import (
     http_error_handler,
     validation_exception_handler,
 )
+from app.middleware.csrf import CsrfMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.middleware.security_headers import (
@@ -85,6 +86,7 @@ def create_app() -> FastAPI:
             "X-CSRF-Token",
         ],
     )
+    app.add_middleware(CsrfMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware, max_size=10 * 1024 * 1024)
     app.include_router(api_router, prefix="/api/v1")
