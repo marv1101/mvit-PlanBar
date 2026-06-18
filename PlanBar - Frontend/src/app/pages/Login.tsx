@@ -99,19 +99,24 @@ export function Login() {
             </Button>
           </form>
 
-          {import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === 'true' && (
+          {import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === 'true' &&
+            (import.meta.env.VITE_DEMO_ADMIN_PASSWORD || import.meta.env.VITE_DEMO_USER_PASSWORD) && (
             <div className="mt-6 space-y-2 text-sm text-gray-600">
               <p className="text-center font-medium">Demo-Zugangsdaten:</p>
-              <div className="bg-gray-50 p-3 rounded-md space-y-1">
-                <p><strong>Administrator:</strong></p>
-                <p className="text-xs">Email: admin@mphion.de</p>
-                <p className="text-xs">Passwort: {import.meta.env.VITE_DEMO_ADMIN_PASSWORD || 'Admin@123'}</p>
-              </div>
-              <div className="bg-gray-50 p-3 rounded-md space-y-1">
-                <p><strong>Mitarbeiter:</strong></p>
-                <p className="text-xs">Email: testuser@mphion.de</p>
-                <p className="text-xs">Passwort: {import.meta.env.VITE_DEMO_USER_PASSWORD || 'User@123'}</p>
-              </div>
+              {import.meta.env.VITE_DEMO_ADMIN_PASSWORD && (
+                <div className="bg-gray-50 p-3 rounded-md space-y-1">
+                  <p><strong>Administrator:</strong></p>
+                  <p className="text-xs">Email: admin@mphion.de</p>
+                  <p className="text-xs">Passwort: {import.meta.env.VITE_DEMO_ADMIN_PASSWORD}</p>
+                </div>
+              )}
+              {import.meta.env.VITE_DEMO_USER_PASSWORD && (
+                <div className="bg-gray-50 p-3 rounded-md space-y-1">
+                  <p><strong>Mitarbeiter:</strong></p>
+                  <p className="text-xs">Email: testuser@mphion.de</p>
+                  <p className="text-xs">Passwort: {import.meta.env.VITE_DEMO_USER_PASSWORD}</p>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
