@@ -645,3 +645,77 @@ def test_solver_contractHours_works_without_contract_dict():
     assert result["metadata"]["status"] == "SUCCESS"
     assert len(result["solution"]["assignments"]) == 2
     assert result["metrics"]["employeeFairness"]["emp_001"]["targetHours"] > 0
+
+
+def test_off_wish_respected():
+    """Test that OFF wishes are respected - employee is NOT assigned to any shift on that date."""
+    payload = {
+        "metadata": {"jobId": "job-off-1"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [
+            {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
+            {"id": "S_SPAET", "startTime": "14:00", "endTime": "22:00"},
+        ],
+        "requirements": [
+            {"date": "2026-01-02", "shiftId": "S_FRUEH", "count": 1},
+            {"date": "2026-01-02", "shiftId": "S_SPAET", "count": 1},
+            {"date": "2026-01-03", "shiftId": "S_FRUEH", "count": 1},
+        ],
+        "employees": [
+            {"id": "emp_001", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {"id": "emp_002", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {"id": "emp_003", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+        ],
+        "wishes": [
+            {"employeeId": "emp_001", "type": "OFF", "date": "2026-01-02"},
+        ],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=30)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+
+    # Verify emp_001 is NOT assigned to any shift on 2026-01-02
+    for assignment in result["solution"]["assignments"]:
+        if assignment["employeeId"] == "emp_001":
+            assert assignment["date"] != "2026-01-02", (
+                f"emp_001 should NOT be assigned on 2026-01-02 (OFF wish), "
+                f"but got assignment to {assignment.get('shiftId')}"
+            )
+
+
+def test_off_wish_vs_prefer_shift():
+    """Test that OFF wishes take priority over PREFER_SHIFT when they conflict."""
+    payload = {
+        "metadata": {"jobId": "job-off-pref-conflict"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [
+            {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
+        ],
+        "requirements": [
+            {"date": "2026-01-02", "shiftId": "S_FRUEH", "count": 1},
+            {"date": "2026-01-03", "shiftId": "S_FRUEH", "count": 1},
+        ],
+        "employees": [
+            {"id": "emp_001", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {"id": "emp_002", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+        ],
+        "wishes": [
+            # emp_001 prefers the morning shift on Jan 2...
+            {"employeeId": "emp_001", "type": "PREFER_SHIFT", "shiftId": "S_FRUEH", "date": "2026-01-02"},
+            # ...but also has an OFF wish for the same day
+            {"employeeId": "emp_001", "type": "OFF", "date": "2026-01-02"},
+        ],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=30)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+
+    # OFF should win: emp_001 should NOT be assigned on 2026-01-02
+    for assignment in result["solution"]["assignments"]:
+        if assignment["employeeId"] == "emp_001":
+            assert assignment["date"] != "2026-01-02", (
+                f"OFF wish should take priority over PREFER_SHIFT, "
+                f"but emp_001 was assigned on 2026-01-02"
+            )
