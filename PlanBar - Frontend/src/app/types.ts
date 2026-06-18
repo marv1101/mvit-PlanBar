@@ -156,6 +156,7 @@ export interface TimeAccountEntry {
   balance: number;
   manualAdjustment: number;
   adjustmentReason: string | null;
+  totalChange: number;
 }
 
 export interface TimeAccountProjected {
