@@ -7,12 +7,12 @@ def other_user_headers(client):
     register_data = {
         "username": "otheruser",
         "email": "other@test.com",
-        "password": "testpassword123",
+        "password": "TestPass@123",
     }
     client.post("/api/v1/users", json=register_data)
     login_response = client.post(
         "/api/v1/users/login",
-        json={"email": "other@test.com", "password": "testpassword123"},
+        json={"email": "other@test.com", "password": "TestPass@123"},
     )
     token = login_response.json()["access_token"]
     client.cookies.clear()

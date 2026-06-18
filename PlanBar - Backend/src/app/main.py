@@ -96,12 +96,37 @@ def run_database_setup() -> None:
         Base.metadata.create_all(bind=engine)
 
 
+def _generate_complex_password() -> str:
+    """Generate a password that meets complexity requirements.
+
+    Returns a 16-character password with:
+    - At least 1 uppercase letter
+    - At least 1 lowercase letter
+    - At least 1 digit
+    - At least 1 special character
+    """
+    import random
+    import string
+
+    # Ensure at least one of each required character type
+    uppercase = random.choice(string.ascii_uppercase)
+    lowercase = random.choice(string.ascii_lowercase)
+    digit = random.choice(string.digits)
+    special = random.choice('!@#$%^&*')
+    # Fill the rest with random characters from all categories
+    rest = ''.join(random.choices(string.ascii_letters + string.digits + '!@#$%^&*', k=12))
+    # Combine and shuffle
+    password = list(uppercase + lowercase + digit + special + rest)
+    random.shuffle(password)
+    return ''.join(password)
+
+
 def seed_initial_users() -> None:
     env = settings.environment
     db = SessionLocal()
     try:
         if db.query(User).filter(User.email == "admin@mphion.de").first() is None:
-            admin_password = uuid.uuid4().hex[:12]
+            admin_password = _generate_complex_password()
             create_user(
                 db,
                 UserCreate(
@@ -122,7 +147,7 @@ def seed_initial_users() -> None:
                 )
 
         if db.query(User).filter(User.email == "testuser@mphion.de").first() is None:
-            test_password = uuid.uuid4().hex[:12]
+            test_password = _generate_complex_password()
             create_user(
                 db,
                 UserCreate(

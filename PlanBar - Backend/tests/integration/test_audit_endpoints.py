@@ -85,12 +85,12 @@ class TestAuditEndpoints:
         register_data = {
             "username": "regularuser",
             "email": "regular@test.com",
-            "password": "testpassword123",
+            "password": "TestPass@123",
         }
         client.post("/api/v1/users", json=register_data)
         login_response = client.post(
             "/api/v1/users/login",
-            json={"email": "regular@test.com", "password": "testpassword123"},
+            json={"email": "regular@test.com", "password": "TestPass@123"},
         )
         token = login_response.json()["access_token"]
         user_headers = {"Authorization": f"Bearer {token}"}
@@ -104,12 +104,12 @@ class TestAuditEndpoints:
         register_data = {
             "username": "regularuser2",
             "email": "regular2@test.com",
-            "password": "testpassword123",
+            "password": "TestPass@123",
         }
         client.post("/api/v1/users", json=register_data)
         login_response = client.post(
             "/api/v1/users/login",
-            json={"email": "regular2@test.com", "password": "testpassword123"},
+            json={"email": "regular2@test.com", "password": "TestPass@123"},
         )
         token = login_response.json()["access_token"]
         user_headers = {"Authorization": f"Bearer {token}"}
@@ -123,12 +123,12 @@ class TestAuditEndpoints:
         register_data = {
             "username": "regularuser3",
             "email": "regular3@test.com",
-            "password": "testpassword123",
+            "password": "TestPass@123",
         }
         client.post("/api/v1/users", json=register_data)
         login_response = client.post(
             "/api/v1/users/login",
-            json={"email": "regular3@test.com", "password": "testpassword123"},
+            json={"email": "regular3@test.com", "password": "TestPass@123"},
         )
         token = login_response.json()["access_token"]
         user_headers = {"Authorization": f"Bearer {token}"}
@@ -142,12 +142,12 @@ class TestAuditEndpoints:
         register_data = {
             "username": "regularuser4",
             "email": "regular4@test.com",
-            "password": "testpassword123",
+            "password": "TestPass@123",
         }
         client.post("/api/v1/users", json=register_data)
         login_response = client.post(
             "/api/v1/users/login",
-            json={"email": "regular4@test.com", "password": "testpassword123"},
+            json={"email": "regular4@test.com", "password": "TestPass@123"},
         )
         token = login_response.json()["access_token"]
         user_headers = {"Authorization": f"Bearer {token}"}

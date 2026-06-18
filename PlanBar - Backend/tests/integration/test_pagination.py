@@ -22,7 +22,7 @@ def _create_users(client, n: int, auth_headers) -> list[dict]:
             json={
                 "username": tag,
                 "email": f"{tag}@example.com",
-                "password": "testpassword123",
+                "password": "TestPass@123",
             },
         )
         assert resp.status_code == 201, resp.text
