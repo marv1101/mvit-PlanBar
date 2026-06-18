@@ -101,17 +101,22 @@ def test_get_pending_wishes_for_schedule(client, auth_headers, db_session):
     )
     emp_id = emp_resp.json()["id"]
 
-    for day_offset, status in [(1, "pending"), (3, "pending"), (5, "approved")]:
-        client.post(
+    # Create 3 wishes — all start as 'pending' (status field removed from create)
+    wish_ids = []
+    for day_offset in [1, 3, 5]:
+        resp = client.post(
             "/api/v1/requests",
             json={
                 "employee_id": emp_id,
                 "date": f"2026-06-{day_offset:02d}",
                 "type": "preferred",
-                "status": status,
             },
             headers=auth_headers,
         )
+        wish_ids.append(resp.json()["id"])
+
+    # Approve the third wish via the approve endpoint (admin only)
+    client.put(f"/api/v1/requests/{wish_ids[2]}/approve", headers=auth_headers)
 
     schedule_resp = client.post(
         "/api/v1/schedules",
