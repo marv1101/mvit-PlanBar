@@ -5,6 +5,7 @@ import { TouchBackend } from 'react-dnd-touch-backend';
 import { useApp } from '../context/AppContext';
 import { Shift, Schedule, WeekType } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
@@ -896,6 +897,8 @@ export function EditableScheduleCalendar({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [shiftToDelete, setShiftToDelete] = useState<Shift | null>(null);
   const [showSaturday, setShowSaturday] = useState(true);
   const [showSunday, setShowSunday] = useState(true);
   const [showEmployeePanel, setShowEmployeePanel] = useState(true);
@@ -977,11 +980,17 @@ export function EditableScheduleCalendar({
   };
 
   const handleDelete = (shift: Shift) => {
-    if (confirm('Möchten Sie diese Schicht wirklich löschen?')) {
-      const updatedShifts = schedule.shifts.filter(s => s.id !== shift.id);
-      onUpdateSchedule({ ...schedule, shifts: updatedShifts });
-      toast.success('Schicht gelöscht');
-    }
+    setShiftToDelete(shift);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteShift = () => {
+    if (!shiftToDelete) return;
+    const updatedShifts = schedule.shifts.filter(s => s.id !== shiftToDelete.id);
+    onUpdateSchedule({ ...schedule, shifts: updatedShifts });
+    toast.success('Schicht gelöscht');
+    setShiftToDelete(null);
+    setDeleteDialogOpen(false);
   };
 
   const handleDayClick = (date: Date) => {
@@ -1216,6 +1225,22 @@ export function EditableScheduleCalendar({
         }}
         onSave={handleAddShift}
       />
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Schicht löschen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchten Sie diese Schicht wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteShift} className="bg-red-600 text-white hover:bg-red-700">
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DndProvider>
   );
 }
