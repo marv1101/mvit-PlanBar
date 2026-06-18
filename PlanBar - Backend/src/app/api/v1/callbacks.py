@@ -18,11 +18,14 @@ router = APIRouter()
 def verify_tito_callback_auth(request: Request) -> None:
     if settings.tito_api_key:
         auth_header = request.headers.get("Authorization")
-        if (
-            not auth_header
-            or not auth_header.startswith("Bearer ")
-            or not hmac.compare_digest(auth_header[7:], settings.tito_api_key)
-        ):
+        query_key = request.query_params.get("api_key")
+        header_valid = (
+            auth_header
+            and auth_header.startswith("Bearer ")
+            and hmac.compare_digest(auth_header[7:], settings.tito_api_key)
+        )
+        query_valid = query_key and hmac.compare_digest(query_key, settings.tito_api_key)
+        if not header_valid and not query_valid:
             raise UnauthorizedException(detail="Invalid or missing API key")
     else:
         logger.warning("tito_api_key is not set — allowing TiTO callback without authentication")
