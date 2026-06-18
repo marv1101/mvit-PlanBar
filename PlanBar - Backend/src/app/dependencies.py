@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import verify_token
+from app.core.auth import is_token_revoked, verify_token
 from app.db.database import SessionLocal
 from app.db.models.user import User
 
@@ -27,6 +27,10 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         payload = verify_token(token)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    jti = payload.get("jti")
+    if jti and is_token_revoked(jti, db):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
 
     user_id = payload.get("sub")
     if user_id is None:

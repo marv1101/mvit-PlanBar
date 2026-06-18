@@ -9,7 +9,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "s
 
 from app.config import settings
 from app.db.base import Base  # noqa: E402
-from app.db.models import AuditLog, User  # noqa: E402
+from app.db.models import (  # noqa: E402
+    AuditLog,
+    Employee,
+    User,
+    RevokedToken,
+)
 
 config = context.config
 section = config.get_section(config.config_ini_section)
