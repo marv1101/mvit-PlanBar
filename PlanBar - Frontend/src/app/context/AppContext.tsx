@@ -43,6 +43,7 @@ interface AppContextType {
   deleteRole: (id: string) => void;
 
   loading: boolean;
+  error: string | null;
   refresh: () => Promise<void>;
 }
 
@@ -71,9 +72,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentSchedule, setCurrentSchedule] = useState<Schedule | null>(null);
   const [currentWeek, setCurrentWeek] = useState<WeekType>(() => getWeekType(new Date()));
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await loadAll();
       setEmployees(data.employees);
@@ -81,6 +84,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setRequests(data.requests);
       setSchedules(data.schedules);
     } catch {
+      setError('Fehler beim Laden der Daten. Bitte versuchen Sie es erneut.');
       toast.error('Fehler beim Laden der Daten');
     } finally {
       setLoading(false);
@@ -228,6 +232,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateRole,
         deleteRole,
         loading,
+        error,
         refresh,
       }}
     >
