@@ -10,7 +10,8 @@ from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
-
+from app.schemas.pagination import PaginatedResponse, PaginationParams
+from app.core.enums import WishStatus
 router = APIRouter()
 
 
@@ -75,12 +76,18 @@ def create_shift_wish(
     return wish
 
 
-@router.get("", response_model=list[ShiftWishResponse])
+@router.get("", response_model=PaginatedResponse[ShiftWishResponse])
 def list_shift_wishes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    return db.query(ShiftWish).order_by(ShiftWish.date).all()
+    all_wishes = db.query(ShiftWish).order_by(ShiftWish.date).all()
+    total = len(all_wishes)
+    items = all_wishes[pagination.offset : pagination.offset + pagination.limit]
+    return PaginatedResponse(
+        items=items, total=total, offset=pagination.offset, limit=pagination.limit
+    )
 
 
 @router.get("/{wish_id}", response_model=ShiftWishResponse)

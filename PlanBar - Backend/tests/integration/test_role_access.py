@@ -101,7 +101,9 @@ def test_admin_can_delete_user(client, auth_headers):
 def test_admin_can_list_users(client, auth_headers):
     response = client.get("/api/v1/users", headers=auth_headers)
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert "items" in data
+    assert isinstance(data["items"], list)
 
 
 def test_admin_can_read_any_user(client, auth_headers):
