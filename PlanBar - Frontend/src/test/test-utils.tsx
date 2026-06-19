@@ -1,8 +1,9 @@
 import React from 'react'
-import { render, type RenderOptions } from '@testing-library/react'
+import { render, screen, type RenderOptions } from '@testing-library/react'
 import { MemoryRouter, createMemoryRouter } from 'react-router'
 import { DndProvider } from 'react-dnd'
 import { TouchBackend } from 'react-dnd-touch-backend'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthContext } from '../app/context/AuthContext'
 import { AppContext } from '../app/context/AppContext'
 import type { Employee, Schedule, WeekType } from '../app/types'
@@ -10,6 +11,14 @@ import type { Employee, Schedule, WeekType } from '../app/types'
 // ---------------------------------------------------------------------------
 // Mock data
 // ---------------------------------------------------------------------------
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
 
 export const mockEmployees: Employee[] = [
   {
@@ -146,6 +155,18 @@ export const mockAppContext = {
   deleteRole: vi.fn(),
   loading: false,
   refresh: vi.fn().mockResolvedValue(undefined),
+};
+
+export function TestWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AppContext.Provider value={mockAppContext as any}>
+        <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
+          {children}
+        </DndProvider>
+      </AppContext.Provider>
+    </QueryClientProvider>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -171,13 +192,15 @@ export function AppAndAuthTestWrapper({
 }) {
   return (
     <MemoryRouter initialEntries={initialEntries}>
-      <AuthContext.Provider value={mockAuthContext as any}>
-        <AppContext.Provider value={mockAppContext as any}>
-          <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
-            {children}
-          </DndProvider>
-        </AppContext.Provider>
-      </AuthContext.Provider>
+      <QueryClientProvider client={queryClient}>
+        <AuthContext.Provider value={mockAuthContext as any}>
+          <AppContext.Provider value={mockAppContext as any}>
+            <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
+              {children}
+            </DndProvider>
+          </AppContext.Provider>
+        </AuthContext.Provider>
+      </QueryClientProvider>
     </MemoryRouter>
   )
 }

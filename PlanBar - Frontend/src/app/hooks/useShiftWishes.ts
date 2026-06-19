@@ -16,6 +16,20 @@ export function useShiftWishes() {
   });
 }
 
+const APPROVED_WISHES_KEY = ['approvedWishes'];
+
+export function useApprovedWishes(scheduleId: number | null) {
+  return useQuery({
+    queryKey: [...APPROVED_WISHES_KEY, scheduleId],
+    queryFn: async () => {
+      if (!scheduleId) return [];
+      const res = await requestService.getWishesByStatus(scheduleId, 'approved');
+      return res.map(requestFromResponse) as Request[];
+    },
+    enabled: !!scheduleId,
+  });
+}
+
 export function useCreateShiftWish() {
   const queryClient = useQueryClient();
   return useMutation({
