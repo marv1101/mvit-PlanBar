@@ -134,6 +134,10 @@ export function Layout() {
           </main>
         </div>
       </div>
+
+      <footer className="border-t mt-8 py-4 text-center text-sm text-gray-500">
+        <Link to="/imprint" className="hover:underline">Impressum</Link>
+      </footer>
     </div>
   );
 }

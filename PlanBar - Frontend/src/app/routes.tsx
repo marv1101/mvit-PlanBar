@@ -15,6 +15,7 @@ const Users = lazy(() => import('./pages/Users').then(m => ({ default: m.Users }
 const EmployeeView = lazy(() => import('./pages/EmployeeView').then(m => ({ default: m.EmployeeView })));
 const PinboardPage = lazy(() => import('./pages/PinboardPage').then(m => ({ default: m.PinboardPage })));
 const TimeAccounts = lazy(() => import('./pages/TimeAccounts').then(m => ({ default: m.TimeAccounts })));
+const Imprint = lazy(() => import('./pages/Imprint').then(m => ({ default: m.Imprint })));
 
 function LazyPage({ children }: { children: React.ReactNode }) {
   return (
@@ -104,6 +105,10 @@ export const router = createBrowserRouter([
             <LazyPage><TimeAccounts /></LazyPage>
           </ProtectedRoute>
         ),
+      },
+      {
+        path: 'imprint',
+        element: <LazyPage><Imprint /></LazyPage>,
       },
     ],
   },
