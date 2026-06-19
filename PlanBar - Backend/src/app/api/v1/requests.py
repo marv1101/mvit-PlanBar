@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -82,8 +82,12 @@ def list_shift_wishes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     pagination: PaginationParams = Depends(),
+    status: Optional[str] = Query(None),
 ):
-    all_wishes = db.query(ShiftWish).order_by(ShiftWish.date).all()
+    query = db.query(ShiftWish)
+    if status:
+        query = query.filter(ShiftWish.status == status)
+    all_wishes = query.order_by(ShiftWish.date).all()
     total = len(all_wishes)
     items = all_wishes[pagination.offset : pagination.offset + pagination.limit]
     return PaginatedResponse(
