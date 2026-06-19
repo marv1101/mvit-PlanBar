@@ -10,6 +10,7 @@ from app.api.v1.employees import (
     timecard_router,
 )
 from app.api.v1.health import router as health_router
+from app.api.v1.imprint import router as imprint_router
 from app.api.v1.metrics import router as metrics_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.pinboard import router as pinboard_router
@@ -34,3 +35,4 @@ api_router.include_router(pinboard_router, prefix="/pinboard", tags=["pinboard"]
 api_router.include_router(audit_router, prefix="", tags=["audit"])
 api_router.include_router(exports_router, prefix="/exports", tags=["exports"])
 api_router.include_router(gdpr_router, prefix="/gdpr", tags=["gdpr"])
+api_router.include_router(imprint_router, prefix="/imprint", tags=["imprint"])

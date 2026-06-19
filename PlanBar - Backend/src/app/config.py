@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     upload_dir: str = Field("./uploads/pinboard")
     environment: str = Field("development")
     timezone: str = Field("UTC")
+    imprint_company_name: str = ''
+    imprint_address_street: str = ''
+    imprint_address_city: str = ''
+    imprint_email: str = ''
+    imprint_phone: str = ''
+    imprint_responsible_person: str = ''
+    imprint_eu_odr_link: str = 'https://ec.europa.eu/consumers/odr/'
+    dsgvo_contact_email: str = ''
+    dsgvo_data_protection_officer: str = ''
 
 
 settings = Settings()
