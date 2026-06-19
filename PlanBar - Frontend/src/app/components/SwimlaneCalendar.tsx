@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDrag, useDrop } from 'react-dnd';
 import { useApp } from '../context/AppContext';
-import { Shift, Schedule, WeekType } from '../../types';
+import { Shift, Schedule, WeekType, Request } from '../types';
 import { Button } from './ui/button';
 import { getWeekType } from '../lib/week';
 import { TIMEZONE } from '../lib/timezone';
@@ -21,9 +21,20 @@ import {
 } from './schedule/shared/CalendarUtils';
 import type { DragItem, EmployeeDragItem, BreakDragItem } from './schedule/shared/CalendarUtils';
 import { BreakStartHandle, BreakEndHandle } from './schedule/shared/CalendarComponents';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 const HOUR_WIDTH = 64;
 const EMPLOYEE_ROW_HEIGHT = 44;
+const WISH_COLORS: Record<string, string> = {
+  'urlaubswunsch': '#3b82f6',
+  'bevorzugt': '#22c55e',
+  'nicht-verfügbar': '#ef4444',
+};
+const WISH_LABELS: Record<string, string> = {
+  'urlaubswunsch': 'Urlaub',
+  'bevorzugt': 'Bevorzugt',
+  'nicht-verfügbar': 'Nicht verfügbar',
+};
 function getBreakStyleHorizontal(shift: Shift) {
   if (!shift.breakStart || !shift.breakEnd) return null;
   const shiftStart = toMinutes(shift.startTime);
@@ -193,11 +204,14 @@ interface DayBlockProps {
   onClick: (date: Date) => void;
   onEdit: (shift: Shift) => void;
   onDelete: (shift: Shift) => void;
+  approvedWishes: Request[];
+  onWishClick: (employeeId: string, date: Date) => void;
 }
 
 function DayBlock({
   date, weekType, shifts, employees, onDrop, onDropInDay, onDropOnEmployee,
-  onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete
+  onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete,
+  approvedWishes, onWishClick
 }: DayBlockProps) {
   const dateStr = date.toISOString().split('T')[0];
   const dayShifts = shifts.filter(s => s.date === dateStr);
@@ -386,7 +400,9 @@ function DayBlock({
                 </div>
               ))}
             </div>
-            {sortedEmployees.map((emp, empIndex) => (
+            {sortedEmployees.map((emp, empIndex) => {
+              const empWish = approvedWishes.find(w => w.employeeId === emp.id);
+              return (
               <div
                 key={emp.id}
                 className="relative border-b border-gray-100"
@@ -399,8 +415,38 @@ function DayBlock({
                     style={{ left: `${(hour - START_HOUR) * HOUR_WIDTH}px`, width: `${HOUR_WIDTH}px` }}
                   />
                 ))}
+                {empWish && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        className="absolute inset-0 cursor-pointer"
+                        style={{
+                          backgroundColor: WISH_COLORS[empWish.type] + '20',
+                          borderLeft: `3px solid ${WISH_COLORS[empWish.type]}`,
+                          zIndex: 5,
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onWishClick(emp.id, date);
+                        }}
+                      >
+                        <div className="flex items-center justify-center h-full pointer-events-none">
+                          <span className="text-[10px] font-medium text-gray-700 bg-white/80 px-1.5 py-0.5 rounded shadow-sm pointer-events-auto">
+                            {emp.name}: {WISH_LABELS[empWish.type] || empWish.type}
+                          </span>
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="font-semibold">{emp.name}</p>
+                      <p>Typ: {WISH_LABELS[empWish.type] || empWish.type}</p>
+                      {empWish.notes && <p>Notiz: {empWish.notes}</p>}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </div>
-            ))}
+              );
+            })}
             {hoverInfo && isOver && hoverInfo.type === 'shift' && (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -622,17 +668,19 @@ function AddShiftDialog({
   open,
   onClose,
   onSave,
+  prefilledEmployeeId,
 }: {
   date: Date | null;
   week: WeekType;
   open: boolean;
   onClose: () => void;
   onSave: (shift: Shift) => void;
+  prefilledEmployeeId?: string | null;
 }) {
   const { employees } = useApp();
   const [formData, setFormData] = useState<Shift>({
     id: Date.now().toString(),
-    employeeId: '',
+    employeeId: prefilledEmployeeId || '',
     date: date?.toISOString().split('T')[0] || '',
     week: week,
     startTime: '08:00',
@@ -647,9 +695,10 @@ function AddShiftDialog({
         ...prev,
         date: date.toISOString().split('T')[0],
         week: week,
+        ...(prefilledEmployeeId ? { employeeId: prefilledEmployeeId } : {}),
       }));
     }
-  }, [date, week]);
+  }, [date, week, prefilledEmployeeId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -661,7 +710,7 @@ function AddShiftDialog({
     onClose();
     setFormData({
       id: Date.now().toString(),
-      employeeId: '',
+      employeeId: prefilledEmployeeId || '',
       date: date?.toISOString().split('T')[0] || '',
       week: week,
       startTime: '08:00',
@@ -770,13 +819,22 @@ export function SwimlaneCalendar({
   currentWeek,
   onUpdateSchedule,
 }: SwimlaneCalendarProps) {
-  const { employees } = useApp();
+  const { employees, requests } = useApp();
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [shiftToDelete, setShiftToDelete] = useState<Shift | null>(null);
+  const [wishPrefilledEmployeeId, setWishPrefilledEmployeeId] = useState<string | null>(null);
+
+  const approvedWishes = requests.filter(r => r.status === 'approved' && r.week === currentWeek);
+
+  const handleWishClick = (employeeId: string, date: Date) => {
+    setWishPrefilledEmployeeId(employeeId);
+    setSelectedDate(date);
+    setAddDialogOpen(true);
+  };
 
   const handleDrop = (shift: Shift, newDate: string) => {
     const newWeekType = getWeekType(new Date(newDate));
@@ -911,6 +969,8 @@ export function SwimlaneCalendar({
             onClick={handleDayClick}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            approvedWishes={approvedWishes}
+            onWishClick={handleWishClick}
           />
         ))}
       </div>
@@ -932,8 +992,10 @@ export function SwimlaneCalendar({
         onClose={() => {
           setAddDialogOpen(false);
           setSelectedDate(null);
+          setWishPrefilledEmployeeId(null);
         }}
         onSave={handleAddShift}
+        prefilledEmployeeId={wishPrefilledEmployeeId}
       />
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
