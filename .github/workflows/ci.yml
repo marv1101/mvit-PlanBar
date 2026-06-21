@@ -60,7 +60,9 @@ jobs:
         with:
           version: latest
       - name: Install dependencies
-        run: pnpm install --config.onlyBuiltDependencies='["msw"]'
+        run: |
+          echo 'onlyBuiltDependencies=["msw"]' >> .npmrc
+          pnpm install
       - name: Build
         run: pnpm run build
 
