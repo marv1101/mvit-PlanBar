@@ -7,6 +7,7 @@ import uuid
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _unique(suffix: str) -> str:
     """Generate a short unique string to avoid collisions across tests."""
     return f"{suffix}_{uuid.uuid4().hex[:6]}"
@@ -84,6 +85,7 @@ def _create_shift_wishes(client, n: int, auth_headers) -> list[dict]:
 # User list pagination
 # ---------------------------------------------------------------------------
 
+
 def test_users_pagination(client, auth_headers):
     _create_users(client, 10, auth_headers)
     resp = client.get("/api/v1/users", headers=auth_headers, params={"limit": 3})
@@ -112,6 +114,7 @@ def test_users_pagination_offset(client, auth_headers):
 # Employee list pagination
 # ---------------------------------------------------------------------------
 
+
 def test_employees_pagination(client, auth_headers):
     _create_employees(client, 10, auth_headers)
     resp = client.get("/api/v1/employees", headers=auth_headers, params={"limit": 3})
@@ -125,6 +128,7 @@ def test_employees_pagination(client, auth_headers):
 # ---------------------------------------------------------------------------
 # Schedule list pagination
 # ---------------------------------------------------------------------------
+
 
 def test_schedules_pagination(client, auth_headers):
     _create_schedules(client, 10, auth_headers)
@@ -140,6 +144,7 @@ def test_schedules_pagination(client, auth_headers):
 # Shift wish (requests) pagination
 # ---------------------------------------------------------------------------
 
+
 def test_shift_wishes_pagination(client, auth_headers):
     _create_shift_wishes(client, 10, auth_headers)
     resp = client.get("/api/v1/requests", headers=auth_headers, params={"limit": 3})
@@ -153,6 +158,7 @@ def test_shift_wishes_pagination(client, auth_headers):
 # ---------------------------------------------------------------------------
 # Defaults & caps
 # ---------------------------------------------------------------------------
+
 
 def test_pagination_defaults(client, auth_headers):
     """Without explicit params, offset=0 and limit=50."""
@@ -172,11 +178,7 @@ def test_pagination_max_limit(client, auth_headers):
 def test_shift_wishes_pagination_page2(client, auth_headers):
     """Fetch second page and verify different items returned."""
     _create_shift_wishes(client, 5, auth_headers)
-    page1 = client.get(
-        "/api/v1/requests", headers=auth_headers, params={"limit": 2, "offset": 0}
-    ).json()
-    page2 = client.get(
-        "/api/v1/requests", headers=auth_headers, params={"limit": 2, "offset": 2}
-    ).json()
+    page1 = client.get("/api/v1/requests", headers=auth_headers, params={"limit": 2, "offset": 0}).json()
+    page2 = client.get("/api/v1/requests", headers=auth_headers, params={"limit": 2, "offset": 2}).json()
     assert page1["items"][0]["id"] != page2["items"][0]["id"]
     assert page2["offset"] == 2

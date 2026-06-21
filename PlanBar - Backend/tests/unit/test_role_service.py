@@ -30,10 +30,12 @@ def test_get_roles_empty(db_session):
 
 
 def test_get_roles_returns_ordered(db_session):
-    db_session.add_all([
-        Role(name="zebra", color="#ff0000"),
-        Role(name="alpha", color="#00ff00"),
-    ])
+    db_session.add_all(
+        [
+            Role(name="zebra", color="#ff0000"),
+            Role(name="alpha", color="#00ff00"),
+        ]
+    )
     db_session.commit()
     roles = get_roles(db_session)
     assert [r.name for r in roles] == ["alpha", "zebra"]

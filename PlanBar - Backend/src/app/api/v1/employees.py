@@ -62,9 +62,7 @@ def list_employees_endpoint(
     employees = list_employees(db)
     total = len(employees)
     items = employees[pagination.offset : pagination.offset + pagination.limit]
-    return PaginatedResponse(
-        items=items, total=total, offset=pagination.offset, limit=pagination.limit
-    )
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.get("/time-accounts", response_model=list[TimeAccountResponse])

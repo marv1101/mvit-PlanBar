@@ -98,14 +98,18 @@ def test_update_user_all_fields(db_session):
 
 
 def test_update_user_partial(db_session):
-    created = create_user(db_session, UserCreate(username="partial", email="partial@example.com", password="Password@123"))
+    created = create_user(
+        db_session, UserCreate(username="partial", email="partial@example.com", password="Password@123")
+    )
     updated = update_user(db_session, created, UserUpdate(username="onlyname"))
     assert updated.username == "onlyname"
     assert updated.email == "partial@example.com"
 
 
 def test_delete_user(db_session):
-    created = create_user(db_session, UserCreate(username="deleteme", email="delete@example.com", password="Password@123"))
+    created = create_user(
+        db_session, UserCreate(username="deleteme", email="delete@example.com", password="Password@123")
+    )
     user_id = created.id
     delete_user(db_session, created)
     assert get_user_by_id(db_session, user_id) is None
@@ -119,7 +123,9 @@ def test_change_password_success(db_session):
 
 
 def test_change_password_wrong_old_password(db_session):
-    created = create_user(db_session, UserCreate(username="changepw2", email="cpw2@example.com", password="OldPass@123"))
+    created = create_user(
+        db_session, UserCreate(username="changepw2", email="cpw2@example.com", password="OldPass@123")
+    )
     with pytest.raises(ValueError, match="Old password is incorrect"):
         change_password(db_session, created, "wrongpw", "NewPass@123")
 
