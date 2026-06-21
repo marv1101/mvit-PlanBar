@@ -31,7 +31,11 @@ def verify_tito_callback_auth(request: Request) -> None:
         logger.warning("tito_api_key is not set — allowing TiTO callback without authentication")
 
 
-@router.post("/tito", status_code=status.HTTP_200_OK, dependencies=[Depends(verify_tito_callback_auth)])
+@router.post(
+    "/tito",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(verify_tito_callback_auth)],
+)
 def tito_callback(
     payload: TiTOCallbackPayload,
     db: Session = Depends(get_db),

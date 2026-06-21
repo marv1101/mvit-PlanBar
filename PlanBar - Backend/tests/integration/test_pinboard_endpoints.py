@@ -394,7 +394,7 @@ def test_pinned_threads_appear_first(client, auth_headers):
         json={"title": "Normal Thread"},
         headers=auth_headers,
     )
-    thread_a_id = resp_a.json()["id"]
+    resp_a.json()["id"]
 
     resp_b = client.post(
         "/api/v1/pinboard/threads",

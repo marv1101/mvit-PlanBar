@@ -7,7 +7,17 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    UploadFile,
+    File,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -196,11 +206,7 @@ def list_threads(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    threads = (
-        db.query(PinboardThread)
-        .order_by(PinboardThread.is_pinned.desc(), PinboardThread.updated_at.desc())
-        .all()
-    )
+    threads = db.query(PinboardThread).order_by(PinboardThread.is_pinned.desc(), PinboardThread.updated_at.desc()).all()
     return [_thread_to_response(t) for t in threads]
 
 
@@ -279,7 +285,11 @@ def list_messages(
     return [_message_to_response(msg) for msg in (thread.messages or [])]
 
 
-@router.post("/threads/{thread_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/threads/{thread_id}/messages",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_message(
     thread_id: int,
     data: MessageCreate,
@@ -337,7 +347,11 @@ def delete_message(
     db.commit()
 
 
-@router.post("/messages/{message_id}/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/messages/{message_id}/documents",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_document(
     message_id: int,
     file: UploadFile = File(...),
@@ -352,9 +366,7 @@ async def upload_document(
     ext = os.path.splitext(file.filename or "file")[1].lower()
 
     if ext in BLOCKED_EXTENSIONS:
-        logger.warning(
-            f"Blocked upload attempt - user={current_user.id} file={file.filename} ext={ext}"
-        )
+        logger.warning(f"Blocked upload attempt - user={current_user.id} file={file.filename} ext={ext}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File type is not allowed.",
@@ -393,11 +405,14 @@ async def upload_document(
     db.refresh(doc)
 
     doc_response = DocumentResponse.model_validate(doc)
-    await _broadcast(message.thread_id, {
-        "type": "document_uploaded",
-        "message_id": message_id,
-        "document": doc_response.model_dump(mode="json"),
-    })
+    await _broadcast(
+        message.thread_id,
+        {
+            "type": "document_uploaded",
+            "message_id": message_id,
+            "document": doc_response.model_dump(mode="json"),
+        },
+    )
     return doc_response
 
 
@@ -510,10 +525,13 @@ def _notify_clients(thread_id: int, message: MessageResponse):
         loop = asyncio.get_event_loop()
         if loop.is_running():
             asyncio.ensure_future(
-                _broadcast(thread_id, {
-                    "type": "new_message",
-                    "message": message.model_dump(mode="json"),
-                })
+                _broadcast(
+                    thread_id,
+                    {
+                        "type": "new_message",
+                        "message": message.model_dump(mode="json"),
+                    },
+                )
             )
     except RuntimeError:
         pass
@@ -626,10 +644,13 @@ async def websocket_endpoint(
                     db.refresh(message)
 
                     msg_response = _message_to_response(message)
-                    await _broadcast(thread_id, {
-                        "type": "new_message",
-                        "message": msg_response.model_dump(mode="json"),
-                    })
+                    await _broadcast(
+                        thread_id,
+                        {
+                            "type": "new_message",
+                            "message": msg_response.model_dump(mode="json"),
+                        },
+                    )
                 finally:
                     db.close()
             else:

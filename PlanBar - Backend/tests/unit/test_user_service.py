@@ -2,10 +2,9 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.core.auth import hash_password, verify_password
+from app.core.auth import verify_password
 from app.db.base import Base
 from app.db.models.employee import Employee
-from app.db.models.user import User
 from app.schemas.user import AdminUserCreate, UserCreate, UserUpdate
 from app.services.user_service import (
     admin_create_user,
@@ -80,18 +79,32 @@ def test_get_user_by_id_not_found(db_session):
 
 
 def test_list_users(db_session):
-    create_user(db_session, UserCreate(username="usr01", email="u1@example.com", password="password123"))
-    create_user(db_session, UserCreate(username="usr02", email="u2@example.com", password="password123"))
+    create_user(
+        db_session,
+        UserCreate(username="usr01", email="u1@example.com", password="password123"),
+    )
+    create_user(
+        db_session,
+        UserCreate(username="usr02", email="u2@example.com", password="password123"),
+    )
     users = list_users(db_session)
     assert len(users) >= 2
 
 
 def test_update_user_all_fields(db_session):
-    created = create_user(db_session, UserCreate(username="oldname", email="old@example.com", password="oldpassword"))
+    created = create_user(
+        db_session,
+        UserCreate(username="oldname", email="old@example.com", password="oldpassword"),
+    )
     updated = update_user(
         db_session,
         created,
-        UserUpdate(username="newname", email="new@example.com", password="newpassword", role="admin"),
+        UserUpdate(
+            username="newname",
+            email="new@example.com",
+            password="newpassword",
+            role="admin",
+        ),
     )
     assert updated.username == "newname"
     assert updated.email == "new@example.com"
@@ -99,28 +112,40 @@ def test_update_user_all_fields(db_session):
 
 
 def test_update_user_partial(db_session):
-    created = create_user(db_session, UserCreate(username="partial", email="partial@example.com", password="password123"))
+    created = create_user(
+        db_session,
+        UserCreate(username="partial", email="partial@example.com", password="password123"),
+    )
     updated = update_user(db_session, created, UserUpdate(username="onlyname"))
     assert updated.username == "onlyname"
     assert updated.email == "partial@example.com"
 
 
 def test_delete_user(db_session):
-    created = create_user(db_session, UserCreate(username="deleteme", email="delete@example.com", password="password123"))
+    created = create_user(
+        db_session,
+        UserCreate(username="deleteme", email="delete@example.com", password="password123"),
+    )
     user_id = created.id
     delete_user(db_session, created)
     assert get_user_by_id(db_session, user_id) is None
 
 
 def test_change_password_success(db_session):
-    created = create_user(db_session, UserCreate(username="changepw", email="cpw@example.com", password="oldpass123"))
+    created = create_user(
+        db_session,
+        UserCreate(username="changepw", email="cpw@example.com", password="oldpass123"),
+    )
     user = change_password(db_session, created, "oldpass123", "newpass123")
     assert user.must_change_password is False
     assert verify_password("newpass123", user.password_hash) is True
 
 
 def test_change_password_wrong_old_password(db_session):
-    created = create_user(db_session, UserCreate(username="changepw2", email="cpw2@example.com", password="oldpass123"))
+    created = create_user(
+        db_session,
+        UserCreate(username="changepw2", email="cpw2@example.com", password="oldpass123"),
+    )
     with pytest.raises(ValueError, match="Old password is incorrect"):
         change_password(db_session, created, "wrongpw", "newpass123")
 

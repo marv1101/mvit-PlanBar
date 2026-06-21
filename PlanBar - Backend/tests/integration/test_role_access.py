@@ -89,7 +89,11 @@ def test_admin_can_delete_user(client, auth_headers):
     # re-use the same pattern as test_users.py::test_delete_user_by_id
     create_resp = client.post(
         "/api/v1/users",
-        json={"username": "admindel", "email": "admindel@example.com", "password": "password123"},
+        json={
+            "username": "admindel",
+            "email": "admindel@example.com",
+            "password": "password123",
+        },
     )
     assert create_resp.status_code == 201, create_resp.text
     user_id = create_resp.json()["id"]
@@ -127,7 +131,11 @@ def test_admin_can_change_user_role(client, auth_headers):
     # Create a regular user
     create_resp = client.post(
         "/api/v1/users",
-        json={"username": "roletest", "email": "roletest@example.com", "password": "password123"},
+        json={
+            "username": "roletest",
+            "email": "roletest@example.com",
+            "password": "password123",
+        },
     )
     assert create_resp.status_code == 201, create_resp.text
     user_id = create_resp.json()["id"]

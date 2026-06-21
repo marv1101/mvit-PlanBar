@@ -5,6 +5,7 @@ Revises: 0005_add_audit_logs
 Create Date: 2026-06-12 00:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op

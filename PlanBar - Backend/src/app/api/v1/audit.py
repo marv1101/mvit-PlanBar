@@ -2,13 +2,17 @@ import csv
 import io
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, require_admin
 from app.db.models.user import User
-from app.schemas.audit import AuditLogListResponse, AuditLogResponse, SuspiciousPatternResponse
+from app.schemas.audit import (
+    AuditLogListResponse,
+    AuditLogResponse,
+    SuspiciousPatternResponse,
+)
 from app.services import audit_service
 
 router = APIRouter()
@@ -43,19 +47,33 @@ def export_audit_logs(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID", "User ID", "Action", "Resource Type", "Resource ID", "Details", "IP Address", "User Agent", "Created At"])
+    writer.writerow(
+        [
+            "ID",
+            "User ID",
+            "Action",
+            "Resource Type",
+            "Resource ID",
+            "Details",
+            "IP Address",
+            "User Agent",
+            "Created At",
+        ]
+    )
     for entry in items:
-        writer.writerow([
-            entry.id,
-            entry.user_id,
-            entry.action,
-            entry.resource_type,
-            entry.resource_id,
-            entry.details,
-            entry.ip_address,
-            entry.user_agent,
-            entry.created_at.isoformat(),
-        ])
+        writer.writerow(
+            [
+                entry.id,
+                entry.user_id,
+                entry.action,
+                entry.resource_type,
+                entry.resource_id,
+                entry.details,
+                entry.ip_address,
+                entry.user_agent,
+                entry.created_at.isoformat(),
+            ]
+        )
 
     output.seek(0)
     return StreamingResponse(
@@ -101,5 +119,6 @@ def get_audit_log(
     entry = db.query(audit_service.AuditLog).filter(audit_service.AuditLog.id == log_id).first()
     if not entry:
         from app.core.exceptions import NotFoundException
+
         raise NotFoundException(detail="Audit log entry not found")
     return entry

@@ -6,9 +6,19 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.dependencies import get_current_user, get_db, require_admin
-from app.core.auth import create_access_token, create_refresh_token, is_token_revoked, revoke_token, verify_token
+from app.core.auth import (
+    create_access_token,
+    create_refresh_token,
+    is_token_revoked,
+    revoke_token,
+    verify_token,
+)
 from app.core.rate_limit import limiter
-from app.core.exceptions import ConflictException, NotFoundException, UnauthorizedException
+from app.core.exceptions import (
+    ConflictException,
+    NotFoundException,
+    UnauthorizedException,
+)
 from app.db.models.employee import Employee
 from app.db.models.user import User
 from app.schemas.user import (
@@ -186,7 +196,11 @@ def list_users_endpoint(
 
 
 @router.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     if current_user.id != user_id and current_user.role != "admin":
         raise UnauthorizedException(detail="Insufficient permissions")
 
@@ -236,7 +250,11 @@ def delete_user_endpoint(
     return None
 
 
-@router.post("/admin-create", response_model=AdminUserCreateResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/admin-create",
+    response_model=AdminUserCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def admin_create_user_endpoint(
     user_in: AdminUserCreate,
     db: Session = Depends(get_db),
@@ -283,6 +301,11 @@ def list_unlinked_employees(
 ):
     employees = db.query(Employee).filter(Employee.user_id.is_(None)).all()
     return [
-        {"id": e.id, "first_name": e.first_name, "last_name": e.last_name, "email": e.email}
+        {
+            "id": e.id,
+            "first_name": e.first_name,
+            "last_name": e.last_name,
+            "email": e.email,
+        }
         for e in employees
     ]

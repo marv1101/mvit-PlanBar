@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta
+from datetime import time
 
 from sqlalchemy.orm import Session
 
@@ -32,9 +32,7 @@ def process_tito_callback(db: Session, payload: TiTOCallbackPayload) -> Schedule
         db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).delete()
 
         for assignment in payload.solution.assignments:
-            employee = db.query(Employee).filter(
-                Employee.id == _extract_employee_id(assignment.employeeId)
-            ).first()
+            employee = db.query(Employee).filter(Employee.id == _extract_employee_id(assignment.employeeId)).first()
 
             if not employee:
                 continue
@@ -121,17 +119,21 @@ def update_timecards_from_schedule(db: Session, schedule: Schedule) -> None:
 
     employee_balance_cache: dict[int, float] = {}
 
-    for (year, week) in sorted(weekly_data.keys(), key=lambda x: (x[0], x[1])):
+    for year, week in sorted(weekly_data.keys(), key=lambda x: (x[0], x[1])):
         emp_hours = weekly_data[(year, week)]
         for emp_id, scheduled_hours in emp_hours.items():
             contract = weekly_emp_contracts.get(emp_id)
             contract_hours = float(contract.weekly_working_hours) if contract else 40.0
 
-            existing = db.query(Timecard).filter(
-                Timecard.employee_id == emp_id,
-                Timecard.year == year,
-                Timecard.week == week,
-            ).first()
+            existing = (
+                db.query(Timecard)
+                .filter(
+                    Timecard.employee_id == emp_id,
+                    Timecard.year == year,
+                    Timecard.week == week,
+                )
+                .first()
+            )
 
             if existing:
                 is_adjustment = (
@@ -143,13 +145,22 @@ def update_timecards_from_schedule(db: Session, schedule: Schedule) -> None:
                 if is_adjustment:
                     prev_balance = existing.balance
                 else:
-                    prev_balance = existing.balance - (existing.scheduled_hours - existing.contract_hours) - (existing.manual_adjustment_hours or 0)
+                    prev_balance = (
+                        existing.balance
+                        - (existing.scheduled_hours - existing.contract_hours)
+                        - (existing.manual_adjustment_hours or 0)
+                    )
             else:
                 prev_balance = employee_balance_cache.get(emp_id)
                 if prev_balance is None:
-                    prev_tc = db.query(Timecard).filter(
-                        Timecard.employee_id == emp_id,
-                    ).order_by(Timecard.year.desc(), Timecard.week.desc()).first()
+                    prev_tc = (
+                        db.query(Timecard)
+                        .filter(
+                            Timecard.employee_id == emp_id,
+                        )
+                        .order_by(Timecard.year.desc(), Timecard.week.desc())
+                        .first()
+                    )
                     prev_balance = prev_tc.balance if prev_tc else 0.0
 
             delta = scheduled_hours - contract_hours
@@ -220,18 +231,17 @@ def _aggregate_violations(schedule: Schedule, payload: TiTOCallbackPayload) -> l
                 f"({data['count']} Schichten an {len(data['dates'])} Tagen)"
             )
         else:
-            msg = (
-                f"{data['count']} {skill}-Schichten konnten nicht besetzt werden "
-                f"(an {len(data['dates'])} Tagen)"
-            )
-        messages.append({
-            "severity": "HARD",
-            "skill": skill,
-            "message": msg,
-            "totalMissingShifts": data["count"],
-            "totalMissingHours": hours,
-            "affectedDays": len(data["dates"]),
-        })
+            msg = f"{data['count']} {skill}-Schichten konnten nicht besetzt werden (an {len(data['dates'])} Tagen)"
+        messages.append(
+            {
+                "severity": "HARD",
+                "skill": skill,
+                "message": msg,
+                "totalMissingShifts": data["count"],
+                "totalMissingHours": hours,
+                "affectedDays": len(data["dates"]),
+            }
+        )
 
     return messages
 

@@ -90,7 +90,11 @@ def test_get_contract_not_found(client, auth_headers):
 
 
 def test_update_contract_not_found(client, auth_headers):
-    response = client.put("/api/v1/contracts/99999", json={"weekly_working_hours": 35}, headers=auth_headers)
+    response = client.put(
+        "/api/v1/contracts/99999",
+        json={"weekly_working_hours": 35},
+        headers=auth_headers,
+    )
     assert response.status_code == 404
 
 

@@ -90,8 +90,7 @@ async def submit_schedule_to_tito(db: Session, schedule: Schedule, callback_url:
     pending = [w for w in shift_wishes if w.status == "pending"]
     if pending:
         raise ValueError(
-            f"Schedule has {len(pending)} pending shift wish(es). "
-            "All wishes must be reviewed before submitting."
+            f"Schedule has {len(pending)} pending shift wish(es). All wishes must be reviewed before submitting."
         )
 
     approved_wishes = [w for w in shift_wishes if w.status == "approved"]
@@ -111,8 +110,13 @@ async def submit_schedule_to_tito(db: Session, schedule: Schedule, callback_url:
         db.commit()
         db.refresh(schedule)
 
-    audit_service.log_update(db, user_id=None, resource_type="schedule", resource_id=str(schedule.id),
-                             details=f"submitted_to_tito job_id={schedule.tito_job_id}")
+    audit_service.log_update(
+        db,
+        user_id=None,
+        resource_type="schedule",
+        resource_id=str(schedule.id),
+        details=f"submitted_to_tito job_id={schedule.tito_job_id}",
+    )
     return schedule
 
 
@@ -122,7 +126,11 @@ async def retry_schedule(db: Session, schedule: Schedule, actor_id: int | None =
             await tito_proxy.retry_job(schedule.tito_job_id)
             schedule.status = "submitted"
         except Exception:
-            logger.exception("TiTO job retry failed for schedule %s (job %s)", schedule.id, schedule.tito_job_id)
+            logger.exception(
+                "TiTO job retry failed for schedule %s (job %s)",
+                schedule.id,
+                schedule.tito_job_id,
+            )
             schedule.status = "failed"
             raise
         finally:
@@ -132,8 +140,13 @@ async def retry_schedule(db: Session, schedule: Schedule, actor_id: int | None =
     else:
         await submit_schedule_to_tito(db, schedule)
 
-    audit_service.log_update(db, user_id=actor_id, resource_type="schedule", resource_id=str(schedule.id),
-                             details=f"retry_tito job_id={schedule.tito_job_id}")
+    audit_service.log_update(
+        db,
+        user_id=actor_id,
+        resource_type="schedule",
+        resource_id=str(schedule.id),
+        details=f"retry_tito job_id={schedule.tito_job_id}",
+    )
     return schedule
 
 
@@ -161,8 +174,13 @@ def replace_all_shifts(
         db.add(shiftplan)
     db.commit()
     db.refresh(schedule)
-    audit_service.log_update(db, user_id=actor_id, resource_type="schedule", resource_id=str(schedule.id),
-                             details="replace_all_shifts")
+    audit_service.log_update(
+        db,
+        user_id=actor_id,
+        resource_type="schedule",
+        resource_id=str(schedule.id),
+        details="replace_all_shifts",
+    )
     return schedule
 
 
@@ -245,12 +263,14 @@ def _build_tito_payload(
 
     wishes_list = []
     for wish in shift_wishes:
-        wishes_list.append({
-            "employeeId": f"emp_{wish.employee_id:03d}",
-            "date": wish.date.isoformat(),
-            "type": wish.type,
-            "comment": wish.note or "",
-        })
+        wishes_list.append(
+            {
+                "employeeId": f"emp_{wish.employee_id:03d}",
+                "date": wish.date.isoformat(),
+                "type": wish.type,
+                "comment": wish.note or "",
+            }
+        )
 
     # Build requirements from shift_templates or role_requirements.
     # Iterate per-date, filtering by week_type if scoped to A or B.
@@ -266,13 +286,15 @@ def _build_tito_payload(
                     if int(count) > 0:
                         role_id = int(role_id_str)
                         skill_name = role_name_by_id.get(role_id) or f"ROLE_{role_id_str}"
-                        requirements.append({
-                            "shiftTemplateId": st["id"],
-                            "shiftId": st["id"],
-                            "date": current.isoformat(),
-                            "count": int(count),
-                            "skills": [skill_name],
-                        })
+                        requirements.append(
+                            {
+                                "shiftTemplateId": st["id"],
+                                "shiftId": st["id"],
+                                "date": current.isoformat(),
+                                "count": int(count),
+                                "skills": [skill_name],
+                            }
+                        )
             current += timedelta(days=1)
 
     elif schedule.role_requirements:
@@ -283,12 +305,14 @@ def _build_tito_payload(
                 continue
             for role_name, count in schedule.role_requirements.items():
                 if count and int(count) > 0:
-                    requirements.append({
-                        "shiftTemplateId": role_name,
-                        "shiftId": role_name,
-                        "date": current.isoformat(),
-                        "count": int(count),
-                    })
+                    requirements.append(
+                        {
+                            "shiftTemplateId": role_name,
+                            "shiftId": role_name,
+                            "date": current.isoformat(),
+                            "count": int(count),
+                        }
+                    )
             current += timedelta(days=1)
 
     if callback_url:
@@ -353,12 +377,14 @@ def _build_shift_templates(schedule: Schedule) -> list[dict[str, Any]]:
         templates = []
         for role_name in schedule.role_requirements:
             times = default_times.get(role_name.lower(), ("08:00", "16:00"))
-            templates.append({
-                "id": role_name,
-                "name": role_name,
-                "startTime": times[0],
-                "endTime": times[1],
-            })
+            templates.append(
+                {
+                    "id": role_name,
+                    "name": role_name,
+                    "startTime": times[0],
+                    "endTime": times[1],
+                }
+            )
         return templates
 
     return []
