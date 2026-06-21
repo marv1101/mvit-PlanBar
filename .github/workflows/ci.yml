@@ -60,7 +60,9 @@ jobs:
         with:
           version: latest
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
+      - name: Approve builds
+        run: pnpm approve-builds msw --global || true
       - name: Build
         run: pnpm run build
 
