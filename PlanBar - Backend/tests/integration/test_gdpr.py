@@ -1,6 +1,5 @@
 """Integration tests for DSGVO Art. 17 (Right to Erasure) and Art. 20 (Data Portability)."""
 
-import pytest
 from app.db.models.employee import Employee
 from app.db.models.pinboard import PinboardMessage, PinboardThread
 from app.db.models.user import User

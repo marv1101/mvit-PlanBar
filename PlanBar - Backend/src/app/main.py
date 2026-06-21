@@ -30,7 +30,6 @@ from alembic import command
 
 from app.db.models.user import User
 import logging
-import uuid
 
 from pathlib import Path
 

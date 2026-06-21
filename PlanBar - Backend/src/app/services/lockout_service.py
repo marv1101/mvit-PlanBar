@@ -4,7 +4,6 @@ BSI IT-Grundschutz recommends account lockout after 5-10 failed attempts.
 This implementation locks accounts after 5 failed attempts for 15 minutes.
 """
 from datetime import datetime, timezone, timedelta
-from typing import Optional
 
 
 class LockoutService:
