@@ -1,6 +1,5 @@
 """Integration tests for export API endpoints."""
 
-from datetime import date, time
 
 
 def test_export_ical_endpoint(client, auth_headers):

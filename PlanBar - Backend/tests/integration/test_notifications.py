@@ -1,6 +1,5 @@
 """Integration tests for the in-app notification system."""
 
-from datetime import date
 
 
 # ---------------------------------------------------------------------------

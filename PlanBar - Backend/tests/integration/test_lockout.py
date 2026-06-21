@@ -1,6 +1,5 @@
 """Integration tests for account lockout after failed login attempts."""
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from datetime import datetime, timezone, timedelta
 
 from app.services.lockout_service import LockoutService

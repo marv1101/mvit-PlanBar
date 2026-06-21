@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.audit_log import AuditLog
 from app.db.models.employee import Contract, Employee, Timecard
-from app.db.models.pinboard import PinboardDocument, PinboardMessage, PinboardThread
+from app.db.models.pinboard import PinboardMessage, PinboardThread
 from app.db.models.revoked_token import RevokedToken
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
