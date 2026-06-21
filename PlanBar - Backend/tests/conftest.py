@@ -18,6 +18,7 @@ from app.dependencies import get_db
 from app.main import create_app
 
 settings.database_url = TEST_DATABASE_URL
+settings.tito_api_key = None
 
 _test_engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
 TestSessionLocal = sessionmaker(bind=_test_engine, autoflush=False, autocommit=False)

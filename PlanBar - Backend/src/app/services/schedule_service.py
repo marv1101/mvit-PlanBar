@@ -295,6 +295,8 @@ def _build_tito_payload(
         cb_url = callback_url.rstrip("/") + "/api/v1/callbacks/tito"
     else:
         cb_url = settings.backend_callback_url.rstrip("/") + "/api/v1/callbacks/tito"
+    if settings.tito_api_key:
+        cb_url += f"?api_key={settings.tito_api_key}"
 
     return {
         "metadata": {

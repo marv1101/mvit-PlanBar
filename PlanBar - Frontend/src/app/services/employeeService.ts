@@ -73,6 +73,7 @@ export interface TimeAccountEntryDTO {
   balance: number;
   manual_adjustment: number;
   adjustment_reason: string | null;
+  total_change: number;
 }
 
 export interface TimeAccountProjectedDTO {

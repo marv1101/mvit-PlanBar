@@ -21,7 +21,7 @@ interface AuthContextType {
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function mapBackendUser(data: { id: number; username: string; email: string; role: string; employee_id?: number | null }): User {
   return {

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
-import { Loader2, Clock, Pencil } from 'lucide-react';
+import { Loader2, Clock, Pencil, ExternalLink } from 'lucide-react';
 import { EmployeeTimeAccount } from '../types';
 import { getAllTimeAccounts } from '../services/employeeService';
 import { timeAccountFromResponse } from '../lib/mappers';
@@ -28,6 +29,7 @@ export function TimeAccounts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adjustTarget, setAdjustTarget] = useState<EmployeeTimeAccount | null>(null);
+  const navigate = useNavigate();
 
   function load() {
     setLoading(true);
@@ -107,7 +109,17 @@ export function TimeAccounts() {
               <TableBody>
                 {accounts.map(acct => (
                   <TableRow key={acct.employeeId}>
-                    <TableCell className="font-medium">{acct.employeeName}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="font-medium text-blue-600 hover:underline hover:text-blue-800"
+                          onClick={() => navigate(`/employee-view?employee=${acct.employeeId}`)}
+                        >
+                          {acct.employeeName}
+                        </button>
+                        <ExternalLink className="h-3 w-3 text-gray-400" />
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <BalanceBadge balance={acct.currentBalance} />
                     </TableCell>
