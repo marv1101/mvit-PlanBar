@@ -95,6 +95,7 @@
   },
   "overrides": {
     "form-data": "4.0.6",
-    "vite": "6.4.3"
+    "vite": "6.4.3",
+    "undici": "7.28.0"
   }
 }
