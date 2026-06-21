@@ -68,7 +68,6 @@ def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate, actor
     if data.week_type is not None:
         schedule.week_type = data.week_type
     if data.status is not None:
-        old_status = schedule.status
         schedule.status = data.status.value
     if data.shift_templates is not None:
         schedule.shift_templates = data.shift_templates

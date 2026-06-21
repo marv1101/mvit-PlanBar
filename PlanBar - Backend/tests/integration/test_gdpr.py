@@ -90,7 +90,7 @@ class TestExportUserData:
             json={"content": "My personal export message"},
             headers=auth_headers,
         )
-        msg_id = msg_resp.json()["id"]
+        msg_resp.json()["id"]
 
         # Export data
         resp = client.get("/api/v1/gdpr/export", headers=auth_headers)
