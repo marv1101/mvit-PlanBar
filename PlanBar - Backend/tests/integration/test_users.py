@@ -120,7 +120,7 @@ def test_change_password(client, auth_headers):
         "/api/v1/users",
         json={"username": "changepwuser", "email": "changepw@example.com", "password": "oldPassword@123"},
     )
-    user_id = register_resp.json()["id"]
+    register_resp.json()["id"]
     user_auth = {"Authorization": f"Bearer {client.post('/api/v1/users/login', json={'email': 'changepw@example.com', 'password': 'oldPassword@123'}).json()['access_token']}"}
 
     response = client.post(
