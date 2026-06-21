@@ -27,9 +27,7 @@ def download_schedule_ical(
     return Response(
         content=ical_bytes,
         media_type="text/calendar",
-        headers={
-            "Content-Disposition": f'attachment; filename="schichtplan-{schedule_id}.ics"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="schichtplan-{schedule_id}.ics"'},
     )
 
 
@@ -49,7 +47,5 @@ def download_schedule_pdf(
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="schichtplan-{schedule_id}.pdf"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="schichtplan-{schedule_id}.pdf"'},
     )

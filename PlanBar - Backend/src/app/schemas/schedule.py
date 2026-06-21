@@ -115,4 +115,5 @@ class ArbZgCheckResponse(BaseModel):
 
 class ScheduleWithArbzgResponse(ScheduleResponse):
     """Schedule response that includes ArbZG compliance warnings."""
+
     arbZgWarnings: list[ArbZgViolationResponse] = []

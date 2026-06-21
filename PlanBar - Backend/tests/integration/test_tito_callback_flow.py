@@ -57,6 +57,7 @@ def test_employees_two(db_session: Session) -> dict[str, Employee]:
 def _dev_environment():
     """Ensure callback processing tests run in development mode (no auth required)."""
     from app.config import settings
+
     original = settings.environment
     settings.environment = "development"
     yield

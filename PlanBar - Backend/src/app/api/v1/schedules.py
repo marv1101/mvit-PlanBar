@@ -54,9 +54,7 @@ def list_schedules_endpoint(
     schedules = list_schedules(db)
     total = len(schedules)
     items = schedules[pagination.offset : pagination.offset + pagination.limit]
-    return PaginatedResponse(
-        items=items, total=total, offset=pagination.offset, limit=pagination.limit
-    )
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.get("/{schedule_id}", response_model=ScheduleResponse)
@@ -279,16 +277,21 @@ def get_wishes_by_status(
     admin: User = Depends(require_admin),
 ):
     """Get wishes for a schedule filtered by status.
-    
+
     Used by EditableScheduleCalendar to show approved wishes as overlays.
     Only approved wishes are displayed in the calendar by default.
     """
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    wishes = db.query(ShiftWish).filter(
-        ShiftWish.status == status,
-        ShiftWish.date >= schedule.start_date,
-        ShiftWish.date <= schedule.end_date,
-    ).order_by(ShiftWish.date).all()
+    wishes = (
+        db.query(ShiftWish)
+        .filter(
+            ShiftWish.status == status,
+            ShiftWish.date >= schedule.start_date,
+            ShiftWish.date <= schedule.end_date,
+        )
+        .order_by(ShiftWish.date)
+        .all()
+    )
     return wishes

@@ -1,4 +1,5 @@
 """Integration tests for account lockout after failed login attempts."""
+
 from unittest.mock import patch
 from datetime import datetime, timezone, timedelta
 
@@ -55,7 +56,7 @@ class TestAccountLockout:
         assert self.lockout.is_locked(email) is True
 
         # Mock time advancement - set lockout time to 15 minutes ago
-        with patch('app.services.lockout_service.datetime') as mock_datetime:
+        with patch("app.services.lockout_service.datetime") as mock_datetime:
             mock_datetime.now.return_value = datetime.now(timezone.utc) + timedelta(minutes=16)
             mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 

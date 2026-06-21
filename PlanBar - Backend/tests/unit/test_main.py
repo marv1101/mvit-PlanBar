@@ -18,9 +18,9 @@ class TestSeedInitialUsers:
         from app.main import seed_initial_users
 
         # Remove existing seed users so the seeding code path actually runs
-        db_session.query(User).filter(
-            User.email.in_(["admin@mphion.de", "testuser@mphion.de"])
-        ).delete(synchronize_session=False)
+        db_session.query(User).filter(User.email.in_(["admin@mphion.de", "testuser@mphion.de"])).delete(
+            synchronize_session=False
+        )
         db_session.commit()
 
         with patch("app.main.logger") as mock_logger:
@@ -34,16 +34,10 @@ class TestSeedInitialUsers:
 
         # Assert no password content leaked through logging
         for msg in logged_strings:
-            assert "Passwort" not in msg, (
-                f"Password leaked via logger.info: {msg}"
-            )
-            assert "password" not in msg.lower(), (
-                f"Password leaked via logger.info: {msg}"
-            )
+            assert "Passwort" not in msg, f"Password leaked via logger.info: {msg}"
+            assert "password" not in msg.lower(), f"Password leaked via logger.info: {msg}"
             # Check for the old pattern "Initial-Passwort fuer <email>: <pw>"
-            assert "Initial-Passwort" not in msg, (
-                f"Password pattern leaked via logger.info: {msg}"
-            )
+            assert "Initial-Passwort" not in msg, f"Password pattern leaked via logger.info: {msg}"
 
     def test_seed_creates_users(self, db_session):
         """Verify seed_initial_users still creates users properly."""
@@ -51,9 +45,9 @@ class TestSeedInitialUsers:
         from app.main import seed_initial_users
 
         # Remove existing seed users
-        db_session.query(User).filter(
-            User.email.in_(["admin@mphion.de", "testuser@mphion.de"])
-        ).delete(synchronize_session=False)
+        db_session.query(User).filter(User.email.in_(["admin@mphion.de", "testuser@mphion.de"])).delete(
+            synchronize_session=False
+        )
         db_session.commit()
 
         seed_initial_users()

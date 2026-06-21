@@ -91,9 +91,7 @@ def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db))
     # Check if account is locked
     if lockout_service.is_locked(user_data.email):
         remaining = lockout_service.get_remaining_lockout_time(user_data.email)
-        raise UnauthorizedException(
-            detail=f"Account is temporarily locked. Please try again in {remaining} seconds."
-        )
+        raise UnauthorizedException(detail=f"Account is temporarily locked. Please try again in {remaining} seconds.")
 
     user = authenticate_user(db, user_data.email, user_data.password)
     if not user:
@@ -216,9 +214,7 @@ def list_users_endpoint(
     users = list_users(db)
     total = len(users)
     items = users[pagination.offset : pagination.offset + pagination.limit]
-    return PaginatedResponse(
-        items=items, total=total, offset=pagination.offset, limit=pagination.limit
-    )
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.get("/{user_id}", response_model=UserResponse)

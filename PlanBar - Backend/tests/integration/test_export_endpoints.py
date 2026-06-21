@@ -1,7 +1,6 @@
 """Integration tests for export API endpoints."""
 
 
-
 def test_export_ical_endpoint(client, auth_headers):
     # Create schedule
     create_resp = client.post(

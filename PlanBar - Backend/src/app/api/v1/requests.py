@@ -86,9 +86,7 @@ def list_shift_wishes(
     all_wishes = db.query(ShiftWish).order_by(ShiftWish.date).all()
     total = len(all_wishes)
     items = all_wishes[pagination.offset : pagination.offset + pagination.limit]
-    return PaginatedResponse(
-        items=items, total=total, offset=pagination.offset, limit=pagination.limit
-    )
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.get("/{wish_id}", response_model=ShiftWishResponse)
@@ -178,6 +176,7 @@ def approve_shift_wish(
 
     # Create notification for the employee's linked user
     from app.db.models.employee import Employee
+
     employee = db.query(Employee).filter(Employee.id == wish.employee_id).first()
     if employee and employee.user_id:
         create_notification(
@@ -212,6 +211,7 @@ def reject_shift_wish(
 
     # Create notification for the employee's linked user
     from app.db.models.employee import Employee
+
     employee = db.query(Employee).filter(Employee.id == wish.employee_id).first()
     if employee and employee.user_id:
         reason_text = f" Grund: {body.rejection_reason}" if body.rejection_reason else ""
@@ -221,7 +221,12 @@ def reject_shift_wish(
             notification_type=NotificationType.WISH_REJECTED.value,
             title="Wunsch abgelehnt",
             message=f"Dein Schichtwunsch für {wish.date} wurde abgelehnt.{reason_text}",
-            data={"wish_id": wish.id, "date": str(wish.date), "type": wish.type, "rejection_reason": body.rejection_reason},
+            data={
+                "wish_id": wish.id,
+                "date": str(wish.date),
+                "type": wish.type,
+                "rejection_reason": body.rejection_reason,
+            },
         )
 
     return wish

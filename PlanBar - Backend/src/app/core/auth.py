@@ -31,6 +31,7 @@ def generate_password(length: int = 14) -> str:
     # Shuffle to avoid predictable positions
     pw_list = list(pw)
     import random
+
     random.SystemRandom().shuffle(pw_list)
     return "".join(pw_list)
 
