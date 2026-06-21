@@ -155,4 +155,4 @@ def employee_auth_headers(client, db_session, auth_headers):
     )
     token = login_response.json()["access_token"]
     client.cookies.clear()
-    return ({'Authorization': f'Bearer {token}'}, emp_id)
+    return ({"Authorization": f"Bearer {token}"}, emp_id)

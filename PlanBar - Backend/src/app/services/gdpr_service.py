@@ -115,11 +115,7 @@ def export_user_data(db: Session, user_id: int) -> dict:
             for sw in employee.shift_wishes
         ]
 
-        shiftplan_rows = (
-            db.query(ShiftplanModel)
-            .filter(ShiftplanModel.employee_id == employee.id)
-            .all()
-        )
+        shiftplan_rows = db.query(ShiftplanModel).filter(ShiftplanModel.employee_id == employee.id).all()
         shiftplans_data = [
             {
                 "id": sp.id,
@@ -135,23 +131,25 @@ def export_user_data(db: Session, user_id: int) -> dict:
             for sp in shiftplan_rows
         ]
 
-        employees_data.append({
-            "id": employee.id,
-            "first_name": employee.first_name,
-            "last_name": employee.last_name,
-            "email": employee.email,
-            "color": employee.color,
-            "working_hours_json": employee.working_hours_json,
-            "break_start": employee.break_start,
-            "break_end": employee.break_end,
-            "max_work_hours": employee.max_work_hours,
-            "created_at": _serialize_datetime(employee.created_at),
-            "updated_at": _serialize_datetime(employee.updated_at),
-            "contracts": contracts,
-            "timecards": timecards,
-            "shift_wishes": shift_wishes,
-            "shiftplans": shiftplans_data,
-        })
+        employees_data.append(
+            {
+                "id": employee.id,
+                "first_name": employee.first_name,
+                "last_name": employee.last_name,
+                "email": employee.email,
+                "color": employee.color,
+                "working_hours_json": employee.working_hours_json,
+                "break_start": employee.break_start,
+                "break_end": employee.break_end,
+                "max_work_hours": employee.max_work_hours,
+                "created_at": _serialize_datetime(employee.created_at),
+                "updated_at": _serialize_datetime(employee.updated_at),
+                "contracts": contracts,
+                "timecards": timecards,
+                "shift_wishes": shift_wishes,
+                "shiftplans": shiftplans_data,
+            }
+        )
 
     # Backward compat: return first employee as "employee" if only one
     employee_data = employees_data[0] if employees_data else None
@@ -196,9 +194,7 @@ def export_user_data(db: Session, user_id: int) -> dict:
 
     # --- Also include audit logs where this user was the resource ---
     resource_audit_logs = (
-        db.query(AuditLog)
-        .filter(AuditLog.resource_type == "user", AuditLog.resource_id == str(user_id))
-        .all()
+        db.query(AuditLog).filter(AuditLog.resource_type == "user", AuditLog.resource_id == str(user_id)).all()
     )
     resource_audit_data = [
         {
@@ -306,11 +302,7 @@ def delete_user_data(db: Session, user_id: int) -> dict:
     summary["actions"].append(f"pinboard_messages_anonymized:{msg_count}")
 
     # 4. Handle threads authored by user - set author to 0
-    thread_count = (
-        db.query(PinboardThread)
-        .filter(PinboardThread.author_id == user_id)
-        .update({"author_id": 0})
-    )
+    thread_count = db.query(PinboardThread).filter(PinboardThread.author_id == user_id).update({"author_id": 0})
     summary["actions"].append(f"pinboard_threads_unlinked:{thread_count}")
 
     # 5. Anonymize audit logs - set user_id to NULL (model has ondelete=SET NULL)

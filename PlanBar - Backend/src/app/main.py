@@ -122,13 +122,13 @@ def _generate_complex_password() -> str:
     uppercase = random.choice(string.ascii_uppercase)
     lowercase = random.choice(string.ascii_lowercase)
     digit = random.choice(string.digits)
-    special = random.choice('!@#$%^&*')
+    special = random.choice("!@#$%^&*")
     # Fill the rest with random characters from all categories
-    rest = ''.join(random.choices(string.ascii_letters + string.digits + '!@#$%^&*', k=12))
+    rest = "".join(random.choices(string.ascii_letters + string.digits + "!@#$%^&*", k=12))
     # Combine and shuffle
     password = list(uppercase + lowercase + digit + special + rest)
     random.shuffle(password)
-    return ''.join(password)
+    return "".join(password)
 
 
 def seed_initial_users() -> None:
@@ -152,9 +152,7 @@ def seed_initial_users() -> None:
                 print(f"{'=' * 60}\n")
             elif env in ("production", "demo", "staging"):
                 _write_credentials_to_file("admin@mphion.de", admin_password)
-                logger.warning(
-                    "Initial credentials for admin@mphion.de written to initial-credentials.txt"
-                )
+                logger.warning("Initial credentials for admin@mphion.de written to initial-credentials.txt")
 
         if db.query(User).filter(User.email == "testuser@mphion.de").first() is None:
             test_password = _generate_complex_password()
@@ -172,9 +170,7 @@ def seed_initial_users() -> None:
                 print(f"{'=' * 60}\n")
             elif env in ("production", "demo", "staging"):
                 _write_credentials_to_file("testuser@mphion.de", test_password)
-                logger.warning(
-                    "Initial credentials for testuser@mphion.de written to initial-credentials.txt"
-                )
+                logger.warning("Initial credentials for testuser@mphion.de written to initial-credentials.txt")
     finally:
         db.close()
 

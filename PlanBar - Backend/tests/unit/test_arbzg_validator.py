@@ -1,4 +1,5 @@
 """Tests for ArbZG (Arbeitszeitgesetz) compliance validator."""
+
 from datetime import date, time, timedelta
 
 
@@ -43,14 +44,12 @@ class TestValidSchedulePasses:
         d = date(2025, 7, 1)
         # Employee 1: 5 consecutive workdays, 8h each with 30 min break
         emp1_shifts = [
-            _shift(1, d + timedelta(days=i), time(8, 0),
-                   d + timedelta(days=i), time(16, 0), "12:00", "12:30")
+            _shift(1, d + timedelta(days=i), time(8, 0), d + timedelta(days=i), time(16, 0), "12:00", "12:30")
             for i in range(5)
         ]
         # Employee 2: 5 consecutive workdays, 7.5h each with 30 min break
         emp2_shifts = [
-            _shift(2, d + timedelta(days=i), time(6, 0),
-                   d + timedelta(days=i), time(13, 30), "10:00", "10:30")
+            _shift(2, d + timedelta(days=i), time(6, 0), d + timedelta(days=i), time(13, 30), "10:00", "10:30")
             for i in range(5)
         ]
 
@@ -129,8 +128,7 @@ class TestViolatesConsecutiveDays:
         """Working 7+ consecutive days should be detected."""
         base = date(2025, 7, 1)
         shifts = [
-            _shift(1, base + timedelta(days=i), time(8, 0), base + timedelta(days=i), time(16, 0))
-            for i in range(7)
+            _shift(1, base + timedelta(days=i), time(8, 0), base + timedelta(days=i), time(16, 0)) for i in range(7)
         ]
         violations = validate_consecutive_days(shifts)
         assert len(violations) == 1

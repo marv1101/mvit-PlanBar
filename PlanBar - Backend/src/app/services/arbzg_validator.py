@@ -9,6 +9,7 @@ Key rules validated:
 - §4: Break requirements (45min for >9h, 30min for >6h)
 - §5: Maximum 6 consecutive working days
 """
+
 from __future__ import annotations
 
 import logging
@@ -158,7 +159,7 @@ def validate_rest_time(shifts: list[dict[str, Any]]) -> list[ArbZgViolation]:
     """
     violations: list[ArbZgViolation] = []
     for eid, emp_shifts in _shifts_by_employee(shifts).items():
-        sorted_shifts = sorted(emp_shifts, key=lambda s: (_shift_start_datetime(s)))
+        sorted_shifts = sorted(emp_shifts, key=lambda s: _shift_start_datetime(s))
         for i in range(1, len(sorted_shifts)):
             prev_end = _shift_end_datetime(sorted_shifts[i - 1])
             curr_start = _shift_start_datetime(sorted_shifts[i])
@@ -208,8 +209,7 @@ def validate_max_daily_hours(shifts: list[dict[str, Any]]) -> list[ArbZgViolatio
                     ArbZgViolation(
                         rule="max_daily_hours",
                         message=(
-                            f"Employee {eid} exceeds {MAX_DAILY_HOURS}h maximum on {d}: "
-                            f"{total_hours:.1f}h total."
+                            f"Employee {eid} exceeds {MAX_DAILY_HOURS}h maximum on {d}: {total_hours:.1f}h total."
                         ),
                         employee_id=eid,
                         shift_date=d,
@@ -356,8 +356,6 @@ def validate_schedule(
 
     is_valid = len(violations) == 0
     if not is_valid:
-        logger.warning(
-            "ArbZG validation found %d violation(s)", len(violations)
-        )
+        logger.warning("ArbZG validation found %d violation(s)", len(violations))
 
     return ArbZgResult(is_valid=is_valid, violations=violations)

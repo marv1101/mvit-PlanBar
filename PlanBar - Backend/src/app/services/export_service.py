@@ -79,6 +79,7 @@ def export_schedule_ical(db: Session, schedule_id: int) -> Optional[bytes]:
         # Handle overnight shifts: if end_time <= start_time, assume next day
         if shift.end_time <= shift.start_time:
             from datetime import timedelta
+
             end_date = shift.date + timedelta(days=1)
         else:
             end_date = shift.date
@@ -170,7 +171,9 @@ def export_schedule_pdf(db: Session, schedule_id: int) -> Optional[bytes]:
     # --- Footer ---
     pdf.ln(5)
     pdf.set_font("Helvetica", "I", 8)
-    pdf.cell(0, 5, f"Exportiert am {datetime.now().strftime('%d.%m.%Y %H:%M')}", new_x="LMARGIN", new_y="NEXT", align="C")
+    pdf.cell(
+        0, 5, f"Exportiert am {datetime.now().strftime('%d.%m.%Y %H:%M')}", new_x="LMARGIN", new_y="NEXT", align="C"
+    )
 
     # Write to bytes buffer
     buf = io.BytesIO()

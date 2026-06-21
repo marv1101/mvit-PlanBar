@@ -65,6 +65,7 @@ def _link_employee_to_user(client, db_session, user_id: int, employee_id: int):
 # Tests
 # ---------------------------------------------------------------------------
 
+
 class TestExportUserData:
     """DSGVO Art. 20 — data portability."""
 

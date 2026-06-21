@@ -54,9 +54,7 @@ def list_schedules_endpoint(
     schedules = list_schedules(db)
     total = len(schedules)
     items = schedules[pagination.offset : pagination.offset + pagination.limit]
-    return PaginatedResponse(
-        items=items, total=total, offset=pagination.offset, limit=pagination.limit
-    )
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.get("/{schedule_id}", response_model=ScheduleResponse)

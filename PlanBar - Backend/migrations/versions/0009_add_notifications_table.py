@@ -4,6 +4,7 @@ Revision ID: 0009
 Revises: 0008_add_employee_id_to_users
 Create Date: 2026-06-18
 """
+
 from alembic import op
 import sqlalchemy as sa
 

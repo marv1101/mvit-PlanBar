@@ -1,7 +1,6 @@
 """Integration tests for the in-app notification system."""
 
 
-
 # ---------------------------------------------------------------------------
 # Helper to create an employee linked to a user and return (headers, emp_id)
 # ---------------------------------------------------------------------------
@@ -30,6 +29,7 @@ def _setup_employee_user(client, db_session, auth_headers, prefix):
     db_session.commit()
 
     from app.db.models.employee import Employee
+
     employee = db_session.query(Employee).filter(Employee.id == emp_id).first()
     employee.user_id = user.id
     db_session.add(employee)
@@ -47,6 +47,7 @@ def _setup_employee_user(client, db_session, auth_headers, prefix):
 def _clean_notifications(db_session):
     """Remove all notifications to avoid cross-test contamination."""
     from app.db.models.notification import Notification
+
     db_session.query(Notification).delete()
     db_session.commit()
 
@@ -135,12 +136,8 @@ class TestNotificationEndpoints:
 
         user = db_session.query(User).filter(User.email == "admin@test.com").first()
 
-        db_session.add(
-            Notification(user_id=user.id, type="wish_approved", title="Read", message="m", read=True)
-        )
-        db_session.add(
-            Notification(user_id=user.id, type="wish_rejected", title="Unread", message="m", read=False)
-        )
+        db_session.add(Notification(user_id=user.id, type="wish_approved", title="Read", message="m", read=True))
+        db_session.add(Notification(user_id=user.id, type="wish_rejected", title="Unread", message="m", read=False))
         db_session.commit()
 
         resp = client.get("/api/v1/notifications?unread_only=true", headers=auth_headers)
@@ -177,9 +174,7 @@ class TestNotificationEndpoints:
         user = db_session.query(User).filter(User.email == "admin@test.com").first()
 
         for _ in range(5):
-            db_session.add(
-                Notification(user_id=user.id, type="wish_approved", title="T", message="M", read=False)
-            )
+            db_session.add(Notification(user_id=user.id, type="wish_approved", title="T", message="M", read=False))
         db_session.commit()
 
         resp = client.put("/api/v1/notifications/read-all", headers=auth_headers)
@@ -429,7 +424,9 @@ class TestNotificationService:
         from app.services.notification_service import create_notification, mark_as_read
 
         user = db_session.query(User).first()
-        n = create_notification(db=db_session, user_id=user.id, notification_type="shift_changed", title="T", message="M")
+        n = create_notification(
+            db=db_session, user_id=user.id, notification_type="shift_changed", title="T", message="M"
+        )
         assert n.read is False
 
         updated = mark_as_read(db=db_session, notification_id=n.id)
@@ -444,7 +441,9 @@ class TestNotificationService:
 
         user = db_session.query(User).first()
         for _ in range(4):
-            create_notification(db=db_session, user_id=user.id, notification_type="wish_approved", title="T", message="M")
+            create_notification(
+                db=db_session, user_id=user.id, notification_type="wish_approved", title="T", message="M"
+            )
 
         count = mark_all_read(db=db_session, user_id=user.id)
         assert count == 4
