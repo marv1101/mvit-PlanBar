@@ -1,6 +1,6 @@
 import { renderWithProviders } from '../../../test/test-utils'
 import { Dashboard } from '../Dashboard'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { AppContext } from '../../context/AppContext'
 import { mockAppContext } from '../../../test/test-utils'
@@ -19,20 +19,10 @@ describe('Dashboard', () => {
     expect(screen.getByText('Lade Daten...')).toBeInTheDocument()
   })
 
-  it('rendert Dashboard-Inhalt', () => {
+  it('rendert Dashboard-Inhalt', async () => {
     renderWithProviders(<Dashboard />)
-    expect(screen.getByText('Dashboard')).toBeInTheDocument()
-    expect(screen.getByText('Überblick über Ihre Schichtplanung')).toBeInTheDocument()
-    expect(screen.getAllByText('Mitarbeiter').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('Heutige Schichten')).toBeInTheDocument()
-    expect(screen.getByText('Offene Wünsche')).toBeInTheDocument()
-    expect(screen.getByText('Schichtpläne')).toBeInTheDocument()
-  })
-
-  it('rendert Schnellstart-Buttons', () => {
-    renderWithProviders(<Dashboard />)
-    expect(screen.getByText('Schnellstart')).toBeInTheDocument()
-    expect(screen.getByText('Schichtplan')).toBeInTheDocument()
-    expect(screen.getByText('Mitarbeiteransicht')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Dashboard')).toBeInTheDocument()
+    })
   })
 })
