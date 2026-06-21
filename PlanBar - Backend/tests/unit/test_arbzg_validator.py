@@ -1,10 +1,8 @@
 """Tests for ArbZG (Arbeitszeitgesetz) compliance validator."""
 from datetime import date, time, timedelta
 
-import pytest
 
 from app.services.arbzg_validator import (
-    ArbZgViolation,
     validate_consecutive_days,
     validate_max_daily_hours,
     validate_rest_time,
