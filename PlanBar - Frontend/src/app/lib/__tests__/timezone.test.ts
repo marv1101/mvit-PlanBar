@@ -14,8 +14,8 @@ describe('TIMEZONE', () => {
 
   it('verwendet VITE_TIMEZONE aus der Umgebungsvariable', async () => {
     vi.stubEnv('VITE_TIMEZONE', 'Europe/Berlin');
-    const { TIMEZONE } = await import('../timezone');
-    expect(TIMEZONE).toBe('Europe/Berlin');
+    const mod = await import('../timezone');
+    expect(mod.TIMEZONE).toBe('Europe/Berlin');
   });
 
   it('verwendet Intl.DateTimeFormat-Fallback bei leerem VITE_TIMEZONE', async () => {
