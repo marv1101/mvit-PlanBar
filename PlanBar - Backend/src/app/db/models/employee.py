@@ -1,6 +1,16 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Table, Text, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -27,10 +37,19 @@ class Employee(Base):
     break_start = Column(String(5), nullable=True)
     break_end = Column(String(5), nullable=True)
     max_work_hours = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
-    user = relationship("User", foreign_keys=[user_id], backref="employees", lazy="selectin")
+    user = relationship(
+        "User", foreign_keys=[user_id], backref="employees", lazy="selectin"
+    )
     contracts = relationship("Contract", back_populates="employee", lazy="selectin")
     timecards = relationship("Timecard", back_populates="employee", lazy="selectin")
     shift_wishes = relationship("ShiftWish", back_populates="employee", lazy="selectin")
@@ -45,12 +64,21 @@ class Contract(Base):
     __tablename__ = "contracts"
 
     id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(
+        Integer, ForeignKey("employees.id"), nullable=False, index=True
+    )
     weekly_working_hours = Column(Float, nullable=False)
     break_time = Column(Integer, nullable=False, default=30)
     hired_role = Column(String(64), nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
     employee = relationship("Employee", back_populates="contracts")
 
@@ -59,7 +87,9 @@ class Timecard(Base):
     __tablename__ = "timecards"
 
     id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(
+        Integer, ForeignKey("employees.id"), nullable=False, index=True
+    )
     week = Column(Integer, nullable=False)
     year = Column(Integer, nullable=False)
     balance = Column(Float, nullable=False, default=0.0)
@@ -68,8 +98,19 @@ class Timecard(Base):
     contract_hours = Column(Float, default=0.0)
     manual_adjustment_hours = Column(Float, default=0.0)
     adjustment_reason = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
     employee = relationship("Employee", back_populates="timecards")
-    __table_args__ = (UniqueConstraint("employee_id", "week", "year", name="uq_timecard_employee_week_year"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "employee_id", "week", "year", name="uq_timecard_employee_week_year"
+        ),
+    )

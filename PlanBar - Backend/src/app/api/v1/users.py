@@ -6,9 +6,19 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.dependencies import get_current_user, get_db, require_admin
-from app.core.auth import create_access_token, create_refresh_token, is_token_revoked, revoke_token, verify_token
+from app.core.auth import (
+    create_access_token,
+    create_refresh_token,
+    is_token_revoked,
+    revoke_token,
+    verify_token,
+)
 from app.core.rate_limit import limiter
-from app.core.exceptions import ConflictException, NotFoundException, UnauthorizedException
+from app.core.exceptions import (
+    ConflictException,
+    NotFoundException,
+    UnauthorizedException,
+)
 from app.db.models.employee import Employee
 from app.db.models.user import User
 from app.schemas.user import (
@@ -38,7 +48,9 @@ from app.services.user_service import (
 router = APIRouter()
 
 
-def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: str) -> None:
+def _set_auth_cookies(
+    response: JSONResponse, access_token: str, refresh_token: str
+) -> None:
     secure = settings.environment == "production"
     response.set_cookie(
         key="access_token",
@@ -66,7 +78,11 @@ def _clear_auth_cookies(response: JSONResponse) -> None:
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("30/minute")
 def register_user(user_in: UserCreate, request: Request, db: Session = Depends(get_db)):
-    existing = db.query(User).filter((User.email == user_in.email) | (User.username == user_in.username)).first()
+    existing = (
+        db.query(User)
+        .filter((User.email == user_in.email) | (User.username == user_in.username))
+        .first()
+    )
     if existing:
         raise ConflictException(detail="User with email or username already exists")
     user = create_user(db, user_in)
@@ -113,7 +129,9 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
 
 @router.post("/refresh-token", response_model=TokenResponse)
 @limiter.limit("1000/minute")
-def refresh_token(request: Request, token_data: TokenRefreshRequest, db: Session = Depends(get_db)):
+def refresh_token(
+    request: Request, token_data: TokenRefreshRequest, db: Session = Depends(get_db)
+):
     refresh_token_str = token_data.refresh_token or request.cookies.get("refresh_token")
     if not refresh_token_str:
         raise UnauthorizedException(detail="No refresh token provided")
@@ -186,7 +204,11 @@ def list_users_endpoint(
 
 
 @router.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     if current_user.id != user_id and current_user.role != "admin":
         raise UnauthorizedException(detail="Insufficient permissions")
 
@@ -211,11 +233,19 @@ def update_user_endpoint(
         raise NotFoundException(detail="User not found")
 
     if user_in.email:
-        existing = db.query(User).filter(User.email == user_in.email, User.id != user.id).first()
+        existing = (
+            db.query(User)
+            .filter(User.email == user_in.email, User.id != user.id)
+            .first()
+        )
         if existing:
             raise ConflictException(detail="Email already in use")
     if user_in.username:
-        existing = db.query(User).filter(User.username == user_in.username, User.id != user.id).first()
+        existing = (
+            db.query(User)
+            .filter(User.username == user_in.username, User.id != user.id)
+            .first()
+        )
         if existing:
             raise ConflictException(detail="Username already in use")
 
@@ -236,13 +266,21 @@ def delete_user_endpoint(
     return None
 
 
-@router.post("/admin-create", response_model=AdminUserCreateResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/admin-create",
+    response_model=AdminUserCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def admin_create_user_endpoint(
     user_in: AdminUserCreate,
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    existing = db.query(User).filter((User.email == user_in.email) | (User.username == user_in.username)).first()
+    existing = (
+        db.query(User)
+        .filter((User.email == user_in.email) | (User.username == user_in.username))
+        .first()
+    )
     if existing:
         raise ConflictException(detail="User with email or username already exists")
 
@@ -283,6 +321,11 @@ def list_unlinked_employees(
 ):
     employees = db.query(Employee).filter(Employee.user_id.is_(None)).all()
     return [
-        {"id": e.id, "first_name": e.first_name, "last_name": e.last_name, "email": e.email}
+        {
+            "id": e.id,
+            "first_name": e.first_name,
+            "last_name": e.last_name,
+            "email": e.email,
+        }
         for e in employees
     ]

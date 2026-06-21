@@ -66,7 +66,9 @@ def update_role(
     if not role:
         raise NotFoundException(detail="Role not found")
     if data.name is not None:
-        existing = db.query(Role).filter(Role.name == data.name, Role.id != role_id).first()
+        existing = (
+            db.query(Role).filter(Role.name == data.name, Role.id != role_id).first()
+        )
         if existing:
             raise ConflictException(detail="Role with this name already exists")
         role.name = data.name

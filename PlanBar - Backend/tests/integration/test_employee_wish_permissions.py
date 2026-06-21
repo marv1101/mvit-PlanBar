@@ -1,6 +1,3 @@
-from datetime import date
-
-
 def test_employee_creates_own_shift_wish(client, employee_auth_headers):
     headers, emp_id = employee_auth_headers
     response = client.post(
@@ -19,7 +16,9 @@ def test_employee_creates_own_shift_wish(client, employee_auth_headers):
     assert data["date"] == "2026-06-01"
 
 
-def test_employee_cannot_create_wish_for_other(client, employee_auth_headers, auth_headers):
+def test_employee_cannot_create_wish_for_other(
+    client, employee_auth_headers, auth_headers
+):
     headers, _ = employee_auth_headers
     other_resp = client.post(
         "/api/v1/employees",
@@ -62,7 +61,9 @@ def test_employee_updates_own_shift_wish(client, employee_auth_headers, auth_hea
     assert response.json()["note"] == "Updated by employee"
 
 
-def test_employee_cannot_update_others_wish(client, employee_auth_headers, auth_headers):
+def test_employee_cannot_update_others_wish(
+    client, employee_auth_headers, auth_headers
+):
     headers, _ = employee_auth_headers
     other_resp = client.post(
         "/api/v1/employees",
@@ -110,7 +111,9 @@ def test_employee_deletes_own_shift_wish(client, employee_auth_headers, auth_hea
     assert response.status_code == 204
 
 
-def test_employee_cannot_delete_others_wish(client, employee_auth_headers, auth_headers):
+def test_employee_cannot_delete_others_wish(
+    client, employee_auth_headers, auth_headers
+):
     headers, _ = employee_auth_headers
     other_resp = client.post(
         "/api/v1/employees",

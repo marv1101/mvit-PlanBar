@@ -126,7 +126,9 @@ def test_delete_thread(client, auth_headers):
     )
     thread_id = create_resp.json()["id"]
 
-    response = client.delete(f"/api/v1/pinboard/threads/{thread_id}", headers=auth_headers)
+    response = client.delete(
+        f"/api/v1/pinboard/threads/{thread_id}", headers=auth_headers
+    )
     assert response.status_code == 204
 
 
@@ -394,7 +396,7 @@ def test_pinned_threads_appear_first(client, auth_headers):
         json={"title": "Normal Thread"},
         headers=auth_headers,
     )
-    thread_a_id = resp_a.json()["id"]
+    _ = resp_a.json()["id"]
 
     resp_b = client.post(
         "/api/v1/pinboard/threads",
@@ -417,7 +419,9 @@ def test_pinned_threads_appear_first(client, auth_headers):
         assert max(pinned_indices) < min(unpinned_indices)
 
 
-def test_upload_document_unauthorized_user_returns_403(client, auth_headers, other_user_headers):
+def test_upload_document_unauthorized_user_returns_403(
+    client, auth_headers, other_user_headers
+):
     _, message_id = _create_thread_and_message(client, auth_headers)
     response = client.post(
         f"/api/v1/pinboard/messages/{message_id}/documents",
@@ -427,7 +431,9 @@ def test_upload_document_unauthorized_user_returns_403(client, auth_headers, oth
     assert response.status_code == 403
 
 
-def test_admin_can_upload_document_to_any_message(client, auth_headers, other_user_headers):
+def test_admin_can_upload_document_to_any_message(
+    client, auth_headers, other_user_headers
+):
     _, message_id = _create_thread_and_message(client, other_user_headers)
     response = client.post(
         f"/api/v1/pinboard/messages/{message_id}/documents",
@@ -468,7 +474,9 @@ def test_upload_txt_skips_magic_check(client, auth_headers):
     assert response.status_code == 201
 
 
-def test_download_document_unauthorized_user_returns_403(client, auth_headers, other_user_headers):
+def test_download_document_unauthorized_user_returns_403(
+    client, auth_headers, other_user_headers
+):
     _, message_id = _create_thread_and_message(client, auth_headers)
     doc_resp = client.post(
         f"/api/v1/pinboard/messages/{message_id}/documents",

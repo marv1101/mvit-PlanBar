@@ -5,7 +5,9 @@ from sqlalchemy.orm import Query
 from app.schemas.common import PaginationResponse
 
 
-def paginate(query: Query, page: int = 1, page_size: int = 20) -> tuple[list, PaginationResponse]:
+def paginate(
+    query: Query, page: int = 1, page_size: int = 20
+) -> tuple[list, PaginationResponse]:
     total = query.count()
     total_pages = max(1, math.ceil(total / page_size))
     page = max(1, min(page, total_pages))

@@ -75,7 +75,9 @@ def test_get_employee_not_found(client, auth_headers):
 
 
 def test_update_employee_not_found(client, auth_headers):
-    response = client.put("/api/v1/employees/99999", json={"first_name": "Nope"}, headers=auth_headers)
+    response = client.put(
+        "/api/v1/employees/99999", json={"first_name": "Nope"}, headers=auth_headers
+    )
     assert response.status_code == 404
 
 
@@ -90,7 +92,11 @@ def test_get_contract_not_found(client, auth_headers):
 
 
 def test_update_contract_not_found(client, auth_headers):
-    response = client.put("/api/v1/contracts/99999", json={"weekly_working_hours": 35}, headers=auth_headers)
+    response = client.put(
+        "/api/v1/contracts/99999",
+        json={"weekly_working_hours": 35},
+        headers=auth_headers,
+    )
     assert response.status_code == 404
 
 
@@ -123,7 +129,9 @@ def test_update_timecard(client, auth_headers):
 
 
 def test_update_timecard_not_found(client, auth_headers):
-    response = client.put("/api/v1/timecards/99999", json={"balance": 10.0}, headers=auth_headers)
+    response = client.put(
+        "/api/v1/timecards/99999", json={"balance": 10.0}, headers=auth_headers
+    )
     assert response.status_code == 404
 
 

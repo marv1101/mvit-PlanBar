@@ -3,9 +3,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
-from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.role import Role
-from app.schemas.employee import ContractCreate, ContractUpdate, EmployeeCreate, EmployeeUpdate, TimecardCreate, TimecardUpdate
+from app.schemas.employee import (
+    ContractCreate,
+    ContractUpdate,
+    EmployeeCreate,
+    EmployeeUpdate,
+    TimecardCreate,
+    TimecardUpdate,
+)
 from app.services.employee_service import (
     create_contract,
     create_employee,
@@ -72,7 +78,9 @@ def test_list_employees(db_session):
 
 
 def test_update_employee_all_fields(db_session):
-    emp = create_employee(db_session, EmployeeCreate(first_name="Old", last_name="Name"))
+    emp = create_employee(
+        db_session, EmployeeCreate(first_name="Old", last_name="Name")
+    )
     updated = update_employee(
         db_session,
         emp,
@@ -92,7 +100,9 @@ def test_update_employee_all_fields(db_session):
 
 
 def test_update_employee_partial(db_session):
-    emp = create_employee(db_session, EmployeeCreate(first_name="Partial", last_name="Update"))
+    emp = create_employee(
+        db_session, EmployeeCreate(first_name="Partial", last_name="Update")
+    )
     updated = update_employee(db_session, emp, EmployeeUpdate(first_name="Changed"))
     assert updated.first_name == "Changed"
     assert updated.last_name == "Update"
@@ -100,8 +110,13 @@ def test_update_employee_partial(db_session):
 
 def test_delete_employee_cascades(db_session):
     emp = create_employee(db_session, EmployeeCreate(first_name="Del", last_name="Ete"))
-    contract = create_contract(db_session, ContractCreate(employee_id=emp.id, weekly_working_hours=40, break_time=30))
-    timecard = create_timecard(db_session, TimecardCreate(employee_id=emp.id, week=20, year=2026, balance=0))
+    contract = create_contract(
+        db_session,
+        ContractCreate(employee_id=emp.id, weekly_working_hours=40, break_time=30),
+    )
+    timecard = create_timecard(
+        db_session, TimecardCreate(employee_id=emp.id, week=20, year=2026, balance=0)
+    )
 
     delete_employee(db_session, emp)
 
@@ -111,7 +126,9 @@ def test_delete_employee_cascades(db_session):
 
 
 def test_create_contract(db_session):
-    emp = create_employee(db_session, EmployeeCreate(first_name="Contract", last_name="Test"))
+    emp = create_employee(
+        db_session, EmployeeCreate(first_name="Contract", last_name="Test")
+    )
     data = ContractCreate(employee_id=emp.id, weekly_working_hours=35, break_time=45)
     contract = create_contract(db_session, data)
     assert contract.weekly_working_hours == 35
@@ -123,23 +140,39 @@ def test_get_contract_by_id_not_found(db_session):
 
 
 def test_list_contracts(db_session):
-    emp = create_employee(db_session, EmployeeCreate(first_name="CList", last_name="Test"))
-    create_contract(db_session, ContractCreate(employee_id=emp.id, weekly_working_hours=40, break_time=30))
+    emp = create_employee(
+        db_session, EmployeeCreate(first_name="CList", last_name="Test")
+    )
+    create_contract(
+        db_session,
+        ContractCreate(employee_id=emp.id, weekly_working_hours=40, break_time=30),
+    )
     contracts = list_contracts(db_session)
     assert len(contracts) >= 1
 
 
 def test_update_contract(db_session):
-    emp = create_employee(db_session, EmployeeCreate(first_name="CUpd", last_name="Test"))
-    contract = create_contract(db_session, ContractCreate(employee_id=emp.id, weekly_working_hours=40, break_time=30))
-    updated = update_contract(db_session, contract, ContractUpdate(weekly_working_hours=35, break_time=25, hired_role="supervisor"))
+    emp = create_employee(
+        db_session, EmployeeCreate(first_name="CUpd", last_name="Test")
+    )
+    contract = create_contract(
+        db_session,
+        ContractCreate(employee_id=emp.id, weekly_working_hours=40, break_time=30),
+    )
+    updated = update_contract(
+        db_session,
+        contract,
+        ContractUpdate(weekly_working_hours=35, break_time=25, hired_role="supervisor"),
+    )
     assert updated.weekly_working_hours == 35
     assert updated.break_time == 25
     assert updated.hired_role == "supervisor"
 
 
 def test_create_timecard(db_session):
-    emp = create_employee(db_session, EmployeeCreate(first_name="TCard", last_name="Test"))
+    emp = create_employee(
+        db_session, EmployeeCreate(first_name="TCard", last_name="Test")
+    )
     data = TimecardCreate(employee_id=emp.id, week=22, year=2026, balance=5.5)
     tc = create_timecard(db_session, data)
     assert tc.week == 22
@@ -151,9 +184,18 @@ def test_create_timecard(db_session):
 
 
 def test_create_timecard_with_extended_fields(db_session):
-    emp = create_employee(db_session, EmployeeCreate(first_name="TCExt", last_name="Test"))
-    data = TimecardCreate(employee_id=emp.id, week=23, year=2026, balance=5.5,
-                          scheduled_hours=38.0, actual_hours=36.0, contract_hours=40.0)
+    emp = create_employee(
+        db_session, EmployeeCreate(first_name="TCExt", last_name="Test")
+    )
+    data = TimecardCreate(
+        employee_id=emp.id,
+        week=23,
+        year=2026,
+        balance=5.5,
+        scheduled_hours=38.0,
+        actual_hours=36.0,
+        contract_hours=40.0,
+    )
     tc = create_timecard(db_session, data)
     assert tc.scheduled_hours == 38.0
     assert tc.actual_hours == 36.0
@@ -162,10 +204,17 @@ def test_create_timecard_with_extended_fields(db_session):
 
 
 def test_timecard_unique_employee_week_year(db_session):
-    emp = create_employee(db_session, EmployeeCreate(first_name="TCUniq", last_name="Test"))
-    create_timecard(db_session, TimecardCreate(employee_id=emp.id, week=25, year=2026, balance=0))
+    emp = create_employee(
+        db_session, EmployeeCreate(first_name="TCUniq", last_name="Test")
+    )
+    create_timecard(
+        db_session, TimecardCreate(employee_id=emp.id, week=25, year=2026, balance=0)
+    )
     with pytest.raises(Exception):
-        create_timecard(db_session, TimecardCreate(employee_id=emp.id, week=25, year=2026, balance=5.0))
+        create_timecard(
+            db_session,
+            TimecardCreate(employee_id=emp.id, week=25, year=2026, balance=5.0),
+        )
 
 
 def test_get_timecard_by_id_not_found(db_session):
@@ -173,16 +222,28 @@ def test_get_timecard_by_id_not_found(db_session):
 
 
 def test_list_timecards(db_session):
-    emp = create_employee(db_session, EmployeeCreate(first_name="TCList", last_name="Test"))
-    create_timecard(db_session, TimecardCreate(employee_id=emp.id, week=20, year=2026, balance=0))
+    emp = create_employee(
+        db_session, EmployeeCreate(first_name="TCList", last_name="Test")
+    )
+    create_timecard(
+        db_session, TimecardCreate(employee_id=emp.id, week=20, year=2026, balance=0)
+    )
     tcs = list_timecards(db_session)
     assert len(tcs) >= 1
 
 
 def test_update_timecard(db_session):
-    emp = create_employee(db_session, EmployeeCreate(first_name="TCUpd", last_name="Test"))
-    tc = create_timecard(db_session, TimecardCreate(employee_id=emp.id, week=20, year=2026, balance=0))
-    updated = update_timecard(db_session, tc, TimecardUpdate(week=21, year=2026, balance=10.0, scheduled_hours=35.0))
+    emp = create_employee(
+        db_session, EmployeeCreate(first_name="TCUpd", last_name="Test")
+    )
+    tc = create_timecard(
+        db_session, TimecardCreate(employee_id=emp.id, week=20, year=2026, balance=0)
+    )
+    updated = update_timecard(
+        db_session,
+        tc,
+        TimecardUpdate(week=21, year=2026, balance=10.0, scheduled_hours=35.0),
+    )
     assert updated.week == 21
     assert updated.balance == 10.0
     assert updated.scheduled_hours == 35.0

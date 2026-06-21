@@ -18,7 +18,9 @@ def create_user(db: Session, user_in: UserCreate, role: str = "user") -> User:
     db.add(user)
     db.commit()
     db.refresh(user)
-    audit_service.log_create(db, user_id=None, resource_type="user", resource_id=str(user.id))
+    audit_service.log_create(
+        db, user_id=None, resource_type="user", resource_id=str(user.id)
+    )
     return user
 
 
@@ -39,7 +41,9 @@ def list_users(db: Session) -> list[User]:
     return db.query(User).order_by(User.id).all()
 
 
-def update_user(db: Session, user: User, user_update: UserUpdate, actor_id: int | None = None) -> User:
+def update_user(
+    db: Session, user: User, user_update: UserUpdate, actor_id: int | None = None
+) -> User:
     if user_update.username is not None:
         user.username = user_update.username
     if user_update.email is not None:
@@ -51,17 +55,23 @@ def update_user(db: Session, user: User, user_update: UserUpdate, actor_id: int 
     db.add(user)
     db.commit()
     db.refresh(user)
-    audit_service.log_update(db, user_id=actor_id, resource_type="user", resource_id=str(user.id))
+    audit_service.log_update(
+        db, user_id=actor_id, resource_type="user", resource_id=str(user.id)
+    )
     return user
 
 
 def delete_user(db: Session, user: User, actor_id: int | None = None) -> None:
     db.delete(user)
     db.commit()
-    audit_service.log_delete(db, user_id=actor_id, resource_type="user", resource_id=str(user.id))
+    audit_service.log_delete(
+        db, user_id=actor_id, resource_type="user", resource_id=str(user.id)
+    )
 
 
-def change_password(db: Session, user: User, old_password: str, new_password: str) -> User:
+def change_password(
+    db: Session, user: User, old_password: str, new_password: str
+) -> User:
     if not verify_password(old_password, user.password_hash):
         raise ValueError("Old password is incorrect")
     user.password_hash = hash_password(new_password)
@@ -72,7 +82,9 @@ def change_password(db: Session, user: User, old_password: str, new_password: st
     return user
 
 
-def admin_create_user(db: Session, admin_user: AdminUserCreate, actor_id: int | None = None) -> tuple[User, str]:
+def admin_create_user(
+    db: Session, admin_user: AdminUserCreate, actor_id: int | None = None
+) -> tuple[User, str]:
     password = generate_password()
     user = User(
         username=admin_user.username,
@@ -86,12 +98,19 @@ def admin_create_user(db: Session, admin_user: AdminUserCreate, actor_id: int | 
     db.refresh(user)
 
     if admin_user.employee_id is not None:
-        employee = db.query(Employee).filter(Employee.id == admin_user.employee_id).first()
+        employee = (
+            db.query(Employee).filter(Employee.id == admin_user.employee_id).first()
+        )
         if employee:
             employee.user_id = user.id
             db.add(employee)
             db.commit()
 
-    audit_service.log_create(db, user_id=actor_id, resource_type="user", resource_id=str(user.id),
-                             details=f"admin_created role={admin_user.role}")
+    audit_service.log_create(
+        db,
+        user_id=actor_id,
+        resource_type="user",
+        resource_id=str(user.id),
+        details=f"admin_created role={admin_user.role}",
+    )
     return user, password

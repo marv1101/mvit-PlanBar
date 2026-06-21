@@ -64,7 +64,12 @@ class TestTokenBlacklist:
 
         assert count == 2
         assert db_session.query(RevokedToken).count() == 1
-        assert db_session.query(RevokedToken).filter(RevokedToken.jti == "valid-jti").first() is not None
+        assert (
+            db_session.query(RevokedToken)
+            .filter(RevokedToken.jti == "valid-jti")
+            .first()
+            is not None
+        )
 
     def test_legacy_token_without_jti(self, db_session):
         assert not is_token_revoked(None, db_session)

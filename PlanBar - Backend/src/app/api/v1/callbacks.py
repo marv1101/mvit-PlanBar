@@ -24,14 +24,22 @@ def verify_tito_callback_auth(request: Request) -> None:
             and auth_header.startswith("Bearer ")
             and hmac.compare_digest(auth_header[7:], settings.tito_api_key)
         )
-        query_valid = query_key and hmac.compare_digest(query_key, settings.tito_api_key)
+        query_valid = query_key and hmac.compare_digest(
+            query_key, settings.tito_api_key
+        )
         if not header_valid and not query_valid:
             raise UnauthorizedException(detail="Invalid or missing API key")
     else:
-        logger.warning("tito_api_key is not set — allowing TiTO callback without authentication")
+        logger.warning(
+            "tito_api_key is not set — allowing TiTO callback without authentication"
+        )
 
 
-@router.post("/tito", status_code=status.HTTP_200_OK, dependencies=[Depends(verify_tito_callback_auth)])
+@router.post(
+    "/tito",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(verify_tito_callback_auth)],
+)
 def tito_callback(
     payload: TiTOCallbackPayload,
     db: Session = Depends(get_db),

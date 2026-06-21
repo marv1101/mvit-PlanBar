@@ -24,10 +24,16 @@ def get_aggregated_metrics(db: Session) -> dict[str, Any]:
     return {
         "total_schedules": total_schedules,
         "average_solve_time": round(total_solve_time / max(total_schedules, 1), 2),
-        "average_wish_fulfillment_rate": round(total_wish_fulfillment / max(completed_count, 1), 2),
+        "average_wish_fulfillment_rate": round(
+            total_wish_fulfillment / max(completed_count, 1), 2
+        ),
         "completed_schedules": completed_count,
-        "failed_schedules": db.query(Schedule).filter(Schedule.status == "failed").count(),
-        "draft_schedules": db.query(Schedule).filter(Schedule.status == "draft").count(),
+        "failed_schedules": db.query(Schedule)
+        .filter(Schedule.status == "failed")
+        .count(),
+        "draft_schedules": db.query(Schedule)
+        .filter(Schedule.status == "draft")
+        .count(),
     }
 
 

@@ -5,7 +5,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
-from app.db.models.audit_log import AuditLog
 from app.db.models.user import User
 from app.services import audit_service
 
@@ -96,7 +95,9 @@ class TestLogFunctions:
 class TestQuery:
     def test_query_pagination_defaults(self, db_session):
         for i in range(25):
-            audit_service.log(db_session, user_id=None, action="TEST", resource_type="test")
+            audit_service.log(
+                db_session, user_id=None, action="TEST", resource_type="test"
+            )
         items, pagination = audit_service.query(db_session)
         assert len(items) == 20
         assert pagination.total == 25
@@ -112,28 +113,52 @@ class TestQuery:
         assert items[0].user_id == 1
 
     def test_query_with_action_filter(self, db_session):
-        audit_service.log(db_session, user_id=None, action="CREATE", resource_type="test")
-        audit_service.log(db_session, user_id=None, action="DELETE", resource_type="test")
+        audit_service.log(
+            db_session, user_id=None, action="CREATE", resource_type="test"
+        )
+        audit_service.log(
+            db_session, user_id=None, action="DELETE", resource_type="test"
+        )
         items, _ = audit_service.query(db_session, action="CREATE")
         assert len(items) == 1
         assert items[0].action == "CREATE"
 
     def test_query_with_resource_type_filter(self, db_session):
-        audit_service.log(db_session, user_id=None, action="TEST", resource_type="employee")
-        audit_service.log(db_session, user_id=None, action="TEST", resource_type="schedule")
+        audit_service.log(
+            db_session, user_id=None, action="TEST", resource_type="employee"
+        )
+        audit_service.log(
+            db_session, user_id=None, action="TEST", resource_type="schedule"
+        )
         items, _ = audit_service.query(db_session, resource_type="employee")
         assert len(items) == 1
 
     def test_query_with_resource_id_filter(self, db_session):
-        audit_service.log(db_session, user_id=None, action="TEST", resource_type="test", resource_id="100")
-        audit_service.log(db_session, user_id=None, action="TEST", resource_type="test", resource_id="200")
+        audit_service.log(
+            db_session,
+            user_id=None,
+            action="TEST",
+            resource_type="test",
+            resource_id="100",
+        )
+        audit_service.log(
+            db_session,
+            user_id=None,
+            action="TEST",
+            resource_type="test",
+            resource_id="200",
+        )
         items, _ = audit_service.query(db_session, resource_id="100")
         assert len(items) == 1
 
     def test_query_with_date_range(self, db_session):
         audit_service.log(db_session, user_id=None, action="TEST", resource_type="test")
         now = datetime.now(timezone.utc)
-        items, _ = audit_service.query(db_session, start_date=now - timedelta(hours=1), end_date=now + timedelta(hours=1))
+        items, _ = audit_service.query(
+            db_session,
+            start_date=now - timedelta(hours=1),
+            end_date=now + timedelta(hours=1),
+        )
         assert len(items) >= 1
 
 
@@ -154,7 +179,9 @@ class TestSuspiciousPatterns:
         assert brute_force[0]["count"] >= 5
 
     def test_no_suspicious_patterns(self, db_session):
-        audit_service.log(db_session, user_id=1, action="LOGIN_FAILED", resource_type="user")
+        audit_service.log(
+            db_session, user_id=1, action="LOGIN_FAILED", resource_type="user"
+        )
         patterns = audit_service.get_suspicious_patterns(db_session)
         assert len(patterns) == 0
 

@@ -13,8 +13,15 @@ class PinboardThread(Base):
     title = Column(String(255), nullable=False)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     is_pinned = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
     author = relationship("User", backref="pinboard_threads", lazy="selectin")
     messages = relationship(
@@ -33,8 +40,15 @@ class PinboardMessage(Base):
     thread_id = Column(Integer, ForeignKey("pinboard_threads.id"), nullable=False)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
     thread = relationship("PinboardThread", back_populates="messages")
     author = relationship("User", backref="pinboard_messages", lazy="selectin")
@@ -55,6 +69,8 @@ class PinboardDocument(Base):
     file_path = Column(String(512), nullable=False)
     file_size = Column(Integer, nullable=False)
     mime_type = Column(String(128), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
 
     message = relationship("PinboardMessage", back_populates="documents")

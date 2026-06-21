@@ -1,4 +1,3 @@
-from app.db.models.audit_log import AuditLog
 from app.services import audit_service
 
 
@@ -38,7 +37,9 @@ class TestAuditEndpoints:
     def test_list_audit_logs_pagination(self, client, db_session, auth_headers):
         for _ in range(25):
             _create_audit_log(db_session)
-        response = client.get("/api/v1/audit-logs?page=1&page_size=10", headers=auth_headers)
+        response = client.get(
+            "/api/v1/audit-logs?page=1&page_size=10", headers=auth_headers
+        )
         assert response.status_code == 200
         data = response.json()
         assert len(data["items"]) == 10
@@ -80,7 +81,6 @@ class TestAuditEndpoints:
         assert "filename=audit_logs.csv" in response.headers["content-disposition"]
 
     def test_list_non_admin_gets_forbidden(self, client, db_session):
-        from app.db.models.user import User
 
         register_data = {
             "username": "regularuser",
@@ -99,7 +99,6 @@ class TestAuditEndpoints:
         assert response.status_code == 403
 
     def test_get_single_non_admin_gets_forbidden(self, client, db_session):
-        from app.db.models.user import User
 
         register_data = {
             "username": "regularuser2",
@@ -118,7 +117,6 @@ class TestAuditEndpoints:
         assert response.status_code == 403
 
     def test_suspicious_non_admin_gets_forbidden(self, client, db_session):
-        from app.db.models.user import User
 
         register_data = {
             "username": "regularuser3",
@@ -137,7 +135,6 @@ class TestAuditEndpoints:
         assert response.status_code == 403
 
     def test_export_non_admin_gets_forbidden(self, client, db_session):
-        from app.db.models.user import User
 
         register_data = {
             "username": "regularuser4",

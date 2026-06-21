@@ -97,7 +97,9 @@ async def submit_schedule_endpoint(
     try:
         return await submit_schedule_to_tito(db, schedule)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        )
 
 
 @router.post("/{schedule_id}/retry", response_model=ScheduleResponse)
@@ -144,10 +146,14 @@ def update_shiftplan(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    shiftplan = db.query(Shiftplan).filter(
-        Shiftplan.id == shiftplan_id,
-        Shiftplan.schedule_id == schedule_id,
-    ).first()
+    shiftplan = (
+        db.query(Shiftplan)
+        .filter(
+            Shiftplan.id == shiftplan_id,
+            Shiftplan.schedule_id == schedule_id,
+        )
+        .first()
+    )
     if not shiftplan:
         raise NotFoundException(detail="Shiftplan not found")
     if data.employee_id is not None:
@@ -198,9 +204,14 @@ def get_pending_wishes(
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    wishes = db.query(ShiftWish).filter(
-        ShiftWish.status == "pending",
-        ShiftWish.date >= schedule.start_date,
-        ShiftWish.date <= schedule.end_date,
-    ).order_by(ShiftWish.date).all()
+    wishes = (
+        db.query(ShiftWish)
+        .filter(
+            ShiftWish.status == "pending",
+            ShiftWish.date >= schedule.start_date,
+            ShiftWish.date <= schedule.end_date,
+        )
+        .order_by(ShiftWish.date)
+        .all()
+    )
     return wishes

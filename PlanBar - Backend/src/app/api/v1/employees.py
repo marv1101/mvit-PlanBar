@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db, require_admin
-from app.db.models.employee import Contract, Employee, Timecard
+from app.db.models.employee import Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.user import User
 from app.schemas.employee import (
@@ -109,7 +109,9 @@ def delete_employee_endpoint(
 contract_router = APIRouter()
 
 
-@contract_router.post("", response_model=ContractResponse, status_code=status.HTTP_201_CREATED)
+@contract_router.post(
+    "", response_model=ContractResponse, status_code=status.HTTP_201_CREATED
+)
 def create_contract_endpoint(
     data: ContractCreate,
     db: Session = Depends(get_db),
@@ -154,7 +156,9 @@ def update_contract_endpoint(
 timecard_router = APIRouter()
 
 
-@timecard_router.post("", response_model=TimecardResponse, status_code=status.HTTP_201_CREATED)
+@timecard_router.post(
+    "", response_model=TimecardResponse, status_code=status.HTTP_201_CREATED
+)
 def create_timecard_endpoint(
     data: TimecardCreate,
     db: Session = Depends(get_db),
@@ -196,39 +200,57 @@ def update_timecard_endpoint(
     return update_timecard(db, timecard, data, actor_id=current_user.id)
 
 
-def _build_time_account_response(employee: Employee, db: Session) -> TimeAccountResponse:
-    timecards = db.query(Timecard).filter(
-        Timecard.employee_id == employee.id,
-    ).order_by(Timecard.year.asc(), Timecard.week.asc()).all()
+def _build_time_account_response(
+    employee: Employee, db: Session
+) -> TimeAccountResponse:
+    timecards = (
+        db.query(Timecard)
+        .filter(
+            Timecard.employee_id == employee.id,
+        )
+        .order_by(Timecard.year.asc(), Timecard.week.asc())
+        .all()
+    )
 
     history = []
     for tc in timecards:
         delta = tc.scheduled_hours - tc.contract_hours
         total_change = delta + (tc.manual_adjustment_hours or 0.0)
-        history.append(TimeAccountEntry(
-            week=tc.week,
-            year=tc.year,
-            scheduled_hours=tc.scheduled_hours,
-            contract_hours=tc.contract_hours,
-            delta=delta,
-            balance=tc.balance,
-            manual_adjustment=tc.manual_adjustment_hours or 0.0,
-            adjustment_reason=tc.adjustment_reason,
-            total_change=total_change,
-        ))
+        history.append(
+            TimeAccountEntry(
+                week=tc.week,
+                year=tc.year,
+                scheduled_hours=tc.scheduled_hours,
+                contract_hours=tc.contract_hours,
+                delta=delta,
+                balance=tc.balance,
+                manual_adjustment=tc.manual_adjustment_hours or 0.0,
+                adjustment_reason=tc.adjustment_reason,
+                total_change=total_change,
+            )
+        )
 
     current_balance = timecards[-1].balance if timecards else 0.0
 
     projected = None
-    latest_schedule = db.query(Schedule).filter(
-        Schedule.status == "submitted",
-    ).order_by(Schedule.end_date.desc()).first()
+    latest_schedule = (
+        db.query(Schedule)
+        .filter(
+            Schedule.status == "submitted",
+        )
+        .order_by(Schedule.end_date.desc())
+        .first()
+    )
 
     if latest_schedule:
-        shiftplans = db.query(Shiftplan).filter(
-            Shiftplan.schedule_id == latest_schedule.id,
-            Shiftplan.employee_id == employee.id,
-        ).all()
+        shiftplans = (
+            db.query(Shiftplan)
+            .filter(
+                Shiftplan.schedule_id == latest_schedule.id,
+                Shiftplan.employee_id == employee.id,
+            )
+            .all()
+        )
         if shiftplans:
             contract = employee.contracts[0] if employee.contracts else None
             from_schedule = sum(
@@ -237,7 +259,9 @@ def _build_time_account_response(employee: Employee, db: Session) -> TimeAccount
             weekly_hours = contract.weekly_working_hours if contract else 40.0
             iso_weeks = {sp.date.isocalendar()[:2] for sp in shiftplans}
             num_weeks = len(iso_weeks)
-            expected_balance_after = current_balance + from_schedule - (weekly_hours * num_weeks)
+            expected_balance_after = (
+                current_balance + from_schedule - (weekly_hours * num_weeks)
+            )
             projected = TimeAccountProjected(
                 from_schedule=from_schedule,
                 expected_balance_after=expected_balance_after,
@@ -264,7 +288,11 @@ def get_employee_time_account(
     return _build_time_account_response(employee, db)
 
 
-@router.post("/{employee_id}/time-account/adjust", response_model=TimeAccountResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/{employee_id}/time-account/adjust",
+    response_model=TimeAccountResponse,
+    status_code=status.HTTP_200_OK,
+)
 def adjust_employee_time_account(
     employee_id: int,
     data: TimeAccountAdjust,
@@ -275,16 +303,27 @@ def adjust_employee_time_account(
     if not employee:
         raise NotFoundException(detail="Employee not found")
 
-    latest_tc = db.query(Timecard).filter(
-        Timecard.employee_id == employee_id,
-    ).order_by(Timecard.year.desc(), Timecard.week.desc()).first()
+    latest_tc = (
+        db.query(Timecard)
+        .filter(
+            Timecard.employee_id == employee_id,
+        )
+        .order_by(Timecard.year.desc(), Timecard.week.desc())
+        .first()
+    )
 
     if latest_tc:
         latest_tc.balance = latest_tc.balance + data.delta_hours
-        latest_tc.manual_adjustment_hours = (latest_tc.manual_adjustment_hours or 0) + data.delta_hours
+        latest_tc.manual_adjustment_hours = (
+            latest_tc.manual_adjustment_hours or 0
+        ) + data.delta_hours
         if data.reason:
             existing_reason = latest_tc.adjustment_reason or ""
-            latest_tc.adjustment_reason = f"{existing_reason}; {data.reason}".strip("; ") if existing_reason else data.reason
+            latest_tc.adjustment_reason = (
+                f"{existing_reason}; {data.reason}".strip("; ")
+                if existing_reason
+                else data.reason
+            )
     else:
         now_utc = datetime.now(timezone.utc)
         tc = Timecard(

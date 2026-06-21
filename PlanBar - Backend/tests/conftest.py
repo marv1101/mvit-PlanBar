@@ -6,21 +6,23 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
 os.environ["ENVIRONMENT"] = "test"
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
 
-from app.config import settings
-from app.core.rate_limit import limiter
-from app.db.base import Base
-from app.dependencies import get_db
-from app.main import create_app
+from app.config import settings  # noqa: E402
+from app.core.rate_limit import limiter  # noqa: E402
+from app.db.base import Base  # noqa: E402
+from app.dependencies import get_db  # noqa: E402
+from app.main import create_app  # noqa: E402
 
 settings.database_url = TEST_DATABASE_URL
 settings.tito_api_key = None
 
-_test_engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+_test_engine = create_engine(
+    TEST_DATABASE_URL, connect_args={"check_same_thread": False}
+)
 TestSessionLocal = sessionmaker(bind=_test_engine, autoflush=False, autocommit=False)
 
 

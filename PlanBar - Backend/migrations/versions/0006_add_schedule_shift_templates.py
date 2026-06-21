@@ -4,6 +4,7 @@ Revision ID: 0006_add_schedule_shift_templates
 Revises: 0005_add_audit_logs
 Create Date: 2026-06-14 00:00:00.000000
 """
+
 from alembic import op
 import sqlalchemy as sa
 

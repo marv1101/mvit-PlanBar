@@ -19,7 +19,9 @@ def generate_password(length: int = 12) -> str:
 
 
 def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.access_token_expire_minutes))
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
+    )
     payload = {
         "sub": subject,
         "exp": expire,
@@ -30,7 +32,9 @@ def create_access_token(subject: str, expires_delta: timedelta | None = None) ->
 
 
 def create_refresh_token(subject: str, expires_delta: timedelta | None = None) -> str:
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(days=settings.refresh_token_expire_days))
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(days=settings.refresh_token_expire_days)
+    )
     payload = {
         "sub": subject,
         "exp": expire,
@@ -42,7 +46,9 @@ def create_refresh_token(subject: str, expires_delta: timedelta | None = None) -
 
 def verify_token(token: str) -> dict[str, Any]:
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(
+            token, settings.secret_key, algorithms=[settings.jwt_algorithm]
+        )
         return payload
     except jwt.PyJWTError as exc:
         raise ValueError("Invalid token") from exc
@@ -60,18 +66,29 @@ def is_token_revoked(jti: str | None, db: Session) -> bool:
     if jti is None:
         return False
     from app.db.models.revoked_token import RevokedToken
+
     return db.query(RevokedToken).filter(RevokedToken.jti == jti).first() is not None
 
 
-def revoke_token(jti: str, token_type: str, user_id: int, expires_at: datetime, db: Session) -> None:
+def revoke_token(
+    jti: str, token_type: str, user_id: int, expires_at: datetime, db: Session
+) -> None:
     from app.db.models.revoked_token import RevokedToken
-    entry = RevokedToken(jti=jti, token_type=token_type, user_id=user_id, expires_at=expires_at)
+
+    entry = RevokedToken(
+        jti=jti, token_type=token_type, user_id=user_id, expires_at=expires_at
+    )
     db.add(entry)
     db.commit()
 
 
 def clean_expired_revoked_tokens(db: Session) -> int:
     from app.db.models.revoked_token import RevokedToken
-    count = db.query(RevokedToken).filter(RevokedToken.expires_at < datetime.now(timezone.utc)).delete()
+
+    count = (
+        db.query(RevokedToken)
+        .filter(RevokedToken.expires_at < datetime.now(timezone.utc))
+        .delete()
+    )
     db.commit()
     return count

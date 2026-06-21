@@ -5,6 +5,7 @@ Revises: 0005_add_audit_logs
 Create Date: 2026-06-12 00:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -29,8 +30,12 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("jti"),
     )
-    op.create_index(op.f("ix_revoked_tokens_id"), "revoked_tokens", ["id"], unique=False)
-    op.create_index(op.f("ix_revoked_tokens_jti"), "revoked_tokens", ["jti"], unique=True)
+    op.create_index(
+        op.f("ix_revoked_tokens_id"), "revoked_tokens", ["id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_revoked_tokens_jti"), "revoked_tokens", ["jti"], unique=True
+    )
 
 
 def downgrade() -> None:

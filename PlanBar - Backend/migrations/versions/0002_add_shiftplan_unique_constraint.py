@@ -4,6 +4,7 @@ Revision ID: 0002_add_shiftplan_unique_constraint
 Revises: 0001_initial
 Create Date: 2026-06-01 00:00:00.000000
 """
+
 from alembic import op
 
 # revision identifiers, used by Alembic.

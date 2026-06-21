@@ -1,6 +1,3 @@
-from datetime import date
-
-
 def test_create_shift_wish(client, auth_headers):
     emp_resp = client.post(
         "/api/v1/employees",

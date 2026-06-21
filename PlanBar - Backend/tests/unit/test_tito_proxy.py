@@ -61,7 +61,9 @@ async def test_check_health_unhealthy(proxy: TiTOProxy):
 
 @pytest.mark.asyncio
 async def test_check_health_connection_error(proxy: TiTOProxy):
-    with patch.object(proxy.client, "get", AsyncMock(side_effect=httpx.HTTPError("connection failed"))):
+    with patch.object(
+        proxy.client, "get", AsyncMock(side_effect=httpx.HTTPError("connection failed"))
+    ):
         assert await proxy.check_health() is False
 
 

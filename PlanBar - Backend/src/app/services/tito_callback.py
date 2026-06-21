@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta
+from datetime import time
 
 from sqlalchemy.orm import Session
 
@@ -17,10 +17,16 @@ def process_tito_callback(db: Session, payload: TiTOCallbackPayload) -> Schedule
     if not schedule:
         return None
 
-    schedule.status = "completed" if payload.status.upper() in ("SUCCESS", "FEASIBLE", "COMPLETED") else "failed"
+    schedule.status = (
+        "completed"
+        if payload.status.upper() in ("SUCCESS", "FEASIBLE", "COMPLETED")
+        else "failed"
+    )
     schedule.metadata_json = payload.metadata.model_dump() if payload.metadata else None
     schedule.metrics_json = payload.metrics.model_dump() if payload.metrics else None
-    schedule.diagnostics_json = payload.diagnostics.model_dump() if payload.diagnostics else None
+    schedule.diagnostics_json = (
+        payload.diagnostics.model_dump() if payload.diagnostics else None
+    )
 
     aggregated = _aggregate_violations(schedule, payload)
     if aggregated:
@@ -32,9 +38,11 @@ def process_tito_callback(db: Session, payload: TiTOCallbackPayload) -> Schedule
         db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).delete()
 
         for assignment in payload.solution.assignments:
-            employee = db.query(Employee).filter(
-                Employee.id == _extract_employee_id(assignment.employeeId)
-            ).first()
+            employee = (
+                db.query(Employee)
+                .filter(Employee.id == _extract_employee_id(assignment.employeeId))
+                .first()
+            )
 
             if not employee:
                 continue
@@ -101,37 +109,49 @@ def _calc_effective_hours(sp: Shiftplan, contract: Contract | None) -> float:
 def update_timecards_from_schedule(db: Session, schedule: Schedule) -> None:
     """Create or update Timecards for all employees in a completed schedule."""
     if not schedule.start_date or not schedule.end_date:
-        logger.warning("Schedule %s has no date range, skipping timecard update", schedule.id)
+        logger.warning(
+            "Schedule %s has no date range, skipping timecard update", schedule.id
+        )
         return
 
     db.expire(schedule, ["shiftplans"])
     shiftplans = db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).all()
 
-    weekly_data: dict[tuple[int, int], dict[int, float]] = defaultdict(lambda: defaultdict(float))
+    weekly_data: dict[tuple[int, int], dict[int, float]] = defaultdict(
+        lambda: defaultdict(float)
+    )
     weekly_emp_contracts: dict[int, Contract | None] = {}
 
     for sp in shiftplans:
         year, week, _ = sp.date.isocalendar()
         contract = weekly_emp_contracts.get(sp.employee_id)
         if contract is None:
-            contract = db.query(Contract).filter(Contract.employee_id == sp.employee_id).first()
+            contract = (
+                db.query(Contract)
+                .filter(Contract.employee_id == sp.employee_id)
+                .first()
+            )
             weekly_emp_contracts[sp.employee_id] = contract
         effective_hours = _calc_effective_hours(sp, contract)
         weekly_data[(year, week)][sp.employee_id] += effective_hours
 
     employee_balance_cache: dict[int, float] = {}
 
-    for (year, week) in sorted(weekly_data.keys(), key=lambda x: (x[0], x[1])):
+    for year, week in sorted(weekly_data.keys(), key=lambda x: (x[0], x[1])):
         emp_hours = weekly_data[(year, week)]
         for emp_id, scheduled_hours in emp_hours.items():
             contract = weekly_emp_contracts.get(emp_id)
             contract_hours = float(contract.weekly_working_hours) if contract else 40.0
 
-            existing = db.query(Timecard).filter(
-                Timecard.employee_id == emp_id,
-                Timecard.year == year,
-                Timecard.week == week,
-            ).first()
+            existing = (
+                db.query(Timecard)
+                .filter(
+                    Timecard.employee_id == emp_id,
+                    Timecard.year == year,
+                    Timecard.week == week,
+                )
+                .first()
+            )
 
             if existing:
                 is_adjustment = (
@@ -143,13 +163,22 @@ def update_timecards_from_schedule(db: Session, schedule: Schedule) -> None:
                 if is_adjustment:
                     prev_balance = existing.balance
                 else:
-                    prev_balance = existing.balance - (existing.scheduled_hours - existing.contract_hours) - (existing.manual_adjustment_hours or 0)
+                    prev_balance = (
+                        existing.balance
+                        - (existing.scheduled_hours - existing.contract_hours)
+                        - (existing.manual_adjustment_hours or 0)
+                    )
             else:
                 prev_balance = employee_balance_cache.get(emp_id)
                 if prev_balance is None:
-                    prev_tc = db.query(Timecard).filter(
-                        Timecard.employee_id == emp_id,
-                    ).order_by(Timecard.year.desc(), Timecard.week.desc()).first()
+                    prev_tc = (
+                        db.query(Timecard)
+                        .filter(
+                            Timecard.employee_id == emp_id,
+                        )
+                        .order_by(Timecard.year.desc(), Timecard.week.desc())
+                        .first()
+                    )
                     prev_balance = prev_tc.balance if prev_tc else 0.0
 
             delta = scheduled_hours - contract_hours
@@ -178,7 +207,9 @@ def update_timecards_from_schedule(db: Session, schedule: Schedule) -> None:
     db.commit()
 
 
-def _aggregate_violations(schedule: Schedule, payload: TiTOCallbackPayload) -> list[dict]:
+def _aggregate_violations(
+    schedule: Schedule, payload: TiTOCallbackPayload
+) -> list[dict]:
     if not payload.metrics or not payload.metrics.violations:
         return []
 
@@ -197,7 +228,9 @@ def _aggregate_violations(schedule: Schedule, payload: TiTOCallbackPayload) -> l
             except (ValueError, KeyError):
                 continue
 
-    by_skill: dict[str, dict] = defaultdict(lambda: {"count": 0, "hours": 0.0, "dates": set()})
+    by_skill: dict[str, dict] = defaultdict(
+        lambda: {"count": 0, "hours": 0.0, "dates": set()}
+    )
 
     for violation in payload.metrics.violations:
         if violation.get("severity") != "HARD":
@@ -224,14 +257,16 @@ def _aggregate_violations(schedule: Schedule, payload: TiTOCallbackPayload) -> l
                 f"{data['count']} {skill}-Schichten konnten nicht besetzt werden "
                 f"(an {len(data['dates'])} Tagen)"
             )
-        messages.append({
-            "severity": "HARD",
-            "skill": skill,
-            "message": msg,
-            "totalMissingShifts": data["count"],
-            "totalMissingHours": hours,
-            "affectedDays": len(data["dates"]),
-        })
+        messages.append(
+            {
+                "severity": "HARD",
+                "skill": skill,
+                "message": msg,
+                "totalMissingShifts": data["count"],
+                "totalMissingHours": hours,
+                "affectedDays": len(data["dates"]),
+            }
+        )
 
     return messages
 

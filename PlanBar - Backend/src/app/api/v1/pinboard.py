@@ -7,7 +7,17 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    UploadFile,
+    File,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -36,7 +46,9 @@ ALLOWED_MIME_TYPES = {
     "image/webp": {".webp"},
     "application/pdf": {".pdf"},
     "application/msword": {".doc"},
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {".docx"},
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+        ".docx"
+    },
     "application/vnd.ms-excel": {".xls"},
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {".xlsx"},
     "text/plain": {".txt"},
@@ -145,7 +157,9 @@ def _message_to_response(message: PinboardMessage) -> MessageResponse:
         author_id=message.author_id,
         author_name=message.author.username if message.author else "",
         content=message.content,
-        documents=[DocumentResponse.model_validate(doc) for doc in (message.documents or [])],
+        documents=[
+            DocumentResponse.model_validate(doc) for doc in (message.documents or [])
+        ],
         created_at=message.created_at,
         updated_at=message.updated_at,
     )
@@ -171,7 +185,10 @@ def _validate_magic_bytes(content: bytes, ext: str):
     if ext not in MAGIC_PATTERNS:
         return
     for magic, offset in MAGIC_PATTERNS[ext]:
-        if len(content) < offset + len(magic) or content[offset : offset + len(magic)] != magic:
+        if (
+            len(content) < offset + len(magic)
+            or content[offset : offset + len(magic)] != magic
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="File content does not match expected signature.",
@@ -204,7 +221,9 @@ def list_threads(
     return [_thread_to_response(t) for t in threads]
 
 
-@router.post("/threads", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/threads", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED
+)
 def create_thread(
     data: ThreadCreate,
     db: Session = Depends(get_db),
@@ -279,7 +298,11 @@ def list_messages(
     return [_message_to_response(msg) for msg in (thread.messages or [])]
 
 
-@router.post("/threads/{thread_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/threads/{thread_id}/messages",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_message(
     thread_id: int,
     data: MessageCreate,
@@ -337,7 +360,11 @@ def delete_message(
     db.commit()
 
 
-@router.post("/messages/{message_id}/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/messages/{message_id}/documents",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_document(
     message_id: int,
     file: UploadFile = File(...),
@@ -393,11 +420,14 @@ async def upload_document(
     db.refresh(doc)
 
     doc_response = DocumentResponse.model_validate(doc)
-    await _broadcast(message.thread_id, {
-        "type": "document_uploaded",
-        "message_id": message_id,
-        "document": doc_response.model_dump(mode="json"),
-    })
+    await _broadcast(
+        message.thread_id,
+        {
+            "type": "document_uploaded",
+            "message_id": message_id,
+            "document": doc_response.model_dump(mode="json"),
+        },
+    )
     return doc_response
 
 
@@ -447,7 +477,9 @@ class WsTokenResponse(BaseModel):
 def get_ws_token(
     current_user: User = Depends(get_current_user),
 ):
-    token = create_access_token(subject=str(current_user.id), expires_delta=timedelta(minutes=30))
+    token = create_access_token(
+        subject=str(current_user.id), expires_delta=timedelta(minutes=30)
+    )
     return WsTokenResponse(token=token, expires_in=1800)
 
 
@@ -510,10 +542,13 @@ def _notify_clients(thread_id: int, message: MessageResponse):
         loop = asyncio.get_event_loop()
         if loop.is_running():
             asyncio.ensure_future(
-                _broadcast(thread_id, {
-                    "type": "new_message",
-                    "message": message.model_dump(mode="json"),
-                })
+                _broadcast(
+                    thread_id,
+                    {
+                        "type": "new_message",
+                        "message": message.model_dump(mode="json"),
+                    },
+                )
             )
     except RuntimeError:
         pass
@@ -528,13 +563,22 @@ async def _heartbeat_loop(websocket: WebSocket, thread_id: int):
             last_activity = _ws_last_activity.get(conn_id)
 
             if last_activity is not None and (now - last_activity) > WS_IDLE_TIMEOUT:
-                logger.info(f"Closing idle WebSocket: user={_ws_user_map.get(conn_id)} conn={conn_id}")
-                await websocket.close(code=4001, reason="Connection timeout due to inactivity")
+                logger.info(
+                    f"Closing idle WebSocket: user={_ws_user_map.get(conn_id)} conn={conn_id}"
+                )
+                await websocket.close(
+                    code=4001, reason="Connection timeout due to inactivity"
+                )
                 _disconnect_ws(websocket, thread_id)
                 return
 
-            if last_activity is not None and (now - last_activity) > WS_HEARTBEAT_TIMEOUT:
-                logger.info(f"Heartbeat timeout for WebSocket: user={_ws_user_map.get(conn_id)} conn={conn_id}")
+            if (
+                last_activity is not None
+                and (now - last_activity) > WS_HEARTBEAT_TIMEOUT
+            ):
+                logger.info(
+                    f"Heartbeat timeout for WebSocket: user={_ws_user_map.get(conn_id)} conn={conn_id}"
+                )
                 await websocket.close(code=4001, reason="Heartbeat timeout")
                 _disconnect_ws(websocket, thread_id)
                 return
@@ -552,9 +596,13 @@ async def websocket_endpoint(
 ):
     db = SessionLocal()
     try:
-        thread_exists = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
+        thread_exists = (
+            db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
+        )
         if not thread_exists:
-            logger.warning(f"WebSocket connection attempted to non-existent thread {thread_id}")
+            logger.warning(
+                f"WebSocket connection attempted to non-existent thread {thread_id}"
+            )
             await websocket.close(code=4004, reason="Thread not found")
             return
 
@@ -576,7 +624,9 @@ async def websocket_endpoint(
 
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
-            logger.warning(f"WebSocket auth failed: user {user_id} not found in database")
+            logger.warning(
+                f"WebSocket auth failed: user {user_id} not found in database"
+            )
             await websocket.close(code=4001, reason="User not found")
             return
     finally:
@@ -608,7 +658,9 @@ async def websocket_endpoint(
             elif msg_type == "message":
                 content = msg_data.get("content", "").strip()
                 if not content:
-                    await websocket.send_json({"type": "error", "detail": "Content is required"})
+                    await websocket.send_json(
+                        {"type": "error", "detail": "Content is required"}
+                    )
                     continue
 
                 db = SessionLocal()
@@ -619,21 +671,30 @@ async def websocket_endpoint(
                         content=content,
                     )
                     db.add(message)
-                    thread = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
+                    thread = (
+                        db.query(PinboardThread)
+                        .filter(PinboardThread.id == thread_id)
+                        .first()
+                    )
                     if thread:
                         thread.updated_at = datetime.now()
                     db.commit()
                     db.refresh(message)
 
                     msg_response = _message_to_response(message)
-                    await _broadcast(thread_id, {
-                        "type": "new_message",
-                        "message": msg_response.model_dump(mode="json"),
-                    })
+                    await _broadcast(
+                        thread_id,
+                        {
+                            "type": "new_message",
+                            "message": msg_response.model_dump(mode="json"),
+                        },
+                    )
                 finally:
                     db.close()
             else:
-                await websocket.send_json({"type": "error", "detail": f"Unknown message type: {msg_type}"})
+                await websocket.send_json(
+                    {"type": "error", "detail": f"Unknown message type: {msg_type}"}
+                )
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: user={user_id} thread={thread_id}")
     except json.JSONDecodeError:
