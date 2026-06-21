@@ -157,18 +157,6 @@ export const mockAppContext = {
   refresh: vi.fn().mockResolvedValue(undefined),
 };
 
-export function TestWrapper({ children }: { children: React.ReactNode }) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AppContext.Provider value={mockAppContext as any}>
-        <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
-          {children}
-        </DndProvider>
-      </AppContext.Provider>
-    </QueryClientProvider>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Wrappers
 // ---------------------------------------------------------------------------
