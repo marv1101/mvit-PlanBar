@@ -5,7 +5,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
-from app.db.models.audit_log import AuditLog
 from app.db.models.user import User
 from app.services import audit_service
 
@@ -69,27 +68,19 @@ class TestLogFunctions:
         assert entry.user_agent is None
 
     def test_log_create(self, db_session):
-        entry = audit_service.log_create(
-            db_session, user_id=1, resource_type="employee", resource_id="10"
-        )
+        entry = audit_service.log_create(db_session, user_id=1, resource_type="employee", resource_id="10")
         assert entry.action == "CREATE"
 
     def test_log_update(self, db_session):
-        entry = audit_service.log_update(
-            db_session, user_id=1, resource_type="employee", resource_id="10"
-        )
+        entry = audit_service.log_update(db_session, user_id=1, resource_type="employee", resource_id="10")
         assert entry.action == "UPDATE"
 
     def test_log_delete(self, db_session):
-        entry = audit_service.log_delete(
-            db_session, user_id=1, resource_type="employee", resource_id="10"
-        )
+        entry = audit_service.log_delete(db_session, user_id=1, resource_type="employee", resource_id="10")
         assert entry.action == "DELETE"
 
     def test_log_access(self, db_session):
-        entry = audit_service.log_access(
-            db_session, user_id=1, resource_type="schedule", resource_id="5"
-        )
+        entry = audit_service.log_access(db_session, user_id=1, resource_type="schedule", resource_id="5")
         assert entry.action == "ACCESS"
 
 
@@ -125,15 +116,31 @@ class TestQuery:
         assert len(items) == 1
 
     def test_query_with_resource_id_filter(self, db_session):
-        audit_service.log(db_session, user_id=None, action="TEST", resource_type="test", resource_id="100")
-        audit_service.log(db_session, user_id=None, action="TEST", resource_type="test", resource_id="200")
+        audit_service.log(
+            db_session,
+            user_id=None,
+            action="TEST",
+            resource_type="test",
+            resource_id="100",
+        )
+        audit_service.log(
+            db_session,
+            user_id=None,
+            action="TEST",
+            resource_type="test",
+            resource_id="200",
+        )
         items, _ = audit_service.query(db_session, resource_id="100")
         assert len(items) == 1
 
     def test_query_with_date_range(self, db_session):
         audit_service.log(db_session, user_id=None, action="TEST", resource_type="test")
         now = datetime.now(timezone.utc)
-        items, _ = audit_service.query(db_session, start_date=now - timedelta(hours=1), end_date=now + timedelta(hours=1))
+        items, _ = audit_service.query(
+            db_session,
+            start_date=now - timedelta(hours=1),
+            end_date=now + timedelta(hours=1),
+        )
         assert len(items) >= 1
 
 

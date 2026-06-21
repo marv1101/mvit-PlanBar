@@ -1,9 +1,6 @@
 import pytest
 from datetime import datetime, timedelta
-from tito.schema import (
-    validate_job_payload, JobPayload, Metadata, Config, 
-    ShiftTemplate, Requirement, Employee, Wish
-)
+from tito.schema import validate_job_payload, JobPayload, Employee
 
 
 def test_schema_accepts_valid_payload():
@@ -11,52 +8,34 @@ def test_schema_accepts_valid_payload():
     today = datetime.now().date()
     start_date = today.strftime("%Y-%m-%d")
     end_date = (today + timedelta(days=7)).strftime("%Y-%m-%d")
-    
+
     payload = {
         "metadata": {
             "jobId": "job-schema-1",
             "tenantId": 1,
             "priority": 1,
-            "timestamp": "2026-05-08T10:00:00Z"
+            "timestamp": "2026-05-08T10:00:00Z",
         },
         "config": {
             "schemaVersion": "1.0",
             "startDate": start_date,
             "endDate": end_date,
             "maxConsecutiveDays": 6,
-            "minRestTimeHours": 11
+            "minRestTimeHours": 11,
         },
         "shiftTemplates": [
             {
                 "id": "S_FRUEH",
                 "name": "Frühschicht",
                 "startTime": "06:00",
-                "endTime": "14:00"
+                "endTime": "14:00",
             }
         ],
-        "requirements": [
-            {
-                "shiftTemplateId": "S_FRUEH",
-                "date": start_date,
-                "count": 1
-            }
-        ],
-        "employees": [
-            {
-                "id": "E001",
-                "name": "Max Mustermann",
-                "contractHours": 40.0
-            }
-        ],
-        "wishes": [
-            {
-                "employeeId": "E001",
-                "date": start_date,
-                "type": "OFF"
-            }
-        ]
+        "requirements": [{"shiftTemplateId": "S_FRUEH", "date": start_date, "count": 1}],
+        "employees": [{"id": "E001", "name": "Max Mustermann", "contractHours": 40.0}],
+        "wishes": [{"employeeId": "E001", "date": start_date, "type": "OFF"}],
     }
-    
+
     result = validate_job_payload(payload)
     assert isinstance(result, JobPayload)
     assert result.metadata.jobId == "job-schema-1"
@@ -66,41 +45,34 @@ def test_schema_accepts_valid_payload():
 def test_schema_accepts_legacy_payload_fields():
     """Test that legacy field names are accepted and normalized."""
     payload = {
-        "metadata": {
-            "tenantId": 1,
-            "priority": 2,
-            "timestamp": "2026-05-08T10:00:00Z"
-        },
+        "metadata": {"tenantId": 1, "priority": 2, "timestamp": "2026-05-08T10:00:00Z"},
         "config": {
             "schemaVersion": "1.0",
             "startDate": "2026-01-01",
-            "endDate": "2026-01-07"
+            "endDate": "2026-01-07",
         },
         "shiftTemplates": [
             {
                 "id": "S_FRUEH",
                 "name": "Frühschicht",
                 "startTime": "06:00",
-                "endTime": "14:00"
+                "endTime": "14:00",
             }
         ],
         "requirements": [
             {
                 "date": "2026-01-02",
                 "shiftId": "S_FRUEH",
-                "neededSkills": {"Apotheker": 1}
+                "neededSkills": {"Apotheker": 1},
             }
         ],
         "employees": [
             {
                 "id": "E001",
                 "name": "Max Mustermann",
-                "contract": {
-                    "weeklyHours": 40.0,
-                    "employmentType": "Apotheker"
-                },
+                "contract": {"weeklyHours": 40.0, "employmentType": "Apotheker"},
                 "skills": ["Apotheker"],
-                "forbiddenDates": []
+                "forbiddenDates": [],
             }
         ],
         "wishes": [
@@ -110,9 +82,9 @@ def test_schema_accepts_legacy_payload_fields():
                 "shiftId": "S_FRUEH",
                 "date": "2026-01-02",
                 "weight": 2,
-                "comment": "Frühschicht bevorzugt"
+                "comment": "Frühschicht bevorzugt",
             }
-        ]
+        ],
     }
 
     result = validate_job_payload(payload)
@@ -127,7 +99,7 @@ def test_schema_accepts_legacy_payload_fields():
 def test_schema_rejects_missing_required_fields():
     """Test that missing required fields are rejected."""
     payload = {"metadata": {"jobId": "job-schema-2"}}
-    
+
     with pytest.raises(Exception):
         validate_job_payload(payload)
 
@@ -135,20 +107,17 @@ def test_schema_rejects_missing_required_fields():
 def test_schema_rejects_invalid_date_format():
     """Test that invalid date formats are rejected."""
     payload = {
-        "metadata": {
-            "jobId": "job-schema-3",
-            "tenantId": 1
-        },
+        "metadata": {"jobId": "job-schema-3", "tenantId": 1},
         "config": {
             "schemaVersion": "1.0",
             "startDate": "invalid-date",
-            "endDate": "2026-01-31"
+            "endDate": "2026-01-31",
         },
         "shiftTemplates": [],
         "requirements": [],
-        "employees": []
+        "employees": [],
     }
-    
+
     with pytest.raises(Exception):
         validate_job_payload(payload)
 
@@ -156,27 +125,24 @@ def test_schema_rejects_invalid_date_format():
 def test_schema_rejects_invalid_time_format():
     """Test that invalid time formats are rejected."""
     payload = {
-        "metadata": {
-            "jobId": "job-schema-4",
-            "tenantId": 1
-        },
+        "metadata": {"jobId": "job-schema-4", "tenantId": 1},
         "config": {
             "schemaVersion": "1.0",
             "startDate": "2026-01-01",
-            "endDate": "2026-01-31"
+            "endDate": "2026-01-31",
         },
         "shiftTemplates": [
             {
                 "id": "S_FRUEH",
                 "name": "Frühschicht",
                 "startTime": "invalid-time",
-                "endTime": "14:00"
+                "endTime": "14:00",
             }
         ],
         "requirements": [],
-        "employees": []
+        "employees": [],
     }
-    
+
     with pytest.raises(Exception):
         validate_job_payload(payload)
 
@@ -192,14 +158,14 @@ def test_schema_ignores_unknown_fields():
         "config": {
             "schemaVersion": "1.0",
             "startDate": "2026-01-01",
-            "endDate": "2026-01-31"
+            "endDate": "2026-01-31",
         },
         "shiftTemplates": [],
         "requirements": [],
         "employees": [],
-        "unknown_field": "should_be_ignored"
+        "unknown_field": "should_be_ignored",
     }
-    
+
     result = validate_job_payload(payload)
     assert result is not None
     assert result.metadata.tenantId == 1
@@ -208,20 +174,17 @@ def test_schema_ignores_unknown_fields():
 def test_schema_validates_date_range():
     """Test that startDate must be before endDate."""
     payload = {
-        "metadata": {
-            "jobId": "job-schema-6",
-            "tenantId": 1
-        },
+        "metadata": {"jobId": "job-schema-6", "tenantId": 1},
         "config": {
             "schemaVersion": "1.0",
             "startDate": "2026-01-31",
-            "endDate": "2026-01-01"
+            "endDate": "2026-01-01",
         },
         "shiftTemplates": [],
         "requirements": [],
-        "employees": []
+        "employees": [],
     }
-    
+
     with pytest.raises(Exception):
         validate_job_payload(payload)
 
@@ -229,26 +192,17 @@ def test_schema_validates_date_range():
 def test_schema_validates_references():
     """Test that references to non-existent shifts/employees are rejected."""
     payload = {
-        "metadata": {
-            "jobId": "job-schema-7",
-            "tenantId": 1
-        },
+        "metadata": {"jobId": "job-schema-7", "tenantId": 1},
         "config": {
             "schemaVersion": "1.0",
             "startDate": "2026-01-01",
-            "endDate": "2026-01-31"
+            "endDate": "2026-01-31",
         },
         "shiftTemplates": [],
-        "requirements": [
-            {
-                "shiftTemplateId": "NON_EXISTENT",
-                "date": "2026-01-01",
-                "count": 1
-            }
-        ],
-        "employees": []
+        "requirements": [{"shiftTemplateId": "NON_EXISTENT", "date": "2026-01-01", "count": 1}],
+        "employees": [],
     }
-    
+
     with pytest.raises(Exception):
         validate_job_payload(payload)
 
@@ -268,8 +222,9 @@ def test_employee_defaults_current_balance_hours():
 def test_employee_extracts_current_balance_from_contract():
     """Test backward compat: extract currentBalanceHours from contract dict."""
     emp = Employee(
-        id="E001", name="Test",
-        contract={"weeklyHours": 40.0, "currentBalanceHours": 5.5}
+        id="E001",
+        name="Test",
+        contract={"weeklyHours": 40.0, "currentBalanceHours": 5.5},
     )
     assert emp.currentBalanceHours == 5.5
 
@@ -281,9 +236,7 @@ def test_employee_accepts_current_balance_via_payload():
         "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
         "shiftTemplates": [],
         "requirements": [],
-        "employees": [
-            {"id": "E001", "name": "Test", "currentBalanceHours": 3.5}
-        ],
+        "employees": [{"id": "E001", "name": "Test", "currentBalanceHours": 3.5}],
     }
     result = validate_job_payload(payload)
     assert result.employees[0].currentBalanceHours == 3.5
@@ -298,11 +251,7 @@ def test_employee_contractHours_reverse_normalizer():
 
 def test_employee_contractHours_with_existing_contract_not_overwritten():
     """contract dict takes precedence when both are provided."""
-    emp = Employee(
-        id="E001", name="Test",
-        contractHours=20.0,
-        contract={"weeklyHours": 35.0}
-    )
+    emp = Employee(id="E001", name="Test", contractHours=20.0, contract={"weeklyHours": 35.0})
     assert emp.contractHours == 20.0
     assert emp.contract == {"weeklyHours": 35.0}
 
@@ -310,20 +259,17 @@ def test_employee_contractHours_with_existing_contract_not_overwritten():
 def test_schema_with_minimal_required_fields():
     """Test that minimal valid payloads work."""
     payload = {
-        "metadata": {
-            "jobId": "job-schema-8",
-            "tenantId": 1
-        },
+        "metadata": {"jobId": "job-schema-8", "tenantId": 1},
         "config": {
             "schemaVersion": "1.0",
             "startDate": "2026-01-01",
-            "endDate": "2026-01-31"
+            "endDate": "2026-01-31",
         },
         "shiftTemplates": [],
         "requirements": [],
-        "employees": []
+        "employees": [],
     }
-    
+
     result = validate_job_payload(payload)
     assert result.metadata.jobId == "job-schema-8"
     assert result.config.schemaVersion == "1.0"

@@ -60,11 +60,13 @@ def is_token_revoked(jti: str | None, db: Session) -> bool:
     if jti is None:
         return False
     from app.db.models.revoked_token import RevokedToken
+
     return db.query(RevokedToken).filter(RevokedToken.jti == jti).first() is not None
 
 
 def revoke_token(jti: str, token_type: str, user_id: int, expires_at: datetime, db: Session) -> None:
     from app.db.models.revoked_token import RevokedToken
+
     entry = RevokedToken(jti=jti, token_type=token_type, user_id=user_id, expires_at=expires_at)
     db.add(entry)
     db.commit()
@@ -72,6 +74,7 @@ def revoke_token(jti: str, token_type: str, user_id: int, expires_at: datetime, 
 
 def clean_expired_revoked_tokens(db: Session) -> int:
     from app.db.models.revoked_token import RevokedToken
+
     count = db.query(RevokedToken).filter(RevokedToken.expires_at < datetime.now(timezone.utc)).delete()
     db.commit()
     return count

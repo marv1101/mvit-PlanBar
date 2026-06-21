@@ -5,9 +5,22 @@ def test_solver_generates_assignments_for_valid_payload():
     payload = {
         "metadata": {"jobId": "job-001"},
         "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
-        "requirements": [{"date": "2026-01-02", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            }
+        ],
         "employees": [{"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": []}],
-        "wishes": [{"employeeId": "emp_001", "type": "PREFER_SHIFT", "shiftId": "S_FRUEH", "date": "2026-01-02"}],
+        "wishes": [
+            {
+                "employeeId": "emp_001",
+                "type": "PREFER_SHIFT",
+                "shiftId": "S_FRUEH",
+                "date": "2026-01-02",
+            }
+        ],
     }
     model = build_model(payload)
     result = solve_model(model, timeout_seconds=10)
@@ -33,11 +46,24 @@ def test_solver_respects_max_daily_hours():
             {"id": "S_SPAET", "startTime": "14:00", "endTime": "22:00"},
         ],
         "requirements": [
-            {"date": "2026-01-02", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-02", "shiftId": "S_SPAET", "neededSkills": {"Apotheker": 1}},
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_SPAET",
+                "neededSkills": {"Apotheker": 1},
+            },
         ],
         "employees": [
-            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {
+                "id": "emp_001",
+                "skills": ["Apotheker"],
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
         ],
         "wishes": [],
     }
@@ -54,12 +80,32 @@ def test_solver_accepts_current_balance_hours():
         "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
         "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
         "requirements": [
-            {"date": "2026-01-02", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-03", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-03",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
         ],
         "employees": [
-            {"id": "emp_001", "skills": ["Apotheker"], "currentBalanceHours": 10.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
-            {"id": "emp_002", "skills": ["Apotheker"], "currentBalanceHours": -5.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {
+                "id": "emp_001",
+                "skills": ["Apotheker"],
+                "currentBalanceHours": 10.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
+            {
+                "id": "emp_002",
+                "skills": ["Apotheker"],
+                "currentBalanceHours": -5.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
         ],
         "wishes": [],
     }
@@ -75,19 +121,43 @@ def test_fairness_distributes_shifts_across_employees():
         "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
         "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
         "requirements": [
-            {"date": "2026-01-02", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-03", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-04", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-03",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-04",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
         ],
         "employees": [
-            {"id": "emp_001", "skills": ["Apotheker"], "currentBalanceHours": 10.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
-            {"id": "emp_002", "skills": ["Apotheker"], "currentBalanceHours": -10.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {
+                "id": "emp_001",
+                "skills": ["Apotheker"],
+                "currentBalanceHours": 10.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
+            {
+                "id": "emp_002",
+                "skills": ["Apotheker"],
+                "currentBalanceHours": -10.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
         ],
         "wishes": [],
     }
     model = build_model(payload)
     result = solve_model(model, timeout_seconds=30)
-    
+
     assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE", "TIMEOUT")
     # Must have assigned at least 1 shift
     assert len(result["solution"]["assignments"]) >= 1
@@ -106,16 +176,48 @@ def test_fairness_with_skill_groups():
             {"id": "S_SPAET", "startTime": "14:00", "endTime": "22:00"},
         ],
         "requirements": [
-            {"date": "2026-01-02", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-03", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-03",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
             {"date": "2026-01-04", "shiftId": "S_SPAET", "neededSkills": {"PKA": 1}},
             {"date": "2026-01-05", "shiftId": "S_SPAET", "neededSkills": {"PKA": 1}},
         ],
         "employees": [
-            {"id": "emp_001", "skills": ["Apotheker"], "currentBalanceHours": 5.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
-            {"id": "emp_002", "skills": ["Apotheker"], "currentBalanceHours": -5.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
-            {"id": "emp_003", "skills": ["PKA"], "currentBalanceHours": 5.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
-            {"id": "emp_004", "skills": ["PKA"], "currentBalanceHours": -5.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {
+                "id": "emp_001",
+                "skills": ["Apotheker"],
+                "currentBalanceHours": 5.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
+            {
+                "id": "emp_002",
+                "skills": ["Apotheker"],
+                "currentBalanceHours": -5.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
+            {
+                "id": "emp_003",
+                "skills": ["PKA"],
+                "currentBalanceHours": 5.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
+            {
+                "id": "emp_004",
+                "skills": ["PKA"],
+                "currentBalanceHours": -5.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
         ],
         "wishes": [],
     }
@@ -133,16 +235,54 @@ def test_shift_count_hard_constraint_replaced():
         "config": {"startDate": "2026-01-01", "endDate": "2026-01-14"},
         "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
         "requirements": [
-            {"date": "2026-01-02", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-03", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-04", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-05", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-06", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-03",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-04",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-05",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-06",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
         ],
         "employees": [
-            {"id": "emp_001", "skills": ["Apotheker"], "currentBalanceHours": 0.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
-            {"id": "emp_002", "skills": ["Apotheker"], "currentBalanceHours": 0.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
-            {"id": "emp_003", "skills": ["Apotheker"], "currentBalanceHours": 0.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {
+                "id": "emp_001",
+                "skills": ["Apotheker"],
+                "currentBalanceHours": 0.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
+            {
+                "id": "emp_002",
+                "skills": ["Apotheker"],
+                "currentBalanceHours": 0.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
+            {
+                "id": "emp_003",
+                "skills": ["Apotheker"],
+                "currentBalanceHours": 0.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
         ],
         "wishes": [],
     }
@@ -160,17 +300,27 @@ def test_solver_metrics_include_fairness_info():
         "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
         "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
         "requirements": [
-            {"date": "2026-01-02", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
         ],
         "employees": [
-            {"id": "emp_001", "skills": ["Apotheker"], "currentBalanceHours": 5.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {
+                "id": "emp_001",
+                "skills": ["Apotheker"],
+                "currentBalanceHours": 5.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
         ],
         "wishes": [],
     }
     model = build_model(payload)
     result = solve_model(model, timeout_seconds=10)
     assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE", "TIMEOUT")
-    
+
     metrics = result["metrics"]
     # Should include employee-level fairness info
     assert "employeeFairness" in metrics
@@ -221,8 +371,18 @@ def test_balance_influences_assignment_distribution():
             {"date": "2026-01-04", "shiftId": "S_FRUEH", "count": 1},
         ],
         "employees": [
-            {"id": "emp_001", "currentBalanceHours": 10.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
-            {"id": "emp_002", "currentBalanceHours": -10.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {
+                "id": "emp_001",
+                "currentBalanceHours": 10.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
+            {
+                "id": "emp_002",
+                "currentBalanceHours": -10.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
         ],
         "wishes": [],
     }
@@ -260,8 +420,18 @@ def test_balance_recovery_changes_behavior():
             {"date": "2026-01-04", "shiftId": "S_FRUEH", "count": 1},
         ],
         "employees": [
-            {"id": "emp_001", "currentBalanceHours": 0.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
-            {"id": "emp_002", "currentBalanceHours": 0.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {
+                "id": "emp_001",
+                "currentBalanceHours": 0.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
+            {
+                "id": "emp_002",
+                "currentBalanceHours": 0.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
         ],
         "wishes": [],
     }
@@ -279,8 +449,18 @@ def test_balance_recovery_changes_behavior():
             {"date": "2026-01-04", "shiftId": "S_FRUEH", "count": 1},
         ],
         "employees": [
-            {"id": "emp_001", "currentBalanceHours": 10.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
-            {"id": "emp_002", "currentBalanceHours": -10.0, "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {
+                "id": "emp_001",
+                "currentBalanceHours": 10.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
+            {
+                "id": "emp_002",
+                "currentBalanceHours": -10.0,
+                "forbiddenDates": [],
+                "contract": {"weeklyHours": 40.0},
+            },
         ],
         "wishes": [],
     }
@@ -298,7 +478,7 @@ def test_balance_recovery_changes_behavior():
             counts[a["employeeId"]] = counts.get(a["employeeId"], 0) + 1
         return counts
 
-    counts_no_balance = emp_shift_counts(result_no_balance)
+    emp_shift_counts(result_no_balance)
     counts_with_balance = emp_shift_counts(result_with_balance)
 
     neg_with = counts_with_balance.get("emp_002", 0)
@@ -306,8 +486,7 @@ def test_balance_recovery_changes_behavior():
 
     # With balance: negative-balance employee should get more shifts than positive-balance
     assert neg_with > pos_with, (
-        f"With balance, emp_002 (-10h, {neg_with} shifts) should get more shifts "
-        f"than emp_001 (+10h, {pos_with} shifts)"
+        f"With balance, emp_002 (-10h, {neg_with} shifts) should get more shifts than emp_001 (+10h, {pos_with} shifts)"
     )
 
 
@@ -326,9 +505,21 @@ def test_solver_uses_contractHours_field():
             {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
         ],
         "requirements": [
-            {"date": "2026-01-04", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-05", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-06", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+            {
+                "date": "2026-01-04",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-05",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-06",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
         ],
         "employees": [
             {
@@ -360,9 +551,21 @@ def test_solver_respects_weekly_hours():
             {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
         ],
         "requirements": [
-            {"date": "2026-01-04", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-05", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-06", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+            {
+                "date": "2026-01-04",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-05",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-06",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
         ],
         "employees": [
             {
@@ -414,8 +617,16 @@ def test_solver_contractHours_works_without_contract_dict():
             {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
         ],
         "requirements": [
-            {"date": "2026-01-04", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
-            {"date": "2026-01-05", "shiftId": "S_FRUEH", "neededSkills": {"Apotheker": 1}},
+            {
+                "date": "2026-01-04",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
+            {
+                "date": "2026-01-05",
+                "shiftId": "S_FRUEH",
+                "neededSkills": {"Apotheker": 1},
+            },
         ],
         "employees": [
             {

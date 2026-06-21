@@ -12,10 +12,16 @@ from app.core.logging import configure_logging
 from app.db.base import Base
 from app.db.database import SessionLocal, engine
 from app.config import settings
-from app.middleware.error_handler import http_error_handler, validation_exception_handler
+from app.middleware.error_handler import (
+    http_error_handler,
+    validation_exception_handler,
+)
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
-from app.middleware.security_headers import HttpsRedirectMiddleware, SecurityHeadersMiddleware
+from app.middleware.security_headers import (
+    HttpsRedirectMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.schemas.user import UserCreate
 from app.services.user_service import create_user
 from alembic.config import Config
@@ -32,13 +38,11 @@ def _verify_production_settings():
     if settings.environment in ("production", "demo", "staging"):
         if settings.secret_key in ("change-me-in-production", "", None):
             raise RuntimeError(
-                "SECRET_KEY must be set to a secure value in production. "
-                "Generate one with: openssl rand -hex 32"
+                "SECRET_KEY must be set to a secure value in production. Generate one with: openssl rand -hex 32"
             )
         if "sqlite" in settings.database_url:
             raise RuntimeError(
-                "SQLite is not supported in production. "
-                "Set DATABASE_URL to a PostgreSQL connection string."
+                "SQLite is not supported in production. Set DATABASE_URL to a PostgreSQL connection string."
             )
 
 
@@ -48,7 +52,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="PlanBar Backend",
         description="Backend API für PlanBar mit TiTO-Integration",
-        version="0.1.0"
+        version="0.1.0",
     )
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -59,7 +63,14 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origins.split(",") if settings.cors_origins else ["http://localhost:5173"],
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With", "X-CSRF-Token"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "Origin",
+            "X-Requested-With",
+            "X-CSRF-Token",
+        ],
     )
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware, max_size=10 * 1024 * 1024)

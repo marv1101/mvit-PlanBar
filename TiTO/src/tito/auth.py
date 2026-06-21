@@ -16,7 +16,13 @@ def _base64url_decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value)
 
 
-def _validate_jwt(token: str, secret: str, algorithms: Iterable[str], audience: str | None, issuer: str | None) -> dict | None:
+def _validate_jwt(
+    token: str,
+    secret: str,
+    algorithms: Iterable[str],
+    audience: str | None,
+    issuer: str | None,
+) -> dict | None:
     try:
         header_b64, payload_b64, signature_b64 = token.split(".")
         header = json.loads(_base64url_decode(header_b64))

@@ -76,28 +76,43 @@ def test_get_schedule_by_id_not_found(db_session):
 
 
 def test_list_schedules(db_session):
-    create_schedule(db_session, ScheduleCreate(name="S1", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)))
-    create_schedule(db_session, ScheduleCreate(name="S2", start_date=date(2026, 6, 8), end_date=date(2026, 6, 14)))
+    create_schedule(
+        db_session,
+        ScheduleCreate(name="S1", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)),
+    )
+    create_schedule(
+        db_session,
+        ScheduleCreate(name="S2", start_date=date(2026, 6, 8), end_date=date(2026, 6, 14)),
+    )
     schedules = list_schedules(db_session)
     assert len(schedules) >= 2
 
 
 def test_update_schedule(db_session):
-    schedule = create_schedule(db_session, ScheduleCreate(name="Old", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)))
+    schedule = create_schedule(
+        db_session,
+        ScheduleCreate(name="Old", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)),
+    )
     updated = update_schedule(db_session, schedule, ScheduleUpdate(name="New", week_type="A"))
     assert updated.name == "New"
     assert updated.week_type == "A"
 
 
 def test_delete_schedule(db_session):
-    schedule = create_schedule(db_session, ScheduleCreate(name="Delete Me", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)))
+    schedule = create_schedule(
+        db_session,
+        ScheduleCreate(name="Delete Me", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)),
+    )
     sched_id = schedule.id
     delete_schedule(db_session, schedule)
     assert get_schedule_by_id(db_session, sched_id) is None
 
 
 def test_replace_all_shifts(db_session):
-    schedule = create_schedule(db_session, ScheduleCreate(name="Replace", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)))
+    schedule = create_schedule(
+        db_session,
+        ScheduleCreate(name="Replace", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)),
+    )
     new_shifts = [
         ShiftplanCreate(
             employee_id=1,
@@ -118,8 +133,20 @@ def test_get_schedule_summary_with_shifts(db_session):
         start_date=date(2026, 6, 1),
         end_date=date(2026, 6, 7),
         shiftplans=[
-            ShiftplanCreate(employee_id=1, date=date(2026, 6, 1), shift_id="früh", start_time=time(6, 0), end_time=time(14, 0)),
-            ShiftplanCreate(employee_id=2, date=date(2026, 6, 1), shift_id="spät", start_time=time(14, 0), end_time=time(22, 0)),
+            ShiftplanCreate(
+                employee_id=1,
+                date=date(2026, 6, 1),
+                shift_id="früh",
+                start_time=time(6, 0),
+                end_time=time(14, 0),
+            ),
+            ShiftplanCreate(
+                employee_id=2,
+                date=date(2026, 6, 1),
+                shift_id="spät",
+                start_time=time(14, 0),
+                end_time=time(22, 0),
+            ),
         ],
     )
     schedule = create_schedule(db_session, data)
@@ -130,7 +157,10 @@ def test_get_schedule_summary_with_shifts(db_session):
 
 
 def test_get_schedule_summary_no_shifts(db_session):
-    schedule = create_schedule(db_session, ScheduleCreate(name="Empty", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)))
+    schedule = create_schedule(
+        db_session,
+        ScheduleCreate(name="Empty", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)),
+    )
     summary = get_schedule_summary(db_session, schedule)
     assert summary["total_shifts"] == 0
     assert summary["date_range"] is None
@@ -165,8 +195,8 @@ def test_build_tito_payload_week_type_none(db_session):
     """week_type=None muss alle Daten einschließen (kein Filter)."""
     schedule = Schedule(
         name="Week Type None",
-        start_date=date(2026, 6, 1),   # Monday, week A
-        end_date=date(2026, 6, 14),    # Sunday, week B
+        start_date=date(2026, 6, 1),  # Monday, week A
+        end_date=date(2026, 6, 14),  # Sunday, week B
         status="draft",
         week_type=None,
         role_requirements={"früh": "2", "spät": "1"},
@@ -182,8 +212,8 @@ def test_build_tito_payload_week_type_a(db_session):
     """week_type='A' muss nur A-Wochen-Daten einschließen."""
     schedule = Schedule(
         name="Week Type A",
-        start_date=date(2026, 6, 1),   # Monday, week A
-        end_date=date(2026, 6, 14),    # Sunday, week B
+        start_date=date(2026, 6, 1),  # Monday, week A
+        end_date=date(2026, 6, 14),  # Sunday, week B
         status="draft",
         week_type="A",
         role_requirements={"früh": "2", "spät": "1"},
@@ -202,8 +232,8 @@ def test_build_tito_payload_week_type_b(db_session):
     """week_type='B' muss nur B-Wochen-Daten einschließen."""
     schedule = Schedule(
         name="Week Type B",
-        start_date=date(2026, 6, 1),   # Monday, week A
-        end_date=date(2026, 6, 14),    # Sunday, week B
+        start_date=date(2026, 6, 1),  # Monday, week A
+        end_date=date(2026, 6, 14),  # Sunday, week B
         status="draft",
         week_type="B",
         role_requirements={"früh": "2", "spät": "1"},
@@ -250,7 +280,12 @@ def test_build_tito_payload_with_contract(db_session):
     employee = Employee(first_name="Jane", last_name="Smith")
     db_session.add(employee)
     db_session.commit()
-    contract = Contract(employee_id=employee.id, weekly_working_hours=35, break_time=45, hired_role="supervisor")
+    contract = Contract(
+        employee_id=employee.id,
+        weekly_working_hours=35,
+        break_time=45,
+        hired_role="supervisor",
+    )
     db_session.add(contract)
     db_session.commit()
 
@@ -359,11 +394,24 @@ def test_build_tito_payload_with_callback_url(db_session):
 
 
 def test_build_shift_templates_from_shiftplans(db_session):
-    schedule = Schedule(name="Template Test", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7), status="draft")
+    schedule = Schedule(
+        name="Template Test",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+    )
     db_session.add(schedule)
     db_session.commit()
 
-    sp = Shiftplan(schedule_id=schedule.id, employee_id=1, date=date(2026, 6, 1), shift_id="früh", start_time=time(6, 0), end_time=time(14, 0), week=23)
+    sp = Shiftplan(
+        schedule_id=schedule.id,
+        employee_id=1,
+        date=date(2026, 6, 1),
+        shift_id="früh",
+        start_time=time(6, 0),
+        end_time=time(14, 0),
+        week=23,
+    )
     db_session.add(sp)
     db_session.commit()
     db_session.refresh(schedule)
@@ -398,8 +446,20 @@ def test_build_shift_templates_from_schedule_shift_templates(db_session):
         end_date=date(2026, 6, 7),
         status="draft",
         shift_templates=[
-            {"id": "frueh", "name": "Frühschicht", "startTime": "06:00", "endTime": "14:00", "requirements": {"1": 2}},
-            {"id": "spaet", "name": "Spätschicht", "startTime": "14:00", "endTime": "22:00", "requirements": {"2": 1}},
+            {
+                "id": "frueh",
+                "name": "Frühschicht",
+                "startTime": "06:00",
+                "endTime": "14:00",
+                "requirements": {"1": 2},
+            },
+            {
+                "id": "spaet",
+                "name": "Spätschicht",
+                "startTime": "14:00",
+                "endTime": "22:00",
+                "requirements": {"2": 1},
+            },
         ],
     )
     templates = _build_shift_templates(schedule)
@@ -414,6 +474,7 @@ def test_build_shift_templates_from_schedule_shift_templates(db_session):
 
 def test_build_tito_payload_with_shift_templates_and_skills(db_session):
     from app.db.models.role import Role
+
     role_apo = Role(name="Apotheker", color="#ff0000")
     role_pta = Role(name="PTA", color="#00ff00")
     db_session.add_all([role_apo, role_pta])
@@ -458,6 +519,7 @@ def test_build_tito_payload_with_shift_templates_and_skills(db_session):
 
 def test_build_tito_payload_employee_skills(db_session):
     from app.db.models.role import Role
+
     role = Role(name="Apotheker", color="#ff0000")
     db_session.add(role)
     db_session.commit()
@@ -501,15 +563,32 @@ def test_build_tito_payload_backward_compat_role_requirements(db_session):
 
 
 def test_build_shift_templates_empty(db_session):
-    schedule = Schedule(name="Empty Templates", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7), status="draft")
+    schedule = Schedule(
+        name="Empty Templates",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+    )
     templates = _build_shift_templates(schedule)
     assert templates == []
 
 
 def test_create_schedule_with_shift_templates(db_session):
     shift_templates = [
-        {"id": "frueh", "name": "Früh", "startTime": "06:00", "endTime": "14:00", "requirements": {"1": 2}},
-        {"id": "spaet", "name": "Spät", "startTime": "14:00", "endTime": "22:00", "requirements": {"2": 1}},
+        {
+            "id": "frueh",
+            "name": "Früh",
+            "startTime": "06:00",
+            "endTime": "14:00",
+            "requirements": {"1": 2},
+        },
+        {
+            "id": "spaet",
+            "name": "Spät",
+            "startTime": "14:00",
+            "endTime": "22:00",
+            "requirements": {"2": 1},
+        },
     ]
     data = ScheduleCreate(
         name="With Shift Templates",

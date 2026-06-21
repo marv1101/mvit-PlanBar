@@ -92,6 +92,11 @@ def admin_create_user(db: Session, admin_user: AdminUserCreate, actor_id: int | 
             db.add(employee)
             db.commit()
 
-    audit_service.log_create(db, user_id=actor_id, resource_type="user", resource_id=str(user.id),
-                             details=f"admin_created role={admin_user.role}")
+    audit_service.log_create(
+        db,
+        user_id=actor_id,
+        resource_type="user",
+        resource_id=str(user.id),
+        details=f"admin_created role={admin_user.role}",
+    )
     return user, password

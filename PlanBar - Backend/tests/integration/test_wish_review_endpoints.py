@@ -1,6 +1,3 @@
-from datetime import date
-
-
 def test_approve_shift_wish(client, auth_headers):
     emp_resp = client.post(
         "/api/v1/employees",
@@ -93,6 +90,7 @@ def test_reject_shift_wish_without_reason(client, auth_headers):
 
 def test_get_pending_wishes_for_schedule(client, auth_headers, db_session):
     from app.db.models.shift_wish import ShiftWish
+
     db_session.query(ShiftWish).delete()
     db_session.commit()
 

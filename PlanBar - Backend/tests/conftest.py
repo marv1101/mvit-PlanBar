@@ -9,7 +9,7 @@ os.environ["ENVIRONMENT"] = "test"
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
 from app.core.rate_limit import limiter

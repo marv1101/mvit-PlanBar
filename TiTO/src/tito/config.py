@@ -5,6 +5,7 @@ from typing import cast
 
 load_dotenv()
 
+
 @dataclass
 class Settings:
     database_url: str
