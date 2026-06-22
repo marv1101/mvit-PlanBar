@@ -58,7 +58,7 @@ export function Layout() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
@@ -123,7 +123,7 @@ export function Layout() {
         </Sheet>
       )}
 
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-4 py-6 flex-1">
         <div className="flex gap-6">
           <nav className="hidden md:block w-64 flex-shrink-0">
             <NavContent navItems={navItems} />
