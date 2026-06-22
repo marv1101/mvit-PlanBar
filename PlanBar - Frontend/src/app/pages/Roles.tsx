@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, RotateCcw, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Role } from '../types';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -20,18 +21,27 @@ const colors = [
 ];
 
 export function Roles() {
-  const { roles, addRole, updateRole, deleteRole, loading } = useApp();
+  const { roles, addRole, updateRole, deleteRole, loading, error, refresh } = useApp();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
 
   const handleEdit = (role: Role) => {
     setEditingRole(role);
     setDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Möchten Sie diese Rolle wirklich löschen?')) {
-      deleteRole(id);
+  const handleDeleteClick = (role: Role) => {
+    setRoleToDelete(role);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (roleToDelete) {
+      deleteRole(roleToDelete.id);
+      setRoleToDelete(null);
+      setDeleteDialogOpen(false);
     }
   };
 
@@ -47,6 +57,23 @@ export function Roles() {
           <CardContent className="py-12 text-center">
             <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
             <p className="text-gray-600">Lade Rollen...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="h-8 w-8 mx-auto text-red-500 mb-4" />
+            <p className="text-red-600 font-medium mb-4">{error}</p>
+            <Button onClick={refresh} variant="outline">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Erneut versuchen
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -104,7 +131,7 @@ export function Roles() {
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => handleDelete(role.id)}
+                  onClick={() => handleDeleteClick(role)}
                   aria-label="Rolle löschen"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -124,6 +151,22 @@ export function Roles() {
           </div>
         )}
       </div>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Möchten Sie diese Rolle wirklich löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 text-white hover:bg-red-700">
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

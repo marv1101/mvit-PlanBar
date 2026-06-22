@@ -23,6 +23,7 @@ from app.schemas.employee import (
     TimecardResponse,
     TimecardUpdate,
 )
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services.employee_service import (
     create_contract,
     create_employee,
@@ -52,12 +53,16 @@ def create_employee_endpoint(
     return create_employee(db, data, actor_id=current_user.id)
 
 
-@router.get("", response_model=list[EmployeeResponse])
+@router.get("", response_model=PaginatedResponse[EmployeeResponse])
 def list_employees_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    return list_employees(db)
+    employees = list_employees(db)
+    total = len(employees)
+    items = employees[pagination.offset : pagination.offset + pagination.limit]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.get("/time-accounts", response_model=list[TimeAccountResponse])

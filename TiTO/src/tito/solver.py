@@ -107,6 +107,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     min_free_sundays_per_year = config.get("minFreeSundaysPerYear", 15)
     default_weekly_hours = config.get("defaultWeeklyHours", 40.0)
     max_same_shift_consecutive = config.get("maxSameShiftConsecutive", 0)
+    holiday_dates_raw = config.get("holidayDates") or []
 
     # Expand requirements by count (jedes Count > 1 wird in mehrere Slots aufgeteilt)
     expanded_requirements = []
@@ -389,12 +390,15 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     works_on_date = {}
     daily_max_minutes = int(max_daily_hours * 60)
     sunday_dates = [date for date in unique_dates if _is_sunday(date)]
-    if len(sunday_dates) > 0:
-        required_free_sundays = round(min_free_sundays_per_year * (len(sunday_dates) / 52.0))
-        allowed_sunday_workdays = max(0, len(sunday_dates) - min(required_free_sundays, len(sunday_dates) - 1))
+    # ArbZG §9: public holidays are treated like Sundays for work limit purposes
+    holiday_dates = [d for d in holiday_dates_raw if d in unique_dates]
+    protected_dates = sorted(set(sunday_dates + holiday_dates))
+    if len(protected_dates) > 0:
+        required_free_days = round(min_free_sundays_per_year * (len(protected_dates) / 52.0))
+        allowed_protected_workdays = max(0, len(protected_dates) - min(required_free_days, len(protected_dates) - 1))
     else:
-        required_free_sundays = 0
-        allowed_sunday_workdays = 0
+        required_free_days = 0
+        allowed_protected_workdays = 0
 
     for emp_idx, employee in enumerate(employees):
         for date, req_indices in date_requirements.items():
@@ -416,9 +420,9 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             if effective_day_minutes:
                 cp_model.add(LinearExpr.sum(effective_day_minutes) <= daily_max_minutes)
 
-        if sunday_dates:
-            sunday_work_flags = [works_on_date[(emp_idx, date)] for date in sunday_dates]
-            cp_model.add(LinearExpr.sum(sunday_work_flags) <= allowed_sunday_workdays)
+        if protected_dates:
+            protected_work_flags = [works_on_date[(emp_idx, date)] for date in protected_dates]
+            cp_model.add(LinearExpr.sum(protected_work_flags) <= allowed_protected_workdays)
 
         # Maximal aufeinanderfolgende Arbeitstage
         if max_consecutive_days > 0 and len(unique_dates) > max_consecutive_days:
@@ -471,6 +475,27 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
 
                         if len(window_assignments) > max_same_shift_consecutive:
                             cp_model.add(LinearExpr.sum(window_assignments) <= max_same_shift_consecutive)
+
+    # Constraint 3b: OFF-Wünsche als harte Constraints
+    # Wenn ein Mitarbeiter einen OFF-Wunsch für ein Datum hat, darf er an diesem
+    # Tag keiner Schicht zugewiesen werden.
+    for wish in wishes:
+        if wish.get("type") != "OFF":
+            continue
+        employee_id = wish.get("employeeId")
+        off_date = wish.get("date")
+
+        emp_idx = next(
+            (i for i, e in enumerate(employees) if e.get("id") == employee_id),
+            None
+        )
+        if emp_idx is None:
+            continue
+
+        # Finde alle Requirements an diesem Datum
+        for req_idx, requirement in enumerate(requirements):
+            if requirement.get("date") == off_date:
+                cp_model.add(assignments[(emp_idx, req_idx)] == 0)
 
     # Constraint 4: Wünsche als weiche Constraints
     wish_penalty_vars = []

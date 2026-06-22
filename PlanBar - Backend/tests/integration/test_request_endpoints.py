@@ -27,7 +27,9 @@ def test_create_shift_wish(client, auth_headers):
 def test_list_shift_wishes(client, auth_headers):
     response = client.get("/api/v1/requests", headers=auth_headers)
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert "items" in data
+    assert isinstance(data["items"], list)
 
 
 def test_get_shift_wish(client, auth_headers):
@@ -91,3 +93,59 @@ def test_delete_shift_wish(client, auth_headers):
 
     response = client.delete(f"/api/v1/requests/{wish_id}", headers=auth_headers)
     assert response.status_code == 204
+
+
+def test_create_wish_ignores_status_field(client, employee_auth_headers):
+    """Non-admin users cannot bypass approval workflow by setting status='approved'."""
+    emp_headers, emp_id = employee_auth_headers
+
+    response = client.post(
+        "/api/v1/requests",
+        json={
+            "employee_id": emp_id,
+            "date": "2026-06-10",
+            "type": "preferred",
+            "status": "approved",
+        },
+        headers=emp_headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["status"] == "pending", f"Expected status 'pending', got '{data['status']}'"
+
+
+def test_create_wish_default_status_is_pending(client, employee_auth_headers):
+    """New wishes default to 'pending' status without explicit status field."""
+    emp_headers, emp_id = employee_auth_headers
+
+    response = client.post(
+        "/api/v1/requests",
+        json={
+            "employee_id": emp_id,
+            "date": "2026-06-11",
+            "type": "preferred",
+        },
+        headers=emp_headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["status"] == "pending", f"Expected status 'pending', got '{data['status']}'"
+
+
+def test_non_admin_cannot_update_status(client, employee_auth_headers):
+    """Non-admin users cannot change status via update endpoint."""
+    emp_headers, emp_id = employee_auth_headers
+
+    create_resp = client.post(
+        "/api/v1/requests",
+        json={"employee_id": emp_id, "date": "2026-06-12", "type": "preferred"},
+        headers=emp_headers,
+    )
+    wish_id = create_resp.json()["id"]
+
+    response = client.put(
+        f"/api/v1/requests/{wish_id}",
+        json={"status": "approved"},
+        headers=emp_headers,
+    )
+    assert response.status_code == 403

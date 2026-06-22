@@ -1,15 +1,17 @@
 from datetime import date, datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.enums import WishStatus
+from app.core.enums import NotificationType, WishStatus
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
+from app.schemas.pagination import PaginatedResponse, PaginationParams
+from app.services.notification_service import create_notification
 
 router = APIRouter()
 
@@ -20,7 +22,6 @@ class ShiftWishCreate(BaseModel):
     week: Optional[int] = None
     type: str = Field("preferred", pattern=r"^(preferred|unavailable|vacation)$")
     note: Optional[str] = None
-    status: str = Field("pending", pattern=r"^(pending|approved|rejected)$")
 
 
 class ShiftWishUpdate(BaseModel):
@@ -68,7 +69,7 @@ def create_shift_wish(
         week=data.week,
         type=data.type,
         note=data.note,
-        status=data.status,
+        status="pending",
     )
     db.add(wish)
     db.commit()
@@ -76,12 +77,20 @@ def create_shift_wish(
     return wish
 
 
-@router.get("", response_model=list[ShiftWishResponse])
+@router.get("", response_model=PaginatedResponse[ShiftWishResponse])
 def list_shift_wishes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
+    status: Optional[str] = Query(None),
 ):
-    return db.query(ShiftWish).order_by(ShiftWish.date).all()
+    query = db.query(ShiftWish)
+    if status:
+        query = query.filter(ShiftWish.status == status)
+    all_wishes = query.order_by(ShiftWish.date).all()
+    total = len(all_wishes)
+    items = all_wishes[pagination.offset : pagination.offset + pagination.limit]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.get("/{wish_id}", response_model=ShiftWishResponse)
@@ -122,6 +131,11 @@ def update_shift_wish(
     if data.note is not None:
         wish.note = data.note
     if data.status is not None:
+        if current_user.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins can update wish status",
+            )
         wish.status = data.status
     db.add(wish)
     db.commit()
@@ -163,6 +177,21 @@ def approve_shift_wish(
     db.add(wish)
     db.commit()
     db.refresh(wish)
+
+    # Create notification for the employee's linked user
+    from app.db.models.employee import Employee
+
+    employee = db.query(Employee).filter(Employee.id == wish.employee_id).first()
+    if employee and employee.user_id:
+        create_notification(
+            db=db,
+            user_id=employee.user_id,
+            notification_type=NotificationType.WISH_APPROVED.value,
+            title="Wunsch genehmigt",
+            message=f"Dein Schichtwunsch für {wish.date} wurde genehmigt.",
+            data={"wish_id": wish.id, "date": str(wish.date), "type": wish.type},
+        )
+
     return wish
 
 
@@ -183,4 +212,25 @@ def reject_shift_wish(
     db.add(wish)
     db.commit()
     db.refresh(wish)
+
+    # Create notification for the employee's linked user
+    from app.db.models.employee import Employee
+
+    employee = db.query(Employee).filter(Employee.id == wish.employee_id).first()
+    if employee and employee.user_id:
+        reason_text = f" Grund: {body.rejection_reason}" if body.rejection_reason else ""
+        create_notification(
+            db=db,
+            user_id=employee.user_id,
+            notification_type=NotificationType.WISH_REJECTED.value,
+            title="Wunsch abgelehnt",
+            message=f"Dein Schichtwunsch für {wish.date} wurde abgelehnt.{reason_text}",
+            data={
+                "wish_id": wish.id,
+                "date": str(wish.date),
+                "type": wish.type,
+                "rejection_reason": body.rejection_reason,
+            },
+        )
+
     return wish

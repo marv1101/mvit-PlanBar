@@ -97,3 +97,23 @@ class ScheduleSummary(BaseModel):
     total_shifts: int
     total_employees: int
     date_range: Optional[tuple[date, date]] = None
+
+
+# ── ArbZG compliance response schemas ──────────────────────────────────────
+class ArbZgViolationResponse(BaseModel):
+    rule: str
+    message: str
+    employee_id: int
+    shift_date: Optional[date] = None
+    details: Optional[dict[str, Any]] = None
+
+
+class ArbZgCheckResponse(BaseModel):
+    is_valid: bool
+    violations: list[ArbZgViolationResponse] = []
+
+
+class ScheduleWithArbzgResponse(ScheduleResponse):
+    """Schedule response that includes ArbZG compliance warnings."""
+
+    arbZgWarnings: list[ArbZgViolationResponse] = []

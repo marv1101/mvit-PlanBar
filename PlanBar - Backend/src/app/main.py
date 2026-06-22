@@ -16,6 +16,7 @@ from app.middleware.error_handler import (
     http_error_handler,
     validation_exception_handler,
 )
+from app.middleware.csrf import CsrfMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.middleware.security_headers import (
@@ -29,9 +30,21 @@ from alembic import command
 
 from app.db.models.user import User
 import logging
-import uuid
+
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def _write_credentials_to_file(email: str, password: str) -> None:
+    """Write initial credentials to a one-time file (production only).
+
+    The file is meant to be read once during initial setup and then deleted.
+    Passwords are never written to logs or stdout in production.
+    """
+    creds_path = Path("initial-credentials.txt")
+    with open(creds_path, "a") as f:
+        f.write(f"{email}: {password}\n")
 
 
 def _verify_production_settings():
@@ -72,6 +85,7 @@ def create_app() -> FastAPI:
             "X-CSRF-Token",
         ],
     )
+    app.add_middleware(CsrfMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware, max_size=10 * 1024 * 1024)
     app.include_router(api_router, prefix="/api/v1")
@@ -92,11 +106,37 @@ def run_database_setup() -> None:
         Base.metadata.create_all(bind=engine)
 
 
+def _generate_complex_password() -> str:
+    """Generate a password that meets complexity requirements.
+
+    Returns a 16-character password with:
+    - At least 1 uppercase letter
+    - At least 1 lowercase letter
+    - At least 1 digit
+    - At least 1 special character
+    """
+    import random
+    import string
+
+    # Ensure at least one of each required character type
+    uppercase = random.choice(string.ascii_uppercase)
+    lowercase = random.choice(string.ascii_lowercase)
+    digit = random.choice(string.digits)
+    special = random.choice("!@#$%^&*")
+    # Fill the rest with random characters from all categories
+    rest = "".join(random.choices(string.ascii_letters + string.digits + "!@#$%^&*", k=12))
+    # Combine and shuffle
+    password = list(uppercase + lowercase + digit + special + rest)
+    random.shuffle(password)
+    return "".join(password)
+
+
 def seed_initial_users() -> None:
+    env = settings.environment
     db = SessionLocal()
     try:
         if db.query(User).filter(User.email == "admin@mphion.de").first() is None:
-            admin_password = uuid.uuid4().hex[:12]
+            admin_password = _generate_complex_password()
             create_user(
                 db,
                 UserCreate(
@@ -106,12 +146,16 @@ def seed_initial_users() -> None:
                 ),
                 role="admin",
             )
-            logger.info("=" * 60)
-            logger.info("Initial-Passwort fuer admin@mphion.de: %s", admin_password)
-            logger.info("=" * 60)
+            if env == "development":
+                print(f"\n{'=' * 60}")
+                print(f"Initial-Passwort fuer admin@mphion.de: {admin_password}")
+                print(f"{'=' * 60}\n")
+            elif env in ("production", "demo", "staging"):
+                _write_credentials_to_file("admin@mphion.de", admin_password)
+                logger.warning("Initial credentials for admin@mphion.de written to initial-credentials.txt")
 
         if db.query(User).filter(User.email == "testuser@mphion.de").first() is None:
-            test_password = uuid.uuid4().hex[:12]
+            test_password = _generate_complex_password()
             create_user(
                 db,
                 UserCreate(
@@ -120,9 +164,13 @@ def seed_initial_users() -> None:
                     password=test_password,
                 ),
             )
-            logger.info("=" * 60)
-            logger.info("Initial-Passwort fuer testuser@mphion.de: %s", test_password)
-            logger.info("=" * 60)
+            if env == "development":
+                print(f"\n{'=' * 60}")
+                print(f"Initial-Passwort fuer testuser@mphion.de: {test_password}")
+                print(f"{'=' * 60}\n")
+            elif env in ("production", "demo", "staging"):
+                _write_credentials_to_file("testuser@mphion.de", test_password)
+                logger.warning("Initial credentials for testuser@mphion.de written to initial-credentials.txt")
     finally:
         db.close()
 

@@ -2,6 +2,7 @@ import { RouterProvider } from 'react-router';
 import { router } from './routes';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { QueryProvider } from './providers/QueryProvider';
 import { Toaster } from './components/ui/sonner';
 import { Login } from './pages/Login';
 import { ChangePasswordDialog } from './components/ChangePasswordDialog';
@@ -26,11 +27,13 @@ function AppContent() {
   }
 
   return (
-    <AppProvider>
-      {mustChangePassword && <ChangePasswordDialog />}
-      <RouterProvider router={router} />
-      <Toaster />
-    </AppProvider>
+    <QueryProvider>
+      <AppProvider>
+        {mustChangePassword && <ChangePasswordDialog />}
+        <RouterProvider router={router} />
+        <Toaster />
+      </AppProvider>
+    </QueryProvider>
   );
 }
 

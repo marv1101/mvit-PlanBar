@@ -11,6 +11,8 @@ from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
 from app.services import audit_service
+from app.services.arbzg_validator import ArbZgResult, validate_schedule
+from app.services.notification_service import create_notification
 from app.services.tito_proxy import tito_proxy
 
 logger = logging.getLogger(__name__)
@@ -73,6 +75,24 @@ def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate, actor
     db.commit()
     db.refresh(schedule)
     audit_service.log_update(db, user_id=actor_id, resource_type="schedule", resource_id=str(schedule.id))
+
+    # Notify all assigned employees when schedule becomes completed
+    if data.status is not None and data.status.value == "completed":
+        shiftplans = db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).all()
+        notified_user_ids: set[int] = set()
+        for sp in shiftplans:
+            employee = db.query(Employee).filter(Employee.id == sp.employee_id).first()
+            if employee and employee.user_id and employee.user_id not in notified_user_ids:
+                create_notification(
+                    db=db,
+                    user_id=employee.user_id,
+                    notification_type="schedule_published",
+                    title="Dienstplan veröffentlicht",
+                    message=f'Der Dienstplan "{schedule.name}" wurde veröffentlicht. Bitte überprüfe deine Schichten.',
+                    data={"schedule_id": schedule.id, "schedule_name": schedule.name},
+                )
+                notified_user_ids.add(employee.user_id)
+
     return schedule
 
 
@@ -155,7 +175,12 @@ def replace_all_shifts(
     schedule: Schedule,
     shiftplans_data: list[ShiftplanCreate],
     actor_id: int | None = None,
-) -> Schedule:
+) -> tuple[Schedule, ArbZgResult]:
+    """Replace all shifts in a schedule and validate ArbZG compliance.
+
+    Returns a tuple of (schedule, arbzg_result) where arbzg_result
+    contains any labor law violations found in the new shifts.
+    """
     db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).delete()
     for sp_data in shiftplans_data:
         shiftplan = Shiftplan(
@@ -181,7 +206,29 @@ def replace_all_shifts(
         resource_id=str(schedule.id),
         details="replace_all_shifts",
     )
-    return schedule
+
+    # Validate ArbZG compliance for the manually created shifts
+    shift_dicts = [
+        {
+            "employee_id": sp_data.employee_id,
+            "date": sp_data.date,
+            "start_time": sp_data.start_time,
+            "end_date": sp_data.date,
+            "end_time": sp_data.end_time,
+            "break_start": sp_data.break_start,
+            "break_end": sp_data.break_end,
+        }
+        for sp_data in shiftplans_data
+    ]
+    arbzg_result = validate_schedule(shift_dicts)
+    if not arbzg_result.is_valid:
+        logger.warning(
+            "ArbZG violations in schedule %s after manual shift update: %d violation(s)",
+            schedule.id,
+            arbzg_result.warning_count,
+        )
+
+    return schedule, arbzg_result
 
 
 def get_schedule_summary(db: Session, schedule: Schedule) -> dict[str, Any]:
@@ -225,6 +272,22 @@ def _build_tito_payload(
 
     shift_templates = _build_shift_templates(schedule)
 
+    # Batch-query latest timecard per employee to avoid N+1 queries
+    timecard_balance_by_emp: dict[int, float] = {}
+    if db is not None and employees:
+        employee_ids = [emp.id for emp in employees]
+        latest_timecards = (
+            db.query(Timecard)
+            .filter(Timecard.employee_id.in_(employee_ids))
+            .order_by(Timecard.employee_id, Timecard.year.desc(), Timecard.week.desc())
+            .all()
+        )
+        seen_emp_ids: set[int] = set()
+        for tc in latest_timecards:
+            if tc.employee_id not in seen_emp_ids:
+                timecard_balance_by_emp[tc.employee_id] = tc.balance
+                seen_emp_ids.add(tc.employee_id)
+
     employee_list = []
     for emp in employees:
         contract_hours = 40.0
@@ -236,16 +299,7 @@ def _build_tito_payload(
             break_minutes = c.break_time
             role = c.hired_role
 
-        current_balance = 0.0
-        if db is not None:
-            latest_timecard = (
-                db.query(Timecard)
-                .filter(Timecard.employee_id == emp.id)
-                .order_by(Timecard.year.desc(), Timecard.week.desc())
-                .first()
-            )
-            if latest_timecard:
-                current_balance = latest_timecard.balance
+        current_balance = timecard_balance_by_emp.get(emp.id, 0.0)
 
         entry: dict[str, Any] = {
             "id": f"emp_{emp.id:03d}",

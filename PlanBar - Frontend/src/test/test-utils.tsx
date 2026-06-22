@@ -3,9 +3,16 @@ import { render, type RenderOptions } from '@testing-library/react'
 import { MemoryRouter, createMemoryRouter } from 'react-router'
 import { DndProvider } from 'react-dnd'
 import { TouchBackend } from 'react-dnd-touch-backend'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthContext } from '../app/context/AuthContext'
 import { AppContext } from '../app/context/AppContext'
 import type { Employee, Schedule, WeekType } from '../app/types'
+
+const testQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+  },
+})
 
 // ---------------------------------------------------------------------------
 // Mock data
@@ -155,9 +162,11 @@ export const mockAppContext = {
 export function AuthTestWrapper({ children }: { children: React.ReactNode }) {
   return (
     <MemoryRouter>
-      <AuthContext.Provider value={mockAuthContext as any}>
-        {children}
-      </AuthContext.Provider>
+      <QueryClientProvider client={testQueryClient}>
+        <AuthContext.Provider value={mockAuthContext as any}>
+          {children}
+        </AuthContext.Provider>
+      </QueryClientProvider>
     </MemoryRouter>
   )
 }
@@ -171,13 +180,15 @@ export function AppAndAuthTestWrapper({
 }) {
   return (
     <MemoryRouter initialEntries={initialEntries}>
-      <AuthContext.Provider value={mockAuthContext as any}>
-        <AppContext.Provider value={mockAppContext as any}>
-          <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
-            {children}
-          </DndProvider>
-        </AppContext.Provider>
-      </AuthContext.Provider>
+      <QueryClientProvider client={testQueryClient}>
+        <AuthContext.Provider value={mockAuthContext as any}>
+          <AppContext.Provider value={mockAppContext as any}>
+            <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
+              {children}
+            </DndProvider>
+          </AppContext.Provider>
+        </AuthContext.Provider>
+      </QueryClientProvider>
     </MemoryRouter>
   )
 }

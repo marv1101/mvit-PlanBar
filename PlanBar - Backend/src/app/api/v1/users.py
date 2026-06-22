@@ -33,7 +33,9 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services import audit_service
+from app.services.lockout_service import lockout_service
 from app.services.user_service import (
     admin_create_user,
     authenticate_user,
@@ -86,8 +88,15 @@ def register_user(user_in: UserCreate, request: Request, db: Session = Depends(g
 @router.post("/login", response_model=LoginResponse)
 @limiter.limit("80/minute")
 def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db)):
+    # Check if account is locked
+    if lockout_service.is_locked(user_data.email):
+        remaining = lockout_service.get_remaining_lockout_time(user_data.email)
+        raise UnauthorizedException(detail=f"Account is temporarily locked. Please try again in {remaining} seconds.")
+
     user = authenticate_user(db, user_data.email, user_data.password)
     if not user:
+        # Record failed attempt
+        is_locked = lockout_service.record_failed_attempt(user_data.email)
         ip = request.client.host if request.client else None
         audit_service.log(
             db,
@@ -98,7 +107,16 @@ def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db))
             ip_address=ip,
             user_agent=request.headers.get("user-agent"),
         )
+        if is_locked:
+            remaining = lockout_service.get_remaining_lockout_time(user_data.email)
+            raise UnauthorizedException(
+                detail=f"Account locked due to too many failed attempts. Please try again in {remaining} seconds."
+            )
         raise UnauthorizedException(detail="Invalid email or password")
+
+    # Reset lockout counter on successful login
+    lockout_service.record_successful_login(user_data.email)
+
     user.last_login = datetime.now(timezone.utc)
     db.add(user)
     db.commit()
@@ -187,12 +205,16 @@ def logout(request: Request, db: Session = Depends(get_db)):
     return response
 
 
-@router.get("", response_model=list[UserResponse])
+@router.get("", response_model=PaginatedResponse[UserResponse])
 def list_users_endpoint(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
+    pagination: PaginationParams = Depends(),
 ):
-    return list_users(db)
+    users = list_users(db)
+    total = len(users)
+    items = users[pagination.offset : pagination.offset + pagination.limit]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.get("/{user_id}", response_model=UserResponse)

@@ -167,6 +167,7 @@ class Config(BaseModel):
     minRestTimeHours: Optional[float] = Field(default=11, gt=0, description="Minimum rest time between shifts in hours")
     maxDailyWorkHours: Optional[float] = Field(default=10, gt=0, description="Maximum daily working hours")
     minFreeSundaysPerYear: Optional[int] = Field(default=15, ge=0, le=52, description="Minimum free Sundays per year")
+    holidayDates: Optional[List[str]] = Field(default=None, description="List of public holiday dates (YYYY-MM-DD) treated like Sundays per ArbZG §9")
     defaultWeeklyHours: Optional[float] = Field(default=40.0, gt=0, description="Default weekly contract hours")
     maxSameShiftConsecutive: Optional[int] = Field(
         default=0,
