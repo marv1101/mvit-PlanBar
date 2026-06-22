@@ -476,7 +476,6 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                         if len(window_assignments) > max_same_shift_consecutive:
                             cp_model.add(LinearExpr.sum(window_assignments) <= max_same_shift_consecutive)
 
-
     # Constraint 3b: OFF-Wünsche als harte Constraints
     # Wenn ein Mitarbeiter einen OFF-Wunsch für ein Datum hat, darf er an diesem
     # Tag keiner Schicht zugewiesen werden.
