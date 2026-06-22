@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, type RenderOptions } from '@testing-library/react'
+import { render, screen, type RenderOptions } from '@testing-library/react'
 import { MemoryRouter, createMemoryRouter } from 'react-router'
 import { DndProvider } from 'react-dnd'
 import { TouchBackend } from 'react-dnd-touch-backend'
@@ -17,6 +17,14 @@ const testQueryClient = new QueryClient({
 // ---------------------------------------------------------------------------
 // Mock data
 // ---------------------------------------------------------------------------
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
 
 export const mockEmployees: Employee[] = [
   {
@@ -153,7 +161,7 @@ export const mockAppContext = {
   deleteRole: vi.fn(),
   loading: false,
   refresh: vi.fn().mockResolvedValue(undefined),
-}
+};
 
 // ---------------------------------------------------------------------------
 // Wrappers

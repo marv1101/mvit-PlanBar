@@ -69,3 +69,8 @@ export async function getPendingShiftWishes(scheduleId: number): Promise<ShiftWi
   const { data } = await api.get(`/schedules/${scheduleId}/wishes/pending`);
   return data;
 }
+
+export async function getWishesByStatus(scheduleId: number, status: string = 'approved'): Promise<ShiftWishResponseDTO[]> {
+  const { data } = await api.get(`/schedules/${scheduleId}/wishes?status=${status}`);
+  return data;
+}

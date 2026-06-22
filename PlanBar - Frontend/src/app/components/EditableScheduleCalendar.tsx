@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useDrag, useDrop, DndProvider } from 'react-dnd';
 import { TouchBackend } from 'react-dnd-touch-backend';
 import { useApp } from '../context/AppContext';
-import { Shift, Schedule, WeekType } from '../../types';
+import { Shift, Schedule, WeekType, Request } from '../../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
@@ -26,6 +26,8 @@ import {
 } from './schedule/shared/CalendarUtils';
 import type { DragItem, EmployeeDragItem, BreakDragItem } from './schedule/shared/CalendarUtils';
 import { EmployeeCard, BreakStartHandle, BreakEndHandle } from './schedule/shared/CalendarComponents';
+import { WishOverlay } from './WishOverlay';
+import { useApprovedWishes } from '../hooks/useShiftWishes';
 const HOUR_HEIGHT = 52;
 
 export type ShiftHoverInfo = {
@@ -221,6 +223,8 @@ interface DayColumnProps {
   date: Date;
   weekType: WeekType;
   shifts: Shift[];
+  approvedWishes: Request[];
+  employees: Employee[];
   onDrop: (shift: Shift, newDate: string) => void;
   onDropInDay: (shift: Shift, newStartTime: string, newEndTime: string) => void;
   onEmployeeDrop: (employeeId: string, date: string, weekType: WeekType) => void;
@@ -228,12 +232,12 @@ interface DayColumnProps {
   onClick: (date: Date) => void;
   onEdit: (shift: Shift) => void;
   onDelete: (shift: Shift) => void;
+  onWishClick?: (wish: Request) => void;
 }
 
 function DayColumn({
-  date, weekType, shifts, onDrop, onDropInDay, onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete
+  date, weekType, shifts, approvedWishes, employees, onDrop, onDropInDay, onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete, onWishClick
 }: DayColumnProps) {
-  const { employees } = useApp();
   const dateStr = date.toISOString().split('T')[0];
   const dayShifts = shifts.filter(s => s.date === dateStr);
   const lanes = useMemo(() => assignLanes(dayShifts), [dayShifts]);
@@ -447,6 +451,19 @@ function DayColumn({
             </span>
           </motion.div>
         )}
+
+        {/* Render approved wishes as overlays */}
+        {approvedWishes
+          .filter(wish => wish.date === dateStr)
+          .map(wish => (
+            <WishOverlay
+              key={wish.id}
+              wish={wish}
+              employee={employees.find(e => e.id === wish.employeeId)}
+              onClick={onWishClick}
+            />
+          ))}
+
         <AnimatePresence mode="popLayout">
           {lanes.map(({ shift, lane, totalLanes }) => (
             <ShiftBar
@@ -792,6 +809,9 @@ export function EditableScheduleCalendar({
   const [viewMode, setViewMode] = useState<'timeline' | 'swimlane'>('swimlane');
   const isMobile = useMediaQuery('(max-width: 768px)');
 
+  // Fetch approved wishes for the current schedule
+  const { data: approvedWishes = [] } = useApprovedWishes(schedule.id ? Number(schedule.id) : null);
+
   const handleDrop = (shift: Shift, newDate: string) => {
     const newWeekType = getWeekType(new Date(newDate));
     const updatedShifts = schedule.shifts.map(s =>
@@ -1066,7 +1086,9 @@ export function EditableScheduleCalendar({
                         key={day.toISOString()}
                         date={day}
                         weekType={currentWeek}
-                        shifts={schedule.shifts.filter(s => s.week === currentWeek)}
+                        shifts={schedule.shifts.filter((s: Shift) => s.week === currentWeek)}
+                        approvedWishes={approvedWishes}
+                        employees={employees}
                         onDrop={handleDrop}
                         onDropInDay={handleDropInDay}
                         onEmployeeDrop={handleEmployeeDrop}

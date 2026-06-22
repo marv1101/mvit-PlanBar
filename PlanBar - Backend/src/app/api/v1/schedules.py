@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.v1.requests import ShiftWishResponse
@@ -260,6 +260,34 @@ def get_pending_wishes(
         db.query(ShiftWish)
         .filter(
             ShiftWish.status == "pending",
+            ShiftWish.date >= schedule.start_date,
+            ShiftWish.date <= schedule.end_date,
+        )
+        .order_by(ShiftWish.date)
+        .all()
+    )
+    return wishes
+
+
+@router.get("/{schedule_id}/wishes", response_model=list[ShiftWishResponse])
+def get_wishes_by_status(
+    schedule_id: int,
+    status: str = Query(default="approved", regex="^(pending|approved|rejected)$"),
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Get wishes for a schedule filtered by status.
+
+    Used by EditableScheduleCalendar to show approved wishes as overlays.
+    Only approved wishes are displayed in the calendar by default.
+    """
+    schedule = get_schedule_by_id(db, schedule_id)
+    if not schedule:
+        raise NotFoundException(detail="Schedule not found")
+    wishes = (
+        db.query(ShiftWish)
+        .filter(
+            ShiftWish.status == status,
             ShiftWish.date >= schedule.start_date,
             ShiftWish.date <= schedule.end_date,
         )
