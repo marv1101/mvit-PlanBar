@@ -121,6 +121,21 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
 
     if not requirements:
         solve_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+
+        # Wishes can still exist even if there are no requirements to assign.
+        # OFF/vacation/unavailable wishes are fulfilled automatically when there
+        # is no work; preferred/PREFER_SHIFT wishes cannot be fulfilled.
+        fulfilled_wishes = 0
+        total_wishes = 0
+        for wish in wishes:
+            wish_type = wish.get("type", "")
+            if wish_type in ("OFF", "vacation", "unavailable"):
+                fulfilled_wishes += 1
+                total_wishes += 1
+            elif wish_type in ("PREFER_SHIFT", "preferred"):
+                total_wishes += 1
+        wish_rate = 100.0 if total_wishes == 0 else round((fulfilled_wishes / total_wishes) * 100, 1)
+
         return {
             "metadata": {
                 "status": "SUCCESS",
@@ -132,7 +147,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                 "unassignedRequirements": [],
             },
             "metrics": {
-                "wishFulfillmentRate": 100.0,
+                "wishFulfillmentRate": wish_rate,
                 "totalObjectiveScore": 0,
                 "employeeUtilization": {emp["id"]: 0.0 for emp in employees},
                 "employeeFairness": {
@@ -476,11 +491,12 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                         if len(window_assignments) > max_same_shift_consecutive:
                             cp_model.add(LinearExpr.sum(window_assignments) <= max_same_shift_consecutive)
 
-    # Constraint 3b: OFF-Wünsche als harte Constraints
-    # Wenn ein Mitarbeiter einen OFF-Wunsch für ein Datum hat, darf er an diesem
-    # Tag keiner Schicht zugewiesen werden.
+    # Constraint 3b: OFF-/Urlaubs-/Nicht-verfügbar-Wünsche als harte Constraints
+    # Wenn ein Mitarbeiter einen solchen Wunsch für ein Datum hat, darf er an
+    # diesem Tag keiner Schicht zugewiesen werden.
     for wish in wishes:
-        if wish.get("type") != "OFF":
+        wish_type = wish.get("type", "")
+        if wish_type not in ("OFF", "vacation", "unavailable"):
             continue
         employee_id = wish.get("employeeId")
         off_date = wish.get("date")
@@ -522,6 +538,21 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                 # Variable ob Wunsch erfüllt ist
                 wish_fulfilled = cp_model.new_bool_var(f"wish_fulfill_{emp_idx}_{date}_{shift_id}")
                 cp_model.add(wish_fulfilled == assignments[(emp_idx, matching_req)])
+                wish_penalty_vars.append((wish_fulfilled, weight))
+
+        elif wish_type == "preferred":
+            # Generelle Tagespräferenz (optional ohne shiftId): Mitarbeiter bevorzugt
+            # an diesem Tag zu arbeiten, unabhängig von der konkreten Schicht.
+            date = wish.get("date")
+            day_reqs = [
+                assignments[(emp_idx, req_idx)]
+                for req_idx, req in enumerate(requirements)
+                if req.get("date") == date
+            ]
+
+            if day_reqs:
+                wish_fulfilled = cp_model.new_bool_var(f"wish_fulfill_preferred_{emp_idx}_{date}")
+                cp_model.add_max_equality(wish_fulfilled, day_reqs)
                 wish_penalty_vars.append((wish_fulfilled, weight))
 
     # Zielfunktion: Maximiere mit Prioritäten
@@ -647,6 +678,23 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                                 "details": wish,
                             }
                         )
+
+            elif wish_type == "preferred":
+                date = wish.get("date")
+                day_reqs = [
+                    req_idx
+                    for req_idx, req in enumerate(requirements)
+                    if req.get("date") == date
+                ]
+                if day_reqs and not any(solver.Value(assignments[(emp_idx, req_idx)]) == 1 for req_idx in day_reqs):
+                    violations.append(
+                        {
+                            "type": "WISH_NOT_FULFILLED",
+                            "severity": "SOFT",
+                            "message": f"Preferred wish for employee {employee_id} on {date} not fulfilled",
+                            "details": wish,
+                        }
+                    )
     except (KeyError, IndexError, AttributeError, ValueError) as e:
         fulfilled_wishes = 0
         wish_rate = 0.0

@@ -111,6 +111,7 @@ def run_worker(settings: Settings) -> None:
             db_job_id = job.pop("_db_job_id")
             worker_context.current_job_id = db_job_id
 
+            result_stored = False
             try:
                 # Mark job as processing and set timeout
                 mark_job_processing(connection, db_job_id)
@@ -125,39 +126,57 @@ def run_worker(settings: Settings) -> None:
 
                 # Store successful result
                 store_result(connection, db_job_id, result)
+                result_stored = True
                 logger.info(f"Job {db_job_id}: Completed successfully")
 
                 # enqueue callback if requested
                 callback_url = job.get("metadata", {}).get("callback_url")
                 if callback_url:
-                    enqueue_callback(
-                        connection,
-                        db_job_id,
-                        callback_url,
-                        result,
-                        tenant_id=job.get("metadata", {}).get("tenant_id"),
-                    )
-                    logger.info(f"Job {db_job_id}: Callback enqueued")
+                    try:
+                        enqueue_callback(
+                            connection,
+                            db_job_id,
+                            callback_url,
+                            result,
+                            tenant_id=job.get("metadata", {}).get("tenant_id"),
+                        )
+                        logger.info(f"Job {db_job_id}: Callback enqueued")
+                    except Exception as cb_exc:
+                        # The solver result is already stored. A failing callback
+                        # enqueue must not fail the whole job; the callback queue
+                        # retry mechanism handles delivery problems separately.
+                        logger.error(
+                            f"Job {db_job_id}: Result stored but callback enqueue failed: {cb_exc}",
+                            exc_info=True,
+                        )
 
             except Exception as exc:
-                logger.error(f"Job {db_job_id} failed: {exc}")
-
-                # try to retry with exponential backoff
-                will_retry = mark_job_failed_with_retry(connection, db_job_id, str(exc))
-
-                if not will_retry:
-                    # Max retries exceeded, move to DLQ
-                    move_job_to_dlq(
-                        connection,
-                        db_job_id,
-                        job,
-                        f"Max retries exceeded: {exc}",
-                        attempts=3,
-                        tenant_id=job.get("metadata", {}).get("tenant_id"),
+                if result_stored:
+                    # Something went wrong after the result was already persisted.
+                    # Do NOT retry the job; log the post-completion error with details.
+                    logger.error(
+                        f"Job {db_job_id}: Post-completion error after result was stored: {exc}",
+                        exc_info=True,
                     )
-                    logger.warning(f"Job {db_job_id}: Moved to Dead Letter Queue")
                 else:
-                    logger.info(f"Job {db_job_id}: Scheduled for retry")
+                    logger.error(f"Job {db_job_id} failed: {exc}", exc_info=True)
+
+                    # try to retry with exponential backoff
+                    will_retry = mark_job_failed_with_retry(connection, db_job_id, str(exc))
+
+                    if not will_retry:
+                        # Max retries exceeded, move to DLQ
+                        move_job_to_dlq(
+                            connection,
+                            db_job_id,
+                            job,
+                            f"Max retries exceeded: {exc}",
+                            attempts=3,
+                            tenant_id=job.get("metadata", {}).get("tenant_id"),
+                        )
+                        logger.warning(f"Job {db_job_id}: Moved to Dead Letter Queue")
+                    else:
+                        logger.info(f"Job {db_job_id}: Scheduled for retry")
 
             finally:
                 active_jobs -= 1

@@ -583,6 +583,134 @@ def test_solver_respects_weekly_hours():
     assert result["metadata"]["status"] == "INFEASIBLE"
 
 
+def test_vacation_wish_blocks_assignment():
+    """Test that a vacation wish is treated as a hard OFF constraint."""
+    payload = {
+        "metadata": {"jobId": "job-vacation-1"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [
+            {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
+            {"id": "S_SPAET", "startTime": "14:00", "endTime": "22:00"},
+        ],
+        "requirements": [
+            {"date": "2026-01-02", "shiftId": "S_FRUEH", "count": 1},
+            {"date": "2026-01-02", "shiftId": "S_SPAET", "count": 1},
+            {"date": "2026-01-03", "shiftId": "S_FRUEH", "count": 1},
+        ],
+        "employees": [
+            {"id": "emp_001", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {"id": "emp_002", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {"id": "emp_003", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+        ],
+        "wishes": [
+            {"employeeId": "emp_001", "type": "vacation", "date": "2026-01-02"},
+        ],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=30)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    for assignment in result["solution"]["assignments"]:
+        if assignment["employeeId"] == "emp_001":
+            assert assignment["date"] != "2026-01-02", (
+                f"emp_001 should NOT be assigned on 2026-01-02 (vacation wish)"
+            )
+
+
+def test_unavailable_wish_blocks_assignment():
+    """Test that an unavailable wish is treated as a hard OFF constraint."""
+    payload = {
+        "metadata": {"jobId": "job-unavailable-1"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [
+            {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
+        ],
+        "requirements": [
+            {"date": "2026-01-02", "shiftId": "S_FRUEH", "count": 1},
+            {"date": "2026-01-03", "shiftId": "S_FRUEH", "count": 1},
+        ],
+        "employees": [
+            {"id": "emp_001", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {"id": "emp_002", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+        ],
+        "wishes": [
+            {"employeeId": "emp_001", "type": "unavailable", "date": "2026-01-02"},
+        ],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=30)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    for assignment in result["solution"]["assignments"]:
+        if assignment["employeeId"] == "emp_001":
+            assert assignment["date"] != "2026-01-02", (
+                f"emp_001 should NOT be assigned on 2026-01-02 (unavailable wish)"
+            )
+
+
+def test_preferred_wish_without_shift_id_influences_assignment():
+    """Test that a preferred wish without shiftId influences day-level assignment."""
+    payload = {
+        "metadata": {"jobId": "job-preferred-1"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [
+            {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
+            {"id": "S_SPAET", "startTime": "14:00", "endTime": "22:00"},
+        ],
+        "requirements": [
+            {"date": "2026-01-02", "shiftId": "S_FRUEH", "count": 1},
+            {"date": "2026-01-02", "shiftId": "S_SPAET", "count": 1},
+        ],
+        "employees": [
+            {"id": "emp_001", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {"id": "emp_002", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+        ],
+        "wishes": [
+            {"employeeId": "emp_001", "type": "preferred", "date": "2026-01-02"},
+        ],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=30)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    emp_001_assignments = [
+        a for a in result["solution"]["assignments"]
+        if a["employeeId"] == "emp_001" and a["date"] == "2026-01-02"
+    ]
+    assert len(emp_001_assignments) > 0, (
+        f"emp_001 should be assigned on 2026-01-02 due to preferred wish"
+    )
+
+
+def test_vacation_wish_fulfillment_rate_not_always_100():
+    """Test that vacation wishes are counted in wishFulfillmentRate."""
+    payload = {
+        "metadata": {"jobId": "job-vacation-rate-1"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [
+            {"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"},
+        ],
+        "requirements": [
+            {"date": "2026-01-02", "shiftId": "S_FRUEH", "count": 1},
+        ],
+        "employees": [
+            {"id": "emp_001", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+            {"id": "emp_002", "forbiddenDates": [], "contract": {"weeklyHours": 40.0}},
+        ],
+        "wishes": [
+            {"employeeId": "emp_001", "type": "vacation", "date": "2026-01-02"},
+            {"employeeId": "emp_002", "type": "preferred", "date": "2026-01-02"},
+        ],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=30)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    # Both wishes should be considered (vacation fulfilled as hard constraint,
+    # preferred fulfilled because emp_002 gets the only shift).
+    assert result["metrics"]["wishFulfillmentRate"] == 100.0
+
+
 def test_solver_empty_requirements_returns_success():
     payload = {
         "metadata": {"jobId": "job-empty"},
@@ -604,6 +732,52 @@ def test_solver_empty_requirements_returns_success():
     assert result["metadata"]["status"] == "SUCCESS"
     assert result["solution"]["assignments"] == []
     assert result["metrics"]["wishFulfillmentRate"] == 100.0
+
+
+def test_empty_requirements_with_vacation_wish_counts_correctly():
+    """Test that vacation/OFF/unavailable wishes are fulfilled when no requirements exist."""
+    payload = {
+        "metadata": {"jobId": "job-empty-vacation"},
+        "config": {"startDate": "2026-06-15", "endDate": "2026-06-21"},
+        "shiftTemplates": [],
+        "requirements": [],
+        "employees": [
+            {"id": "emp_001", "name": "Test1", "contractHours": 40.0},
+            {"id": "emp_002", "name": "Test2", "contractHours": 40.0},
+        ],
+        "wishes": [
+            {"employeeId": "emp_001", "type": "vacation", "date": "2026-06-16"},
+            {"employeeId": "emp_002", "type": "unavailable", "date": "2026-06-17"},
+        ],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] == "SUCCESS"
+    assert result["solution"]["assignments"] == []
+    assert result["metrics"]["wishFulfillmentRate"] == 100.0
+
+
+def test_empty_requirements_with_preferred_wish_counts_correctly():
+    """Test that preferred wishes are NOT fulfilled when no requirements exist."""
+    payload = {
+        "metadata": {"jobId": "job-empty-preferred"},
+        "config": {"startDate": "2026-06-15", "endDate": "2026-06-21"},
+        "shiftTemplates": [],
+        "requirements": [],
+        "employees": [
+            {"id": "emp_001", "name": "Test1", "contractHours": 40.0},
+        ],
+        "wishes": [
+            {"employeeId": "emp_001", "type": "preferred", "date": "2026-06-16"},
+        ],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] == "SUCCESS"
+    assert result["solution"]["assignments"] == []
+    assert result["metrics"]["wishFulfillmentRate"] == 0.0
 
 
 def test_solver_contractHours_works_without_contract_dict():

@@ -260,6 +260,41 @@ class TestRunWorker:
         assert job_status is not None
         assert job_status["status"] in ["failed", "queued", "dead_lettered"]
 
+    def test_worker_stays_completed_when_callback_enqueue_fails(self, tmp_path):
+        """Test that a job remains completed if callback enqueue fails after storing result."""
+        settings, connection = setup_test_db(tmp_path, "test_callback_enqueue_failure.db")
+
+        payload = create_test_payload()
+        job_id = enqueue_job(connection, payload, settings.queue_table)
+
+        with patch("tito.worker.requests.post") as mock_post:
+            mock_post.return_value = Mock(status_code=200)
+            with patch("tito.worker.psutil.cpu_percent", return_value=50.0):
+                with patch("tito.worker.psutil.virtual_memory") as mock_vmem:
+                    mock_vmem.return_value = Mock(percent=50.0)
+                    with patch("tito.worker.build_model"):
+                        with patch(
+                            "tito.worker.solve_model",
+                            return_value={"status": "SUCCESS"},
+                        ):
+                            with patch(
+                                "tito.worker.enqueue_callback",
+                                side_effect=RuntimeError("callback enqueue failed"),
+                            ):
+                                with self._setup_limited_worker(max_loops=2):
+                                    try:
+                                        run_worker(settings)
+                                    except KeyboardInterrupt:
+                                        pass
+
+        from tito.db import fetch_job_status_by_id
+
+        job_status = fetch_job_status_by_id(connection, job_id)
+        assert job_status is not None
+        assert job_status["status"] == "completed", (
+            f"Job should stay completed even if callback enqueue fails, got {job_status['status']}"
+        )
+
     def test_worker_handles_idempotency(self, tmp_path):
         """Teste Idempotenz-Prüfung."""
         settings, connection = setup_test_db(tmp_path)
