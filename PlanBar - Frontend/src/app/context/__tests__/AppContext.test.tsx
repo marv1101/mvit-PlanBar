@@ -160,10 +160,10 @@ describe('AppContext', () => {
   beforeEach(() => {
     server.resetHandlers()
     server.use(
-      http.get(`${base}/employees`, () => HttpResponse.json(employeeDTOs)),
+      http.get(`${base}/employees`, () => HttpResponse.json({ items: employeeDTOs, total: employeeDTOs.length, offset: 0, limit: 50 })),
       http.get(`${base}/roles`, () => HttpResponse.json(roleDTOs)),
-      http.get(`${base}/requests`, () => HttpResponse.json(requestDTOs)),
-      http.get(`${base}/schedules`, () => HttpResponse.json(scheduleDTOs)),
+      http.get(`${base}/requests`, () => HttpResponse.json({ items: requestDTOs, total: requestDTOs.length, offset: 0, limit: 50 })),
+      http.get(`${base}/schedules`, () => HttpResponse.json({ items: scheduleDTOs, total: scheduleDTOs.length, offset: 0, limit: 50 })),
     )
   })
 
@@ -412,7 +412,7 @@ describe('AppContext', () => {
     expect(screen.getByTestId('employees-count')).toHaveTextContent('2')
 
     server.use(
-      http.get(`${base}/employees`, () => HttpResponse.json([employeeDTOs[0]])),
+      http.get(`${base}/employees`, () => HttpResponse.json({ items: [employeeDTOs[0]], total: 1, offset: 0, limit: 50 })),
     )
 
     await user.click(screen.getByTestId('refresh-btn'))
