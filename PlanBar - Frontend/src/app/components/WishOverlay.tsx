@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Request, Employee } from '../../types';
-import { START_HOUR, HOUR_HEIGHT, toMinutes, formatTime } from './schedule/shared/CalendarUtils';
-import { Ban, Calendar, Star, Clock } from 'lucide-react';
+import { Ban, Calendar, Star } from 'lucide-react';
 
 // Colors for different wish types
 const WISH_COLORS: Record<string, { bg: string; border: string; text: string; icon: React.ReactNode }> = {
@@ -38,13 +37,8 @@ export function WishOverlay({ wish, employee, onClick }: WishOverlayProps) {
   const colors = WISH_COLORS[wish.type] || WISH_COLORS['bevorzugt'];
   const employeeName = employee?.name || 'Unbekannt';
 
-  // Calculate position based on wish time
-  // For all-day wishes (like vacation), we'll show a subtle indicator
-  // For time-specific wishes, we'll show an overlay similar to breaks
-  const isAllDay = wish.type === 'urlaubswunsch' || wish.type === 'nicht-verfügbar';
-
-  if (isAllDay) {
-    // All-day wish: show a subtle banner at the top of the day column
+  // All-day wishes (vacation / unavailable): show a full-width banner at the top of the day column
+  if (wish.type === 'urlaubswunsch' || wish.type === 'nicht-verfügbar') {
     return (
       <div
         className="relative cursor-pointer"
@@ -95,25 +89,42 @@ export function WishOverlay({ wish, employee, onClick }: WishOverlayProps) {
     );
   }
 
-  // Time-specific wish: show overlay within the day column
-  // For now, we'll show a subtle indicator since the Request type doesn't have specific times
-  return null;
-}
-
-// Helper function to get wish style for positioning (similar to getBreakStyle)
-export function getWishOverlayStyle(wish: Request) {
-  // For time-specific wishes, calculate position
-  // Since our current Request type doesn't have start/end times,
-  // we'll return a full-height overlay for all-day wishes
-  const isAllDay = wish.type === 'urlaubswunsch' || wish.type === 'nicht-verfügbar';
-  
-  if (isAllDay) {
-    return {
-      top: '0px',
-      height: '100%',
-      opacity: 0.15,
-    };
+  // 'bevorzugt' (preferred) wishes: show a smaller inline indicator
+  if (wish.type === 'bevorzugt') {
+    return (
+      <div
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer"
+        style={{
+          backgroundColor: colors.bg,
+          borderLeftColor: colors.border,
+          borderLeftWidth: '2px',
+        }}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        onClick={() => onClick?.(wish)}
+      >
+        {colors.icon}
+        <span className={colors.text}>{employeeName}</span>
+        <AnimatePresence>
+          {showTooltip && (
+            <motion.div
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -5 }}
+              className="absolute z-50 left-0 right-0 top-full mt-1"
+            >
+              <div className="bg-white rounded-lg shadow-lg border p-2 text-xs whitespace-nowrap">
+                <div className="font-medium">{employeeName}</div>
+                <div className={`capitalize ${colors.text}`}>{wish.type}</div>
+                {wish.notes && <div className="text-gray-500 mt-1 italic">{wish.notes}</div>}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
   }
 
+  // Other / unknown wish types: render nothing
   return null;
 }

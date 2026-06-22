@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import * as scheduleService from '../../services/scheduleService';
 import * as requestService from '../../services/requestService';
 import { scheduleFromResponse } from '../../lib/mappers';
-import { TIMEZONE } from '../../lib/timezone';
+import { exportShiftsCSV } from '../../lib/csv';
 import { StatusBadge } from './StatusBadge';
 
 interface ScheduleCreateFormProps {
@@ -31,37 +31,6 @@ interface ScheduleCreateFormProps {
   setCurrentScheduleStatus: (v: string | null) => void;
   setPollResult: (v: ScheduleType | null) => void;
   onWishReview: (scheduleId: number) => void;
-}
-
-function exportShifts(
-  shifts: ScheduleType['shifts'],
-  name: string,
-  employees: Employee[],
-) {
-  if (shifts.length === 0) {
-    toast.error('Keine Schichten zum Exportieren');
-    return;
-  }
-  const headers = ['Datum', 'Woche', 'Mitarbeiter', 'Start', 'Ende', 'Pause Start', 'Pause Ende'];
-  const rows = shifts.map(shift => {
-    const employee = employees.find(e => e.id === shift.employeeId);
-    return [
-      new Date(shift.date).toLocaleDateString('de-DE', { timeZone: TIMEZONE }),
-      shift.week,
-      employee?.name || '',
-      shift.startTime,
-      shift.endTime,
-      shift.breakStart || '',
-      shift.breakEnd || '',
-    ];
-  });
-  const csvContent = [headers, ...rows].map(row => row.join(';')).join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `schichtplan-${name}.csv`;
-  link.click();
-  toast.success('Schichtplan exportiert');
 }
 
 export function ScheduleCreateForm({
@@ -236,9 +205,16 @@ export function ScheduleCreateForm({
     toast.success('Schichtplan gespeichert');
   };
 
-  const handleChangeStatus = (schedule: ScheduleType, newStatus: string) => {
+  const handleChangeStatus = async (schedule: ScheduleType, newStatus: string) => {
     const updated = { ...schedule, status: newStatus };
     setManuallyCreatedSchedule(updated);
+    try {
+      await scheduleService.updateSchedule(Number(schedule.id), { status: newStatus });
+      toast.success('Status geändert');
+    } catch {
+      toast.error('Fehler beim Ändern des Status');
+      setManuallyCreatedSchedule(schedule);
+    }
   };
 
   const handleRetry = async (schedule: ScheduleType) => {
@@ -282,7 +258,7 @@ export function ScheduleCreateForm({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => exportShifts(pollResult.shifts, pollResult.name, employees)}
+                  onClick={() => exportShiftsCSV(pollResult.shifts, pollResult.name, employees)}
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Exportieren

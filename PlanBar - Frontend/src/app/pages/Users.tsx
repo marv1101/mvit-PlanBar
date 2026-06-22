@@ -229,7 +229,8 @@ function UserCreateForm({ onSuccess }: UserCreateFormProps) {
       });
       setResult(res);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ein Fehler ist aufgetreten');
+      const detail = err.response?.data?.detail;
+      setError(Array.isArray(detail) ? detail.map((d: { msg: string }) => d.msg).join('; ') : detail || 'Ein Fehler ist aufgetreten');
     } finally {
       setIsLoading(false);
     }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect } from 'vitest';
 import { WishOverlay } from './WishOverlay';
 import { Request, Employee } from '../../types';
@@ -83,7 +83,7 @@ describe('WishOverlay', () => {
     expect(handleClick).toHaveBeenCalledWith(mockVacationWish);
   });
 
-  it('shows tooltip on hover with notes', () => {
+  it('shows tooltip on hover with notes', async () => {
     render(
       <WishOverlay wish={mockVacationWish} employee={mockEmployee} />
     );
@@ -91,10 +91,12 @@ describe('WishOverlay', () => {
     const element = screen.getByText('Max Mustermann').closest('div')!;
     fireEvent.mouseEnter(element);
 
-    expect(screen.getByText('Familienurlaub')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Familienurlaub')).toBeInTheDocument();
+    });
   });
 
-  it('shows warning for unavailable wishes on hover', () => {
+  it('shows warning for unavailable wishes on hover', async () => {
     render(
       <WishOverlay wish={mockUnavailableWish} employee={mockEmployee} />
     );
@@ -102,6 +104,8 @@ describe('WishOverlay', () => {
     const element = screen.getByText('Max Mustermann').closest('div')!;
     fireEvent.mouseEnter(element);
 
-    expect(screen.getByText(/Keine Schicht zuweisen/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/Keine Schicht zuweisen/)).toBeInTheDocument();
+    });
   });
 });

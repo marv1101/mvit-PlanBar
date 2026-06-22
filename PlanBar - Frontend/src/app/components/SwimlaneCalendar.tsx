@@ -17,11 +17,12 @@ import { Label } from './ui/label';
 import {
   ITEM_TYPE, EMPLOYEE_ITEM_TYPE, BREAK_START_ITEM_TYPE, BREAK_END_ITEM_TYPE,
   START_HOUR, END_HOUR, SNAP_MINUTES_SHIFT, SNAP_MINUTES_BREAK,
-  HOURS, toMinutes, formatTime,
+  HOURS, toMinutes, formatTime, snapMinutes,
 } from './schedule/shared/CalendarUtils';
 import type { DragItem, EmployeeDragItem, BreakDragItem } from './schedule/shared/CalendarUtils';
 import { BreakStartHandle, BreakEndHandle } from './schedule/shared/CalendarComponents';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import { useApprovedWishes } from '../hooks/useShiftWishes';
 
 const HOUR_WIDTH = 64;
 const EMPLOYEE_ROW_HEIGHT = 44;
@@ -234,10 +235,6 @@ function DayBlock({
   onBreakUpdateRef.current = onBreakUpdate;
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
-
-  const snapMinutes = (rawMinutes: number, snap: number) => {
-    return Math.round(rawMinutes / snap) * snap;
-  };
 
   const [{ isOver }, drop] = useDrop(() => ({
     accept: [ITEM_TYPE, EMPLOYEE_ITEM_TYPE, BREAK_START_ITEM_TYPE, BREAK_END_ITEM_TYPE],
@@ -819,7 +816,8 @@ export function SwimlaneCalendar({
   currentWeek,
   onUpdateSchedule,
 }: SwimlaneCalendarProps) {
-  const { employees, requests } = useApp();
+  const { employees } = useApp();
+  const { data: approvedWishes = [] } = useApprovedWishes(schedule.id ? Number(schedule.id) : null);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -827,8 +825,6 @@ export function SwimlaneCalendar({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [shiftToDelete, setShiftToDelete] = useState<Shift | null>(null);
   const [wishPrefilledEmployeeId, setWishPrefilledEmployeeId] = useState<string | null>(null);
-
-  const approvedWishes = requests.filter(r => r.status === 'approved' && r.week === currentWeek);
 
   const handleWishClick = (employeeId: string, date: Date) => {
     setWishPrefilledEmployeeId(employeeId);

@@ -69,11 +69,11 @@ export function Schedule() {
     const scheduleId = wishReviewScheduleId;
     setWishReviewScheduleId(null);
     if (scheduleId) {
+      setSubmitting(true);
       refresh();
-      setCurrentScheduleId(String(scheduleId));
-      setCurrentScheduleStatus('submitted');
       scheduleService.submitScheduleToTito(scheduleId)
         .then(res => {
+          setCurrentScheduleId(String(scheduleId));
           setCurrentScheduleStatus(res.status);
           toast.success('Schichtplan an TiTO übermittelt');
         })

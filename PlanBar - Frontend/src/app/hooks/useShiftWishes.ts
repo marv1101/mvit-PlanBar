@@ -84,6 +84,7 @@ export function useApproveShiftWish() {
     mutationFn: (id: number) => requestService.approveShiftWish(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: APPROVED_WISHES_KEY });
       toast.success('Wunsch genehmigt');
     },
     onError: () => {
@@ -99,6 +100,7 @@ export function useRejectShiftWish() {
       requestService.rejectShiftWish(id, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: APPROVED_WISHES_KEY });
       toast.success('Wunsch abgelehnt');
     },
     onError: () => {

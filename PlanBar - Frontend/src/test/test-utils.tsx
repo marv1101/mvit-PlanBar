@@ -18,13 +18,6 @@ const testQueryClient = new QueryClient({
 // Mock data
 // ---------------------------------------------------------------------------
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-    },
-  },
-});
 
 export const mockEmployees: Employee[] = [
   {

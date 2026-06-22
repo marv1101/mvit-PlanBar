@@ -61,9 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setMustChangePassword(mustChange);
       return { success: true, mustChangePassword: mustChange };
     } catch (err) {
-      const msg = axios.isAxiosError(err)
-        ? err.response?.data?.detail || 'Login fehlgeschlagen'
-        : 'Netzwerkfehler';
+      const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null;
+      const msg = Array.isArray(detail) ? detail.map(d => d.msg).join('; ') : detail || 'Login fehlgeschlagen';
       toast.error(msg);
       return { success: false, mustChangePassword: false };
     }
@@ -75,9 +74,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setMustChangePassword(false);
       return true;
     } catch (err) {
-      const msg = axios.isAxiosError(err)
-        ? err.response?.data?.detail || 'Passwort ändern fehlgeschlagen'
-        : 'Netzwerkfehler';
+      const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null;
+      const msg = Array.isArray(detail) ? detail.map(d => d.msg).join('; ') : detail || 'Passwort ändern fehlgeschlagen';
       toast.error(msg);
       return false;
     }

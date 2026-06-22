@@ -24,6 +24,7 @@ import * as scheduleService from '../../services/scheduleService';
 import * as requestService from '../../services/requestService';
 import { scheduleFromResponse } from '../../lib/mappers';
 import { TIMEZONE } from '../../lib/timezone';
+import { exportShiftsCSV } from '../../lib/csv';
 import { StatusBadge } from './StatusBadge';
 
 interface ScheduleManageListProps {
@@ -41,37 +42,6 @@ interface ScheduleManageListProps {
   setCurrentScheduleId: (v: string | null) => void;
   setCurrentScheduleStatus: (v: string | null) => void;
   onCreateTab: () => void;
-}
-
-function exportShifts(
-  shifts: ScheduleType['shifts'],
-  name: string,
-  employees: Employee[],
-) {
-  if (shifts.length === 0) {
-    toast.error('Keine Schichten zum Exportieren');
-    return;
-  }
-  const headers = ['Datum', 'Woche', 'Mitarbeiter', 'Start', 'Ende', 'Pause Start', 'Pause Ende'];
-  const rows = shifts.map(shift => {
-    const employee = employees.find(e => e.id === shift.employeeId);
-    return [
-      new Date(shift.date).toLocaleDateString('de-DE', { timeZone: TIMEZONE }),
-      shift.week,
-      employee?.name || '',
-      shift.startTime,
-      shift.endTime,
-      shift.breakStart || '',
-      shift.breakEnd || '',
-    ];
-  });
-  const csvContent = [headers, ...rows].map(row => row.join(';')).join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `schichtplan-${name}.csv`;
-  link.click();
-  toast.success('Schichtplan exportiert');
 }
 
 export function ScheduleManageList({
@@ -273,7 +243,7 @@ export function ScheduleManageList({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => exportShifts(schedule.shifts, schedule.name, employees)}
+                  onClick={() => exportShiftsCSV(schedule.shifts, schedule.name, employees)}
                   aria-label="Schichtplan exportieren"
                 >
                   <Download className="h-4 w-4" />
