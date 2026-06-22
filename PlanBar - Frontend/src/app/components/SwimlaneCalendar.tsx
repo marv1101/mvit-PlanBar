@@ -398,7 +398,7 @@ function DayBlock({
               ))}
             </div>
             {sortedEmployees.map((emp, empIndex) => {
-              const empWish = approvedWishes.find(w => w.employeeId === emp.id);
+              const empWish = approvedWishes.find(w => w.employeeId === emp.id && w.date === dateStr);
               return (
               <div
                 key={emp.id}
