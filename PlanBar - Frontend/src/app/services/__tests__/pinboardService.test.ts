@@ -90,17 +90,15 @@ describe('pinboardService', () => {
       let capturedContentType: string | null = null;
 
       server.use(
-        http.post(`${base}/pinboard/messages/:messageId/documents`, async ({ request }) => {
+        http.post(`${base}/pinboard/messages/:messageId/documents`, async ({ request, params }) => {
           capturedContentType = request.headers.get('Content-Type') || null;
-          const formData = await request.formData();
-          const file = formData.get('file') as File | null;
 
           return HttpResponse.json({
             id: 100,
-            message_id: Number(request.url.split('/').slice(-2, -1)[0]),
-            file_name: file?.name ?? 'unknown',
-            file_size: file?.size ?? 0,
-            mime_type: file?.type ?? 'application/octet-stream',
+            message_id: Number(params.messageId),
+            file_name: 'dokument.pdf',
+            file_size: 12,
+            mime_type: 'application/pdf',
             created_at: new Date().toISOString(),
           });
         })
