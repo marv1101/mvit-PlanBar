@@ -134,6 +134,17 @@ export function Layout() {
           </main>
         </div>
       </div>
+
+      <footer className="border-t bg-white mt-8">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <span>&copy; {new Date().getFullYear()} MVIT PlanBar</span>
+            <Link to="/privacy" className="hover:text-blue-600 transition-colors">
+              Datenschutzerklärung
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
