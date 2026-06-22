@@ -1,4 +1,5 @@
 import api from '../lib/api';
+import type { PaginatedResponse } from '../types';
 
 export interface AdminUserCreateDTO {
   username: string;
@@ -29,8 +30,8 @@ export interface UnlinkedEmployeeDTO {
   email: string | null;
 }
 
-export async function getUsers(): Promise<UserResponseDTO[]> {
-  const { data } = await api.get('/users');
+export async function getUsers(offset?: number, limit?: number): Promise<PaginatedResponse<UserResponseDTO>> {
+  const { data } = await api.get('/users', { params: { offset, limit } });
   return data;
 }
 

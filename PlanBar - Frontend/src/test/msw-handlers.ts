@@ -25,6 +25,7 @@ import type {
   ThreadDetailResponseDTO,
   MessageResponseDTO,
 } from '../app/services/pinboardService'
+import type { PaginatedResponse } from '../app/types'
 
 const base = '/api/v1'
 
@@ -153,7 +154,8 @@ export const handlers = [
   // -- Users ---------------------------------------------------------------
 
   http.get(`${base}/users`, () => {
-    return HttpResponse.json(mockUsers satisfies UserResponseDTO[])
+    const res: PaginatedResponse<UserResponseDTO> = { items: mockUsers, total: mockUsers.length, offset: 0, limit: 50 }
+    return HttpResponse.json(res)
   }),
 
   http.post(`${base}/users/admin-create`, async ({ request }) => {
@@ -185,7 +187,8 @@ export const handlers = [
   // -- Employees -----------------------------------------------------------
 
   http.get(`${base}/employees`, () => {
-    return HttpResponse.json(mockEmployees satisfies EmployeeResponseDTO[])
+    const res: PaginatedResponse<EmployeeResponseDTO> = { items: mockEmployees, total: mockEmployees.length, offset: 0, limit: 50 }
+    return HttpResponse.json(res)
   }),
 
   http.get(`${base}/employees/time-accounts`, () => {
@@ -289,7 +292,8 @@ export const handlers = [
   // -- Requests / Wishes ---------------------------------------------------
 
   http.get(`${base}/requests`, () => {
-    return HttpResponse.json(mockRequests satisfies ShiftWishResponseDTO[])
+    const res: PaginatedResponse<ShiftWishResponseDTO> = { items: mockRequests, total: mockRequests.length, offset: 0, limit: 50 }
+    return HttpResponse.json(res)
   }),
 
   http.post(`${base}/requests`, async ({ request }) => {
@@ -346,7 +350,8 @@ export const handlers = [
   // -- Schedules -----------------------------------------------------------
 
   http.get(`${base}/schedules`, () => {
-    return HttpResponse.json(mockSchedules satisfies ScheduleResponseDTO[])
+    const res: PaginatedResponse<ScheduleResponseDTO> = { items: mockSchedules, total: mockSchedules.length, offset: 0, limit: 50 }
+    return HttpResponse.json(res)
   }),
 
   http.post(`${base}/schedules`, async ({ request }) => {

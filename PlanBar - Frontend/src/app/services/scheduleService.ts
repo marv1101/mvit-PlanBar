@@ -1,4 +1,5 @@
 import api from '../lib/api';
+import type { PaginatedResponse } from '../types';
 
 export interface ShiftplanCreateDTO {
   employee_id: number;
@@ -84,8 +85,8 @@ export interface ScheduleSummaryDTO {
   date_range: [string, string] | null;
 }
 
-export async function getSchedules(): Promise<ScheduleResponseDTO[]> {
-  const { data } = await api.get('/schedules');
+export async function getSchedules(offset?: number, limit?: number): Promise<PaginatedResponse<ScheduleResponseDTO>> {
+  const { data } = await api.get('/schedules', { params: { offset, limit } });
   return data;
 }
 

@@ -1,4 +1,5 @@
 import api from '../lib/api';
+import type { PaginatedResponse } from '../types';
 
 export interface EmployeeCreateDTO {
   first_name: string;
@@ -40,8 +41,8 @@ export interface EmployeeResponseDTO {
   updated_at: string;
 }
 
-export async function getEmployees(): Promise<EmployeeResponseDTO[]> {
-  const { data } = await api.get('/employees');
+export async function getEmployees(offset?: number, limit?: number): Promise<PaginatedResponse<EmployeeResponseDTO>> {
+  const { data } = await api.get('/employees', { params: { offset, limit } });
   return data;
 }
 

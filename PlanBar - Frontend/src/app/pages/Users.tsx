@@ -27,7 +27,7 @@ export function Users() {
     setError(null);
     try {
       const data = await userService.getUsers();
-      setUsers(data.map(userFromResponse));
+      setUsers(data.items.map(userFromResponse));
     } catch {
       setError('Fehler beim Laden der Benutzer. Bitte versuchen Sie es erneut.');
     } finally {

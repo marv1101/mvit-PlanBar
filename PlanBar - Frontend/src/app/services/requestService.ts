@@ -1,4 +1,5 @@
 import api from '../lib/api';
+import type { PaginatedResponse } from '../types';
 
 export type ShiftWishType = 'preferred' | 'unavailable' | 'vacation';
 
@@ -31,8 +32,8 @@ export interface ShiftWishResponseDTO {
   rejection_reason: string | null;
 }
 
-export async function getShiftWishes(): Promise<ShiftWishResponseDTO[]> {
-  const { data } = await api.get('/requests');
+export async function getShiftWishes(offset?: number, limit?: number): Promise<PaginatedResponse<ShiftWishResponseDTO>> {
+  const { data } = await api.get('/requests', { params: { offset, limit } });
   return data;
 }
 

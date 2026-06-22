@@ -11,7 +11,7 @@ export function useShiftWishes() {
     queryKey: QUERY_KEY,
     queryFn: async () => {
       const res = await requestService.getShiftWishes();
-      return res.map(requestFromResponse);
+      return res.items.map(requestFromResponse);
     },
   });
 }

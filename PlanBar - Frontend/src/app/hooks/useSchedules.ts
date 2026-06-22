@@ -10,7 +10,7 @@ export function useSchedules() {
     queryKey: QUERY_KEY,
     queryFn: async () => {
       const res = await scheduleService.getSchedules();
-      return res.map(scheduleFromResponse);
+      return res.items.map(scheduleFromResponse);
     },
   });
 }

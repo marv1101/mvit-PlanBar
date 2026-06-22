@@ -57,10 +57,10 @@ async function loadAll() {
     scheduleService.getSchedules(),
   ]);
   return {
-    employees: empRes.map(employeeFromResponse),
+    employees: empRes.items.map(employeeFromResponse),
     roles: roleRes.map(roleFromResponse),
-    requests: reqRes.map(requestFromResponse),
-    schedules: schedRes.map(scheduleFromResponse),
+    requests: reqRes.items.map(requestFromResponse),
+    schedules: schedRes.items.map(scheduleFromResponse),
   };
 }
 

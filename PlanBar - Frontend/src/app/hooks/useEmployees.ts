@@ -11,7 +11,7 @@ export function useEmployees() {
     queryKey: QUERY_KEY,
     queryFn: async () => {
       const res = await employeeService.getEmployees();
-      return res.map(employeeFromResponse);
+      return res.items.map(employeeFromResponse);
     },
   });
 }
