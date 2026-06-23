@@ -4,6 +4,7 @@ from app.api.v1.audit import router as audit_router
 from app.api.v1.privacy import router as privacy_router
 from app.api.v1.callbacks import router as callbacks_router
 from app.api.v1.exports import router as exports_router
+from app.api.v1.gdpr import admin_router as gdpr_admin_router
 from app.api.v1.gdpr import router as gdpr_router
 from app.api.v1.employees import (
     contract_router,
@@ -36,3 +37,4 @@ api_router.include_router(privacy_router, prefix="", tags=["privacy"])
 api_router.include_router(audit_router, prefix="", tags=["audit"])
 api_router.include_router(exports_router, prefix="/exports", tags=["exports"])
 api_router.include_router(gdpr_router, prefix="/gdpr", tags=["gdpr"])
+api_router.include_router(gdpr_admin_router, prefix="/admin", tags=["admin"])
