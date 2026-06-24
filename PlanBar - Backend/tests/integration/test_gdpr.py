@@ -134,6 +134,133 @@ class TestExportUserData:
         resp = client.get("/api/v1/gdpr/export")
         assert resp.status_code == 401
 
+    def test_export_csv_format(self, client, auth_headers, db_session):
+        """CSV export should return proper CSV with all sections."""
+        emp = _create_employee_via_api(client, auth_headers)
+        user_resp = client.get("/api/v1/users/me", headers=auth_headers)
+        user_id = user_resp.json()["id"]
+        _link_employee_to_user(client, db_session, user_id, emp["id"])
+
+        thread_resp = client.post(
+            "/api/v1/pinboard/threads",
+            json={"title": "CSV Export Thread"},
+            headers=auth_headers,
+        )
+        client.post(
+            f"/api/v1/pinboard/threads/{thread_resp.json()['id']}/messages",
+            json={"content": "CSV export message"},
+            headers=auth_headers,
+        )
+
+        resp = client.get("/api/v1/gdpr/export?format=csv", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type") == "text/csv; charset=utf-8"
+        assert "attachment" in resp.headers.get("content-disposition", "")
+        assert "gdpr_export" in resp.headers.get("content-disposition", "")
+
+        text = resp.text
+        assert "# EXPORT_DATE" in text
+        assert "# USER" in text
+        assert "# EMPLOYEE" in text
+        assert "# CONTRACTS" in text
+        assert "# TIMECARDS" in text
+        assert "# SHIFT_WISHES" in text
+        assert "# SHIFTPLANS" in text
+        assert "# PINBOARD_THREADS" in text
+        assert "# PINBOARD_MESSAGES" in text
+        assert "# AUDIT_LOGS" in text
+        assert "admin@test.com" in text
+        assert "Max" in text
+        assert "CSV Export Thread" in text
+
+    def test_export_content_disposition(self, client, auth_headers):
+        """JSON export should include Content-Disposition header with attachment."""
+        resp = client.get("/api/v1/gdpr/export", headers=auth_headers)
+        assert resp.status_code == 200
+        assert "attachment" in resp.headers.get("content-disposition", "")
+        assert "filename=" in resp.headers.get("content-disposition", "")
+        assert ".json" in resp.headers.get("content-disposition", "")
+
+    def test_export_invalid_format(self, client, auth_headers):
+        """Invalid format parameter should return 422."""
+        resp = client.get("/api/v1/gdpr/export?format=xml", headers=auth_headers)
+        assert resp.status_code == 422
+
+
+class TestAdminExportUserData:
+    """DSGVO Art. 20 — admin data portability."""
+
+    def test_admin_export_employee_json(self, client, auth_headers, db_session):
+        """Admin can export a specific employee's data as JSON."""
+        emp = _create_employee_via_api(client, auth_headers)
+        user_resp = client.get("/api/v1/users/me", headers=auth_headers)
+        user_id = user_resp.json()["id"]
+        _link_employee_to_user(client, db_session, user_id, emp["id"])
+
+        resp = client.get(
+            f"/api/v1/admin/employees/{emp['id']}/export?format=json",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type") == "application/json"
+        assert "attachment" in resp.headers.get("content-disposition", "")
+        assert ".json" in resp.headers.get("content-disposition", "")
+
+        data = resp.json()
+        assert data["user"]["id"] == user_id
+        assert data["employee"] is not None
+        assert data["employee"]["first_name"] == "Max"
+
+    def test_admin_export_employee_csv(self, client, auth_headers, db_session):
+        """Admin can export a specific employee's data as CSV."""
+        emp = _create_employee_via_api(client, auth_headers)
+        user_resp = client.get("/api/v1/users/me", headers=auth_headers)
+        user_id = user_resp.json()["id"]
+        _link_employee_to_user(client, db_session, user_id, emp["id"])
+
+        resp = client.get(
+            f"/api/v1/admin/employees/{emp['id']}/export?format=csv",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type") == "text/csv; charset=utf-8"
+        assert "attachment" in resp.headers.get("content-disposition", "")
+
+        assert "# USER" in resp.text
+        assert "# EMPLOYEE" in resp.text
+        assert "Max" in resp.text
+
+    def test_admin_export_requires_auth(self, client, db_session):
+        """Unauthenticated admin export should return 401."""
+        resp = client.get("/api/v1/admin/employees/1/export")
+        assert resp.status_code == 401
+
+    def test_admin_export_requires_admin_role(self, client, employee_auth_headers):
+        """Non-admin user cannot use admin export endpoint."""
+        headers, emp_id = employee_auth_headers
+        resp = client.get(
+            f"/api/v1/admin/employees/{emp_id}/export",
+            headers=headers,
+        )
+        assert resp.status_code == 403
+
+    def test_admin_export_employee_not_found(self, client, auth_headers):
+        """Exporting a non-existent employee returns 404."""
+        resp = client.get(
+            "/api/v1/admin/employees/99999/export",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 404
+
+    def test_admin_export_invalid_format(self, client, auth_headers, db_session):
+        """Invalid format on admin endpoint returns 422."""
+        emp = _create_employee_via_api(client, auth_headers)
+        resp = client.get(
+            f"/api/v1/admin/employees/{emp['id']}/export?format=xml",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
 
 class TestDeleteUserData:
     """DSGVO Art. 17 — right to erasure."""
