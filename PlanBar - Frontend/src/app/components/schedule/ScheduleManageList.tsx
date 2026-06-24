@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import {
   Calendar,
@@ -61,6 +71,7 @@ export function ScheduleManageList({
   onCreateTab,
 }: ScheduleManageListProps) {
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleType | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ScheduleType | null>(null);
 
   const handleViewSchedule = async (schedule: ScheduleType) => {
     try {
@@ -110,12 +121,7 @@ export function ScheduleManageList({
   };
 
   const handleDeleteSchedule = (schedule: ScheduleType) => {
-    if (confirm(`M\u00f6chten Sie den Schichtplan "${schedule.name}" wirklich l\u00f6schen?`)) {
-      deleteSchedule(schedule.id);
-      if (selectedSchedule?.id === schedule.id) {
-        setSelectedSchedule(null);
-      }
-    }
+    setDeleteTarget(schedule);
   };
 
   const handleExportPdf = async (schedule: ScheduleType) => {
@@ -407,6 +413,33 @@ export function ScheduleManageList({
           </CardContent>
         </Card>
       )}
+
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Schichtplan löschen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchten Sie den Schichtplan „{deleteTarget?.name}" wirklich löschen?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteSchedule(deleteTarget.id);
+                  if (selectedSchedule?.id === deleteTarget.id) {
+                    setSelectedSchedule(null);
+                  }
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
