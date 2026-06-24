@@ -38,17 +38,13 @@ def export_my_data(
         return Response(
             content=csv_content,
             media_type="text/csv; charset=utf-8",
-            headers={
-                "Content-Disposition": f'attachment; filename="gdpr_export_user_{current_user.id}.csv"'
-            },
+            headers={"Content-Disposition": f'attachment; filename="gdpr_export_user_{current_user.id}.csv"'},
         )
 
     data = export_user_data(db, current_user.id)
     return JSONResponse(
         content=data,
-        headers={
-            "Content-Disposition": f'attachment; filename="gdpr_export_user_{current_user.id}.json"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="gdpr_export_user_{current_user.id}.json"'},
     )
 
 
@@ -114,15 +110,11 @@ def admin_export_employee_data(
         return Response(
             content=csv_content,
             media_type="text/csv; charset=utf-8",
-            headers={
-                "Content-Disposition": f'attachment; filename="gdpr_export_employee_{employee_id}.csv"'
-            },
+            headers={"Content-Disposition": f'attachment; filename="gdpr_export_employee_{employee_id}.csv"'},
         )
 
     data = export_user_data(db, user_id)
     return JSONResponse(
         content=data,
-        headers={
-            "Content-Disposition": f'attachment; filename="gdpr_export_employee_{employee_id}.json"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="gdpr_export_employee_{employee_id}.json"'},
     )
