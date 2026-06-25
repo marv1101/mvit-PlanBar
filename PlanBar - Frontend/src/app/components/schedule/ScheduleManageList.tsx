@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import {
@@ -72,6 +72,20 @@ export function ScheduleManageList({
 }: ScheduleManageListProps) {
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleType | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ScheduleType | null>(null);
+
+  const isDraft = selectedSchedule?.status === 'draft';
+  const hasWeekA = selectedSchedule?.shifts.some(s => s.week === 'A') ?? false;
+  const hasWeekB = selectedSchedule?.shifts.some(s => s.week === 'B') ?? false;
+  const showTabs = isDraft || hasWeekA || hasWeekB;
+
+  useEffect(() => {
+    if (!selectedSchedule || isDraft) return;
+    if (currentWeek === 'A' && !hasWeekA && hasWeekB) {
+      setCurrentWeek('B');
+    } else if (currentWeek === 'B' && !hasWeekB && hasWeekA) {
+      setCurrentWeek('A');
+    }
+  }, [selectedSchedule, currentWeek, setCurrentWeek, hasWeekA, hasWeekB, isDraft]);
 
   const handleViewSchedule = async (schedule: ScheduleType) => {
     try {
@@ -348,12 +362,14 @@ export function ScheduleManageList({
                     Erneut senden
                   </Button>
                 )}
-                <Tabs value={currentWeek} onValueChange={(v) => setCurrentWeek(v as WeekType)}>
-                  <TabsList>
-                    <TabsTrigger value="A">Woche A</TabsTrigger>
-                    <TabsTrigger value="B">Woche B</TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                {showTabs && (
+                  <Tabs value={currentWeek} onValueChange={(v) => setCurrentWeek(v as WeekType)}>
+                    <TabsList>
+                      {(isDraft || hasWeekA) && <TabsTrigger value="A">Woche A</TabsTrigger>}
+                      {(isDraft || hasWeekB) && <TabsTrigger value="B">Woche B</TabsTrigger>}
+                    </TabsList>
+                  </Tabs>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -391,6 +407,14 @@ export function ScheduleManageList({
                 onUpdateSchedule={handleUpdateSchedule}
                 onSaveShifts={handleManageSave}
               />
+            ) : !hasWeekA && !hasWeekB ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12 text-gray-500">
+                  <Calendar className="h-12 w-12 mb-4 opacity-50" />
+                  <p className="text-lg font-medium">Keine Schichten vorhanden</p>
+                  <p className="text-sm">Für diesen Schichtplan sind keine Schichten geplant.</p>
+                </CardContent>
+              </Card>
             ) : (
               <>
                 <ScheduleCalendar
