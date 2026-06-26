@@ -11,7 +11,7 @@ from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
 from app.schemas.pagination import PaginatedResponse, PaginationParams
-from app.services.notification_service import create_notification
+from app.services.notification_service import create_notification_and_push
 
 router = APIRouter()
 
@@ -183,13 +183,15 @@ def approve_shift_wish(
 
     employee = db.query(Employee).filter(Employee.id == wish.employee_id).first()
     if employee and employee.user_id:
-        create_notification(
+        create_notification_and_push(
             db=db,
             user_id=employee.user_id,
             notification_type=NotificationType.WISH_APPROVED.value,
             title="Wunsch genehmigt",
             message=f"Dein Schichtwunsch für {wish.date} wurde genehmigt.",
             data={"wish_id": wish.id, "date": str(wish.date), "type": wish.type},
+            push_url="/employee-view",
+            push_tag="wish_approved",
         )
 
     return wish
@@ -219,7 +221,7 @@ def reject_shift_wish(
     employee = db.query(Employee).filter(Employee.id == wish.employee_id).first()
     if employee and employee.user_id:
         reason_text = f" Grund: {body.rejection_reason}" if body.rejection_reason else ""
-        create_notification(
+        create_notification_and_push(
             db=db,
             user_id=employee.user_id,
             notification_type=NotificationType.WISH_REJECTED.value,
@@ -231,6 +233,8 @@ def reject_shift_wish(
                 "type": wish.type,
                 "rejection_reason": body.rejection_reason,
             },
+            push_url="/employee-view",
+            push_tag="wish_rejected",
         )
 
     return wish

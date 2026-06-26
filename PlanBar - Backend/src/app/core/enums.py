@@ -36,3 +36,8 @@ class NotificationType(str, Enum):
     WISH_REJECTED = "wish_rejected"
     SCHEDULE_PUBLISHED = "schedule_published"
     SHIFT_CHANGED = "shift_changed"
+
+
+class PushDeviceType(str, Enum):
+    WEB = "web"
+    MOBILE = "mobile"

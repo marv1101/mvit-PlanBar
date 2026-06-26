@@ -25,5 +25,9 @@ class Settings(BaseSettings):
     environment: str = Field("development")
     timezone: str = Field("UTC")
 
+    vapid_private_key: str | None = Field(None)
+    vapid_public_key: str | None = Field(None)
+    vapid_claim_email: str = Field("mailto:admin@mphion.de")
+
 
 settings = Settings()

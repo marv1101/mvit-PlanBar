@@ -12,7 +12,7 @@ from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
 from app.services import audit_service
 from app.services.arbzg_validator import ArbZgResult, validate_schedule
-from app.services.notification_service import create_notification
+from app.services.notification_service import create_notification_and_push
 from app.services.tito_proxy import tito_proxy
 
 logger = logging.getLogger(__name__)
@@ -83,13 +83,15 @@ def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate, actor
         for sp in shiftplans:
             employee = db.query(Employee).filter(Employee.id == sp.employee_id).first()
             if employee and employee.user_id and employee.user_id not in notified_user_ids:
-                create_notification(
+                create_notification_and_push(
                     db=db,
                     user_id=employee.user_id,
                     notification_type="schedule_published",
                     title="Dienstplan veröffentlicht",
                     message=f'Der Dienstplan "{schedule.name}" wurde veröffentlicht. Bitte überprüfe deine Schichten.',
                     data={"schedule_id": schedule.id, "schedule_name": schedule.name},
+                    push_url="/employee-view",
+                    push_tag="schedule_published",
                 )
                 notified_user_ids.add(employee.user_id)
 
