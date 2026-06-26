@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { RouterProvider } from 'react-router';
 import { router } from './routes';
 import { AppProvider } from './context/AppContext';
@@ -7,9 +8,16 @@ import { Toaster } from './components/ui/sonner';
 import { Login } from './pages/Login';
 import { ChangePasswordDialog } from './components/ChangePasswordDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { initPushState } from './services/pushService';
 
 function AppContent() {
   const { user, isLoading, mustChangePassword } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      initPushState();
+    }
+  }, [user]);
 
   if (isLoading) {
     return (

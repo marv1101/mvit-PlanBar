@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router';
 import { Calendar, Users, ClipboardList, LayoutDashboard, UserCog, Eye, LogOut, User, UserPlus, Menu, X, Clock, MessageSquare } from 'lucide-react';
+import { PushBell } from './PushBell';
 import { cn } from './ui/utils';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
@@ -77,6 +78,7 @@ export function Layout() {
               <h1 className="font-semibold text-xl truncate">MVIT PlanBar</h1>
             </div>
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+              <PushBell />
               <div className="hidden sm:flex items-center gap-2 text-sm text-gray-700">
                 <User className="h-4 w-4" />
                 <span className="truncate max-w-[120px]">{user?.name}</span>
