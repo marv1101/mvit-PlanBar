@@ -100,6 +100,8 @@
     "undici": "7.28.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["msw"]
+    "onlyBuiltDependencies": [
+      "msw"
+    ]
   }
 }
