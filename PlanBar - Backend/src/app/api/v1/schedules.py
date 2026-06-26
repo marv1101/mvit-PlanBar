@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.v1.requests import ShiftWishResponse
 from app.core.exceptions import NotFoundException
+from app.core.versioning import ConflictError, compute_etag, detect_conflict
 from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.employee import Employee
 from app.db.models.schedule import Shiftplan
@@ -75,10 +76,26 @@ def update_schedule_endpoint(
     data: ScheduleUpdate,
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
+    if_match: str | None = Header(None, alias="If-Match"),
 ):
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
+
+    schedule_etag = compute_etag({
+        "name": schedule.name,
+        "status": schedule.status,
+        "week_type": schedule.week_type,
+        "updated_at": str(schedule.updated_at),
+    })
+    try:
+        detect_conflict(schedule.updated_at, if_match, schedule_etag)
+    except ConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Schedule was modified by another user. Please refresh and try again.",
+        )
+
     return update_schedule(db, schedule, data, actor_id=admin.id)
 
 

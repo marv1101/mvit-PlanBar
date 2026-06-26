@@ -1,12 +1,13 @@
 from datetime import date, datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.enums import NotificationType, WishStatus
 from app.core.exceptions import NotFoundException
+from app.core.versioning import ConflictError, compute_etag, detect_conflict
 from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
@@ -111,10 +112,26 @@ def update_shift_wish(
     data: ShiftWishUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    if_match: str | None = Header(None, alias="If-Match"),
 ):
     wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
     if not wish:
         raise NotFoundException(detail="Shift wish not found")
+
+    wish_etag = compute_etag({
+        "date": str(wish.date),
+        "type": wish.type,
+        "status": wish.status,
+        "updated_at": str(wish.updated_at),
+    })
+    try:
+        detect_conflict(wish.updated_at, if_match, wish_etag)
+    except ConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Shift wish was modified by another user. Please refresh and try again.",
+        )
+
     if current_user.employee_id != wish.employee_id and current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

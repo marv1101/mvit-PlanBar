@@ -18,6 +18,7 @@ from app.middleware.error_handler import (
 )
 from app.middleware.csrf import CsrfMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
+from app.middleware.cache_control import CacheControlMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.middleware.security_headers import (
     HttpsRedirectMiddleware,
@@ -86,6 +87,7 @@ def create_app() -> FastAPI:
         ],
     )
     app.add_middleware(CsrfMiddleware)
+    app.add_middleware(CacheControlMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware, max_size=10 * 1024 * 1024)
     app.include_router(api_router, prefix="/api/v1")
