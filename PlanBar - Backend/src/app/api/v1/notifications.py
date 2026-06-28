@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_current_user, get_db
 from app.db.models.notification import Notification
 from app.db.models.user import User
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services.notification_service import (
     get_user_notifications,
     get_unread_count,
@@ -15,9 +16,6 @@ from app.services.notification_service import (
 )
 
 router = APIRouter()
-
-
-from app.schemas.pagination import PaginatedResponse, PaginationParams
 
 
 class NotificationResponse(BaseModel):

@@ -4,7 +4,6 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.models.audit_log import AuditLog
-from app.schemas.pagination import PaginatedResponse
 
 
 def log(

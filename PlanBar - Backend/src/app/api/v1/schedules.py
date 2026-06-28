@@ -329,7 +329,7 @@ def get_pending_wishes(
 @router.get("/{schedule_id}/wishes", response_model=PaginatedResponse[ShiftWishResponse])
 def get_wishes_by_status(
     schedule_id: int,
-    status: str = Query(default="approved", regex="^(pending|approved|rejected)$"),
+    status: str = Query(default="approved", pattern="^(pending|approved|rejected)$"),
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
     pagination: PaginationParams = Depends(),

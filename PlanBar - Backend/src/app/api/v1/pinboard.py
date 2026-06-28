@@ -29,6 +29,7 @@ from app.dependencies import get_current_user, get_db
 from app.db.models.pinboard import PinboardThread, PinboardMessage, PinboardDocument
 from app.db.models.user import User
 from app.db.database import SessionLocal
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +64,6 @@ MAX_WS_CONNECTIONS_PER_USER = 5
 WS_HEARTBEAT_INTERVAL = 30
 WS_HEARTBEAT_TIMEOUT = 60
 WS_IDLE_TIMEOUT = 300
-
-
-from app.schemas.pagination import PaginatedResponse, PaginationParams
 
 
 class ThreadCreate(BaseModel):
@@ -300,7 +298,9 @@ def list_messages(
         raise NotFoundException(detail="Thread not found")
     all_messages = thread.messages or []
     total = len(all_messages)
-    items = [_message_to_response(msg) for msg in all_messages[pagination.offset : pagination.offset + pagination.limit]]
+    items = [
+        _message_to_response(msg) for msg in all_messages[pagination.offset : pagination.offset + pagination.limit]
+    ]
     return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
