@@ -41,16 +41,18 @@ async function withStore<T>(name: StoreName, mode: IDBTransactionMode, callback:
     const store = tx.objectStore(name);
     const result = callback(store);
 
-    tx.oncomplete = () => {
-      if (Array.isArray(result)) {
-        Promise.all(result.map(r => new Promise((res, rej) => {
+    const resultReady = Array.isArray(result)
+      ? Promise.all(result.map(r => new Promise((res, rej) => {
           r.onsuccess = () => res(r.result);
           r.onerror = () => rej(r.error);
-        }))).then(r => resolve(r as T)).catch(reject);
-      } else {
-        result.onsuccess = () => resolve(result.result);
-        result.onerror = () => reject(result.error);
-      }
+        })))
+      : new Promise<T>((res, rej) => {
+          result.onsuccess = () => res(result.result);
+          result.onerror = () => rej(result.error);
+        });
+
+    tx.oncomplete = () => {
+      resultReady.then(resolve).catch(reject);
       db.close();
     };
     tx.onerror = () => {
