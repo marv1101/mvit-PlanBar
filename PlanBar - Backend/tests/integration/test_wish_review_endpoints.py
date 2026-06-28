@@ -135,8 +135,9 @@ def test_get_pending_wishes_for_schedule(client, auth_headers, db_session):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 2
-    for wish in data:
+    items = data["items"]
+    assert len(items) == 2
+    for wish in items:
         assert wish["status"] == "pending"
 
 

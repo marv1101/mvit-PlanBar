@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -34,6 +34,7 @@ export function PinboardPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [deleteThreadId, setDeleteThreadId] = useState<string | null>(null);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const loadThreads = useCallback(async () => {
     setLoading(true);
@@ -50,7 +51,11 @@ export function PinboardPage() {
   }, []);
 
   useEffect(() => {
-    loadThreads();
+    let mounted = true;
+    loadThreads().then(() => {
+      if (!mounted) return;
+    });
+    return () => { mounted = false; };
   }, [loadThreads]);
 
   const loadThread = useCallback(async (id: number) => {
@@ -63,7 +68,8 @@ export function PinboardPage() {
   }, []);
 
   const handleCreateThread = async () => {
-    if (!newThreadTitle.trim()) return;
+    if (!newThreadTitle.trim() || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     try {
       const data = await pinboardService.createThread({ title: newThreadTitle.trim() });
       const thread = pinboardThreadFromResponse(data);
@@ -73,11 +79,14 @@ export function PinboardPage() {
       toast.success('Thread erstellt');
     } catch {
       toast.error('Fehler beim Erstellen des Threads');
+    } finally {
+      isSubmittingRef.current = false;
     }
   };
 
   const handleDeleteThread = async () => {
-    if (!deleteThreadId) return;
+    if (!deleteThreadId || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     try {
       await pinboardService.deleteThread(Number(deleteThreadId));
       setThreads(prev => prev.filter(t => t.id !== deleteThreadId));
@@ -88,11 +97,14 @@ export function PinboardPage() {
       toast.success('Thread gelöscht');
     } catch {
       toast.error('Fehler beim Löschen des Threads');
+    } finally {
+      isSubmittingRef.current = false;
     }
   };
 
   const handleSendMessage = async () => {
-    if (!newMessageContent.trim() || !selectedThread) return;
+    if (!newMessageContent.trim() || !selectedThread || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setSendingMessage(true);
     try {
       const data = await pinboardService.createMessage(Number(selectedThread.id), {
@@ -107,6 +119,7 @@ export function PinboardPage() {
     } catch {
       toast.error('Fehler beim Senden der Nachricht');
     } finally {
+      isSubmittingRef.current = false;
       setSendingMessage(false);
     }
   };
@@ -236,6 +249,7 @@ export function PinboardPage() {
                 value={newThreadTitle}
                 onChange={e => setNewThreadTitle(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleCreateThread()}
+                maxLength={255}
               />
               <Button onClick={handleCreateThread} className="w-full">
                 <Plus className="h-4 w-4 mr-2" />
@@ -348,6 +362,21 @@ function ThreadView({
   const [uploadingFile, setUploadingFile] = useState(false);
 
   const handleFileUpload = async (messageId: string, file: File) => {
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('Datei zu groß. Maximale Größe ist 10 MB.');
+      return;
+    }
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf',
+      'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain',
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Dateityp nicht erlaubt.');
+      return;
+    }
     setUploadingFile(true);
     try {
       const doc = await pinboardService.uploadDocument(Number(messageId), file);
@@ -411,6 +440,7 @@ function ThreadView({
                 }
               }}
               className="min-h-[60px]"
+              maxLength={5000}
             />
             <div className="flex flex-col gap-2">
               <Button

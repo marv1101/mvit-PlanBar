@@ -204,7 +204,7 @@ def update_shiftplan(
     shiftplan_id: int,
     data: ShiftplanUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
     shiftplan = (
         db.query(Shiftplan)
@@ -267,12 +267,12 @@ def replace_all_shifts_endpoint(
     schedule_id: int,
     data: ShiftplanBatchReplace,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
     schedule = get_schedule_by_id(db, schedule_id)
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
-    schedule, arbzg_result = replace_all_shifts(db, schedule, data.shiftplans, actor_id=current_user.id)
+    schedule, arbzg_result = replace_all_shifts(db, schedule, data.shiftplans, actor_id=admin.id)
     warnings = [
         ArbZgViolationResponse(
             rule=v.rule,

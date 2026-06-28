@@ -1,3 +1,4 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictException, NotFoundException
@@ -14,12 +15,13 @@ def list_roles(db: Session, offset: int = 0, limit: int | None = None) -> list[R
 
 
 def create_role(db: Session, data: RoleCreate, actor_id: int | None = None) -> Role:
-    existing = db.query(Role).filter(Role.name == data.name).first()
-    if existing:
-        raise ConflictException(detail="Role with this name already exists")
     role = Role(name=data.name, color=data.color, permissions=data.permissions)
     db.add(role)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise ConflictException(detail="Role with this name already exists")
     db.refresh(role)
     audit_service.log_create(db, user_id=actor_id, resource_type="role", resource_id=str(role.id))
     return role
@@ -35,16 +37,17 @@ def update_role(
     if not role:
         raise NotFoundException(detail="Role not found")
     if data.name is not None:
-        existing = db.query(Role).filter(Role.name == data.name, Role.id != role_id).first()
-        if existing:
-            raise ConflictException(detail="Role with this name already exists")
         role.name = data.name
     if data.color is not None:
         role.color = data.color
     if data.permissions is not None:
         role.permissions = data.permissions
     db.add(role)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise ConflictException(detail="Role with this name already exists")
     db.refresh(role)
     audit_service.log_update(db, user_id=actor_id, resource_type="role", resource_id=str(role.id))
     return role

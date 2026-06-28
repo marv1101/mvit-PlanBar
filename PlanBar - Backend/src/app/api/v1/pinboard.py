@@ -180,6 +180,9 @@ def _validate_magic_bytes(content: bytes, ext: str):
         ".gif": [(b"GIF87a", 0), (b"GIF89a", 0)],
         ".webp": [(b"RIFF", 0), (b"WEBP", 8)],
         ".pdf": [(b"%PDF", 0)],
+        ".docx": [(b"PK\x03\x04", 0)],
+        ".xlsx": [(b"PK\x03\x04", 0)],
+        ".doc": [(b"\xd0\xcf\x11\xe0", 0)],
     }
     if ext not in MAGIC_PATTERNS:
         return
@@ -603,8 +606,8 @@ async def websocket_endpoint(
         try:
             payload = verify_token(token_str)
             user_id = int(payload.get("sub", 0))
-        except (ValueError, Exception) as e:
-            logger.warning(f"WebSocket auth failed: invalid token - {e}")
+        except (ValueError, Exception):
+            logger.warning("WebSocket auth failed: invalid token")
             await websocket.close(code=4001, reason="Invalid token")
             return
 

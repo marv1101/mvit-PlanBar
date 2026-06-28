@@ -90,10 +90,9 @@ class TestQuery:
             audit_service.log(db_session, user_id=None, action="TEST", resource_type="test")
         items, pagination = audit_service.query(db_session)
         assert len(items) == 20
-        assert pagination.total == 25
-        assert pagination.page == 1
-        assert pagination.page_size == 20
-        assert pagination.total_pages == 2
+        assert pagination["total"] == 25
+        assert pagination["offset"] == 0
+        assert pagination["limit"] == 20
 
     def test_query_with_user_filter(self, db_session):
         audit_service.log(db_session, user_id=1, action="TEST", resource_type="test")

@@ -9,7 +9,7 @@ from app.schemas.role import RoleCreate, RoleUpdate
 from app.services.role_service import (
     create_role,
     delete_role,
-    get_roles,
+    list_roles,
     update_role,
 )
 
@@ -24,12 +24,12 @@ def db_session():
     session.close()
 
 
-def test_get_roles_empty(db_session):
-    roles = get_roles(db_session)
+def test_list_roles_empty(db_session):
+    roles = list_roles(db_session)
     assert roles == []
 
 
-def test_get_roles_returns_ordered(db_session):
+def test_list_roles_returns_ordered(db_session):
     db_session.add_all(
         [
             Role(name="zebra", color="#ff0000"),
@@ -37,7 +37,7 @@ def test_get_roles_returns_ordered(db_session):
         ]
     )
     db_session.commit()
-    roles = get_roles(db_session)
+    roles = list_roles(db_session)
     assert [r.name for r in roles] == ["alpha", "zebra"]
 
 
@@ -77,7 +77,7 @@ def test_update_role_duplicate_name_raises(db_session):
 def test_delete_role(db_session):
     role = create_role(db_session, RoleCreate(name="to_delete"))
     delete_role(db_session, role.id)
-    assert get_roles(db_session) == []
+    assert list_roles(db_session) == []
 
 
 def test_delete_role_not_found_raises(db_session):

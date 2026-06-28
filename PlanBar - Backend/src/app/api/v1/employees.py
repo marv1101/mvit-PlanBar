@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
@@ -44,13 +44,23 @@ from app.services.tito_callback import _calc_effective_hours
 router = APIRouter()
 
 
+def _check_employee_access(current_user: User, employee_id: int) -> None:
+    if current_user.role == "admin":
+        return
+    if current_user.employee_id != employee_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized",
+        )
+
+
 @router.post("", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)
 def create_employee_endpoint(
     data: EmployeeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
-    return create_employee(db, data, actor_id=current_user.id)
+    return create_employee(db, data, actor_id=admin.id)
 
 
 @router.get("", response_model=PaginatedResponse[EmployeeResponse])
@@ -59,8 +69,13 @@ def list_employees_endpoint(
     current_user: User = Depends(get_current_user),
     pagination: PaginationParams = Depends(),
 ):
-    total = db.query(Employee).count()
-    items = list_employees(db, offset=pagination.offset, limit=pagination.limit)
+    if current_user.role == "admin":
+        total = db.query(Employee).count()
+        items = list_employees(db, offset=pagination.offset, limit=pagination.limit)
+    else:
+        query = db.query(Employee).filter(Employee.id == current_user.employee_id)
+        total = query.count()
+        items = query.offset(pagination.offset).limit(pagination.limit).all()
     return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
@@ -85,6 +100,7 @@ def get_employee_endpoint(
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
+    _check_employee_access(current_user, employee_id)
     return employee
 
 
@@ -98,6 +114,7 @@ def update_employee_endpoint(
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
+    _check_employee_access(current_user, employee_id)
     return update_employee(db, employee, data, actor_id=current_user.id)
 
 
@@ -120,9 +137,9 @@ contract_router = APIRouter()
 def create_contract_endpoint(
     data: ContractCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
-    return create_contract(db, data, actor_id=current_user.id)
+    return create_contract(db, data, actor_id=admin.id)
 
 
 @contract_router.get("", response_model=PaginatedResponse[ContractResponse])
@@ -131,8 +148,13 @@ def list_contracts_endpoint(
     current_user: User = Depends(get_current_user),
     pagination: PaginationParams = Depends(),
 ):
-    total = db.query(Contract).count()
-    items = list_contracts(db, offset=pagination.offset, limit=pagination.limit)
+    if current_user.role == "admin":
+        total = db.query(Contract).count()
+        items = list_contracts(db, offset=pagination.offset, limit=pagination.limit)
+    else:
+        query = db.query(Contract).join(Employee).filter(Employee.id == current_user.employee_id)
+        total = query.count()
+        items = query.offset(pagination.offset).limit(pagination.limit).all()
     return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
@@ -145,6 +167,7 @@ def get_contract_endpoint(
     contract = get_contract_by_id(db, contract_id)
     if not contract:
         raise NotFoundException(detail="Contract not found")
+    _check_employee_access(current_user, contract.employee_id)
     return contract
 
 
@@ -158,6 +181,7 @@ def update_contract_endpoint(
     contract = get_contract_by_id(db, contract_id)
     if not contract:
         raise NotFoundException(detail="Contract not found")
+    _check_employee_access(current_user, contract.employee_id)
     return update_contract(db, contract, data, actor_id=current_user.id)
 
 
@@ -168,9 +192,9 @@ timecard_router = APIRouter()
 def create_timecard_endpoint(
     data: TimecardCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
-    return create_timecard(db, data, actor_id=current_user.id)
+    return create_timecard(db, data, actor_id=admin.id)
 
 
 @timecard_router.get("", response_model=PaginatedResponse[TimecardResponse])
@@ -179,8 +203,13 @@ def list_timecards_endpoint(
     current_user: User = Depends(get_current_user),
     pagination: PaginationParams = Depends(),
 ):
-    total = db.query(Timecard).count()
-    items = list_timecards(db, offset=pagination.offset, limit=pagination.limit)
+    if current_user.role == "admin":
+        total = db.query(Timecard).count()
+        items = list_timecards(db, offset=pagination.offset, limit=pagination.limit)
+    else:
+        query = db.query(Timecard).join(Employee).filter(Employee.id == current_user.employee_id)
+        total = query.count()
+        items = query.offset(pagination.offset).limit(pagination.limit).all()
     return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
@@ -193,6 +222,7 @@ def get_timecard_endpoint(
     timecard = get_timecard_by_id(db, timecard_id)
     if not timecard:
         raise NotFoundException(detail="Timecard not found")
+    _check_employee_access(current_user, timecard.employee_id)
     return timecard
 
 
@@ -206,6 +236,7 @@ def update_timecard_endpoint(
     timecard = get_timecard_by_id(db, timecard_id)
     if not timecard:
         raise NotFoundException(detail="Timecard not found")
+    _check_employee_access(current_user, timecard.employee_id)
     return update_timecard(db, timecard, data, actor_id=current_user.id)
 
 
@@ -288,6 +319,7 @@ def get_employee_time_account(
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
+    _check_employee_access(current_user, employee_id)
     return _build_time_account_response(employee, db)
 
 
@@ -312,6 +344,7 @@ def adjust_employee_time_account(
             Timecard.employee_id == employee_id,
         )
         .order_by(Timecard.year.desc(), Timecard.week.desc())
+        .with_for_update()
         .first()
     )
 

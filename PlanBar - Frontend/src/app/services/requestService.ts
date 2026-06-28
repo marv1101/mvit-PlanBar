@@ -72,6 +72,6 @@ export async function getPendingShiftWishes(scheduleId: number, offset?: number,
 }
 
 export async function getWishesByStatus(scheduleId: number, status: string = 'approved', offset?: number, limit?: number): Promise<PaginatedResponse<ShiftWishResponseDTO>> {
-  const { data } = await api.get(`/schedules/${scheduleId}/wishes?status=${status}`, { params: { offset, limit } });
+  const { data } = await api.get(`/schedules/${scheduleId}/wishes`, { params: { status, offset, limit } });
   return data;
 }

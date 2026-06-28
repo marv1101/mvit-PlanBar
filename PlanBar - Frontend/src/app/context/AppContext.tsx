@@ -92,7 +92,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refresh();
+    let mounted = true;
+    refresh().then(() => {
+      if (!mounted) return;
+    });
+    return () => { mounted = false; };
   }, [refresh]);
 
   const addEmployee = useCallback((employee: Employee) => {

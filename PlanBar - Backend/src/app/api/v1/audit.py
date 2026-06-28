@@ -18,6 +18,14 @@ from app.services import audit_service
 router = APIRouter()
 
 
+def _csv_escape(value: str | None) -> str:
+    if value is None:
+        return ""
+    if value and value[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
 @router.get("/audit-logs/suspicious", response_model=list[SuspiciousPatternResponse])
 def get_suspicious_patterns(
     db: Session = Depends(get_db),
@@ -67,10 +75,10 @@ def export_audit_logs(
                 entry.user_id,
                 entry.action,
                 entry.resource_type,
-                entry.resource_id,
-                entry.details,
-                entry.ip_address,
-                entry.user_agent,
+                _csv_escape(entry.resource_id),
+                _csv_escape(entry.details),
+                _csv_escape(entry.ip_address),
+                _csv_escape(entry.user_agent),
                 entry.created_at.isoformat(),
             ]
         )

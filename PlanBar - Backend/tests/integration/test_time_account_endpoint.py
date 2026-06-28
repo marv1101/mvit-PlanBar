@@ -243,14 +243,15 @@ def test_get_all_time_accounts_batch(client, auth_headers, db_session):
     resp = client.get("/api/v1/employees/time-accounts", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) >= 2
+    items = data["items"]
+    assert len(items) >= 2
 
-    emp1_data = next(e for e in data if e["employee_id"] == emp1_id)
+    emp1_data = next(e for e in items if e["employee_id"] == emp1_id)
     assert emp1_data["current_balance"] == -2.0
     assert len(emp1_data["history"]) == 1
     assert emp1_data["history"][0] == _entry(22, 2026, 38.0, 40.0, -2.0, -2.0)
 
-    emp2_data = next(e for e in data if e["employee_id"] == emp2_id)
+    emp2_data = next(e for e in items if e["employee_id"] == emp2_id)
     assert emp2_data["current_balance"] == 2.0
     assert len(emp2_data["history"]) == 1
 

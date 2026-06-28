@@ -60,7 +60,7 @@ class UserUpdate(BaseModel):
     username: Optional[str] = Field(None, min_length=3, max_length=64)
     email: Optional[EmailStr] = None
     password: Optional[str] = Field(None, min_length=8)
-    role: Optional[str] = None
+    role: Optional[str] = Field(None, pattern=r"^(admin|user)$")
 
     @field_validator("password")
     @classmethod

@@ -128,6 +128,10 @@ export function ScheduleCreateForm({
       toast.error('Bitte Name, Start- und Enddatum eingeben');
       return;
     }
+    if (startDate > endDate) {
+      toast.error('Startdatum darf nicht nach dem Enddatum liegen');
+      return;
+    }
     if (shiftTemplates.length === 0 || shiftTemplates.some(st => !st.name || !st.startTime || !st.endTime)) {
       toast.error('Bitte mindestens ein vollständiges Schicht-Template definieren');
       return;
@@ -183,6 +187,10 @@ export function ScheduleCreateForm({
   const createManual = async () => {
     if (!manualName || !manualStartDate || !manualEndDate) {
       toast.error('Bitte Name, Start- und Enddatum eingeben');
+      return;
+    }
+    if (manualStartDate > manualEndDate) {
+      toast.error('Startdatum darf nicht nach dem Enddatum liegen');
       return;
     }
     try {
@@ -507,6 +515,7 @@ export function ScheduleCreateForm({
                 onChange={(e) => setScheduleName(e.target.value)}
                 placeholder="z.B. April 2026"
                 disabled={submitting}
+                maxLength={100}
               />
             </div>
 
@@ -611,8 +620,9 @@ export function ScheduleCreateForm({
                             <Input
                               type="number"
                               min="0"
+                              max="999"
                               value={st.requirements[role.id] || 0}
-                              onChange={(e) => updateRequirement(index, role.id, parseInt(e.target.value) || 0)}
+                              onChange={(e) => updateRequirement(index, role.id, Math.min(999, Math.max(0, parseInt(e.target.value) || 0)))}
                               className="w-16 h-8 text-xs"
                               disabled={submitting}
                             />
@@ -669,6 +679,7 @@ export function ScheduleCreateForm({
                 value={manualName}
                 onChange={(e) => setManualName(e.target.value)}
                 placeholder="z.B. April 2026 (manuell)"
+                maxLength={100}
               />
             </div>
 

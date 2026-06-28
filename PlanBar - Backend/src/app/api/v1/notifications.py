@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
+from app.db.models.notification import Notification
 from app.db.models.user import User
 from app.services.notification_service import (
     get_user_notifications,
@@ -86,7 +87,7 @@ def mark_notification_read(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    notification = mark_as_read(db, notification_id)
+    notification = db.query(Notification).filter(Notification.id == notification_id).first()
     if not notification:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -97,6 +98,7 @@ def mark_notification_read(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
         )
+    notification = mark_as_read(db, notification_id)
     return {
         "id": notification.id,
         "user_id": notification.user_id,

@@ -109,7 +109,10 @@ def delete_schedule(db: Session, schedule: Schedule, actor_id: int | None = None
 
 async def submit_schedule_to_tito(db: Session, schedule: Schedule, callback_url: str | None = None) -> Schedule:
     employees = db.query(Employee).all()
-    shift_wishes = db.query(ShiftWish).all()
+    shift_wishes = db.query(ShiftWish).filter(
+        ShiftWish.date >= schedule.start_date,
+        ShiftWish.date <= schedule.end_date,
+    ).all()
 
     pending = [w for w in shift_wishes if w.status == "pending"]
     if pending:

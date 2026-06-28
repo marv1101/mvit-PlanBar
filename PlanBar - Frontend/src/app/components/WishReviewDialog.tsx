@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
@@ -24,22 +24,28 @@ export function WishReviewDialog({ scheduleId, open, onOpenChange, onComplete, o
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
+  const isProcessingRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
 
+    let mounted = true;
     setLoading(true);
     requestService.getPendingShiftWishes(scheduleId)
       .then(res => {
+        if (!mounted) return;
         setWishes(res.items.map(requestFromResponse));
       })
       .catch(() => {
+        if (!mounted) return;
         toast.error('Fehler beim Laden der ausstehenden Wünsche');
         setWishes([]);
       })
       .finally(() => {
-        setLoading(false);
+        if (mounted) setLoading(false);
       });
+
+    return () => { mounted = false; };
   }, [scheduleId, open]);
 
   const getEmployeeName = (employeeId: string) => {
@@ -48,6 +54,8 @@ export function WishReviewDialog({ scheduleId, open, onOpenChange, onComplete, o
   };
 
   const handleApprove = async (wishId: string) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
     setProcessingId(wishId);
     try {
       await requestService.approveShiftWish(Number(wishId));
@@ -56,11 +64,14 @@ export function WishReviewDialog({ scheduleId, open, onOpenChange, onComplete, o
     } catch {
       toast.error('Fehler beim Freigeben des Wunsches');
     } finally {
+      isProcessingRef.current = false;
       setProcessingId(null);
     }
   };
 
   const handleReject = async (wishId: string) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
     setProcessingId(wishId);
     try {
       await requestService.rejectShiftWish(Number(wishId), rejectReasons[wishId]);
@@ -70,6 +81,7 @@ export function WishReviewDialog({ scheduleId, open, onOpenChange, onComplete, o
     } catch {
       toast.error('Fehler beim Ablehnen des Wunsches');
     } finally {
+      isProcessingRef.current = false;
       setProcessingId(null);
     }
   };
@@ -145,6 +157,7 @@ export function WishReviewDialog({ scheduleId, open, onOpenChange, onComplete, o
                           placeholder="Grund (optional)"
                           value={rejectReasons[wish.id] || ''}
                           onChange={e => setRejectReasons(prev => ({ ...prev, [wish.id]: e.target.value }))}
+                          maxLength={500}
                         />
                         <Button
                           size="sm"

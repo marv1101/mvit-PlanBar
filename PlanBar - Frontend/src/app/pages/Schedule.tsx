@@ -36,9 +36,11 @@ export function Schedule() {
   useEffect(() => {
     if (!currentScheduleId || currentScheduleStatus !== 'submitted') return;
 
+    let mounted = true;
     const interval = setInterval(async () => {
       try {
         const res = await scheduleService.getSchedule(Number(currentScheduleId));
+        if (!mounted) return;
         setCurrentScheduleStatus(res.status);
         if (res.status === 'completed') {
           clearInterval(interval);
@@ -57,12 +59,16 @@ export function Schedule() {
         }
       } catch {
         clearInterval(interval);
+        if (!mounted) return;
         setSubmitting(false);
         toast.error('Fehler beim Abrufen des Status');
       }
     }, 3000);
 
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [currentScheduleId, currentScheduleStatus, refresh]);
 
   const handleWishReviewComplete = () => {

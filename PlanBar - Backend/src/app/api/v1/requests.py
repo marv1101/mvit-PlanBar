@@ -85,6 +85,8 @@ def list_shift_wishes(
     status: Optional[str] = Query(None),
 ):
     query = db.query(ShiftWish)
+    if current_user.role != "admin":
+        query = query.filter(ShiftWish.employee_id == current_user.employee_id)
     if status:
         query = query.filter(ShiftWish.status == status)
     total = query.count()
@@ -101,6 +103,11 @@ def get_shift_wish(
     wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
     if not wish:
         raise NotFoundException(detail="Shift wish not found")
+    if current_user.role != "admin" and wish.employee_id != current_user.employee_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized",
+        )
     return wish
 
 
