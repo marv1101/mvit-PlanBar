@@ -1,6 +1,5 @@
 """Integration tests for push notification subscription endpoints."""
 
-import json
 
 
 def _clean_push_subscriptions(db_session):
