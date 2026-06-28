@@ -221,3 +221,28 @@ export interface PinboardThreadDetail {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface ShiftSwap {
+  id: string;
+  employeeId: string;
+  requesterShiftId: string;
+  targetEmployeeId: string;
+  targetShiftId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  note?: string;
+  rejectionReason?: string | null;
+  createdAt: string;
+}
+
+export interface AvailabilityEntry {
+  dayOfWeek: number;
+  available: boolean;
+  note?: string;
+}
+
+export interface AvailabilityRecord extends AvailabilityEntry {
+  id: string;
+  employeeId: string;
+}
+
+export type SelfServiceTab = 'schedule' | 'shift-swap' | 'vacation' | 'availability';
