@@ -20,7 +20,7 @@ function openDB(): Promise<IDBDatabase> {
     request.onupgradeneeded = () => {
       const db = request.result;
       for (const [name, config] of Object.entries(STORES)) {
-        if (!db.objectStoreNames.contains(name)) {
+        if (!Array.from(db.objectStoreNames).includes(name)) {
           const store = db.createObjectStore(name, { keyPath: config.keyPath });
           for (const idx of config.indexes || []) {
             store.createIndex(idx, idx, { unique: false });
