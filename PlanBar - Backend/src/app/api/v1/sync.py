@@ -239,24 +239,34 @@ def sync_actions(
             result = _apply_action(action, db, current_user)
             results.append({"resource": action.resource, "action": action.action, "success": True, "data": result})
         except ConflictError as e:
-            errors.append({
-                "resource": action.resource,
-                "action": action.action,
-                "success": False,
-                "error": str(e),
-                "conflict": True,
-            })
+            errors.append(
+                {
+                    "resource": action.resource,
+                    "action": action.action,
+                    "success": False,
+                    "error": str(e),
+                    "conflict": True,
+                }
+            )
         except HTTPException:
             raise
         except Exception as e:
-            errors.append({
-                "resource": action.resource,
-                "action": action.action,
-                "success": False,
-                "error": str(e),
-            })
+            errors.append(
+                {
+                    "resource": action.resource,
+                    "action": action.action,
+                    "success": False,
+                    "error": str(e),
+                }
+            )
 
-    return {"results": results, "errors": errors, "total": len(batch.actions), "synced": len(results), "failed": len(errors)}
+    return {
+        "results": results,
+        "errors": errors,
+        "total": len(batch.actions),
+        "synced": len(results),
+        "failed": len(errors),
+    }
 
 
 def _apply_action(action: ActionPayload, db: Session, current_user: User) -> dict[str, Any]:
@@ -354,7 +364,18 @@ def _apply_action(action: ActionPayload, db: Session, current_user: User) -> dic
             if not shift:
                 raise HTTPException(status_code=404, detail="Shift not found")
 
-            for field in ["employee_id", "date", "shift_id", "start_time", "end_time", "week", "break_start", "break_end", "label", "notes"]:
+            for field in [
+                "employee_id",
+                "date",
+                "shift_id",
+                "start_time",
+                "end_time",
+                "week",
+                "break_start",
+                "break_end",
+                "label",
+                "notes",
+            ]:
                 if field in data:
                     setattr(shift, field, data[field])
             db.commit()

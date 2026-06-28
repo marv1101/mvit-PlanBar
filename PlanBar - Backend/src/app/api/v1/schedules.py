@@ -82,12 +82,14 @@ def update_schedule_endpoint(
     if not schedule:
         raise NotFoundException(detail="Schedule not found")
 
-    schedule_etag = compute_etag({
-        "name": schedule.name,
-        "status": schedule.status,
-        "week_type": schedule.week_type,
-        "updated_at": str(schedule.updated_at),
-    })
+    schedule_etag = compute_etag(
+        {
+            "name": schedule.name,
+            "status": schedule.status,
+            "week_type": schedule.week_type,
+            "updated_at": str(schedule.updated_at),
+        }
+    )
     try:
         detect_conflict(schedule.updated_at, if_match, schedule_etag)
     except ConflictError:

@@ -47,6 +47,7 @@ def check_if_modified_since(if_modified_since: str | None, last_modified: dateti
 
 class ConflictError(Exception):
     """Raised when a resource has been modified by another party."""
+
     def __init__(self, message: str = "Conflict: resource was modified by another user"):
         self.message = message
         super().__init__(self.message)

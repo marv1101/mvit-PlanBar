@@ -118,12 +118,14 @@ def update_shift_wish(
     if not wish:
         raise NotFoundException(detail="Shift wish not found")
 
-    wish_etag = compute_etag({
-        "date": str(wish.date),
-        "type": wish.type,
-        "status": wish.status,
-        "updated_at": str(wish.updated_at),
-    })
+    wish_etag = compute_etag(
+        {
+            "date": str(wish.date),
+            "type": wish.type,
+            "status": wish.status,
+            "updated_at": str(wish.updated_at),
+        }
+    )
     try:
         detect_conflict(wish.updated_at, if_match, wish_etag)
     except ConflictError:
