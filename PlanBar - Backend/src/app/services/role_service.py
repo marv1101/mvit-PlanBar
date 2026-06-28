@@ -6,8 +6,11 @@ from app.schemas.role import RoleCreate, RoleUpdate
 from app.services import audit_service
 
 
-def get_roles(db: Session) -> list[Role]:
-    return db.query(Role).order_by(Role.name).all()
+def list_roles(db: Session, offset: int = 0, limit: int | None = None) -> list[Role]:
+    query = db.query(Role).order_by(Role.name)
+    if limit is not None:
+        query = query.offset(offset).limit(limit)
+    return query.all()
 
 
 def create_role(db: Session, data: RoleCreate, actor_id: int | None = None) -> Role:

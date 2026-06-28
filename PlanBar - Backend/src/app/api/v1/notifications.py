@@ -16,6 +16,9 @@ from app.services.notification_service import (
 router = APIRouter()
 
 
+from app.schemas.pagination import PaginatedResponse, PaginationParams
+
+
 class NotificationResponse(BaseModel):
     id: int
     user_id: int
@@ -38,14 +41,21 @@ def get_unread_notification_count(
     return {"count": count}
 
 
-@router.get("")
+@router.get("", response_model=PaginatedResponse[NotificationResponse])
 def list_notifications(
     unread_only: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    notifications = get_user_notifications(db, current_user.id, unread_only=unread_only)
-    return [
+    total_query = db.query(Notification).filter(Notification.user_id == current_user.id)
+    if unread_only:
+        total_query = total_query.filter(Notification.read == False)  # noqa: E712
+    total = total_query.count()
+    notifications = get_user_notifications(
+        db, current_user.id, unread_only=unread_only, offset=pagination.offset, limit=pagination.limit
+    )
+    items = [
         {
             "id": n.id,
             "user_id": n.user_id,
@@ -58,6 +68,7 @@ def list_notifications(
         }
         for n in notifications
     ]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.put("/read-all")

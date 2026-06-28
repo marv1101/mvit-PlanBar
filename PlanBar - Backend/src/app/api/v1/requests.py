@@ -87,9 +87,8 @@ def list_shift_wishes(
     query = db.query(ShiftWish)
     if status:
         query = query.filter(ShiftWish.status == status)
-    all_wishes = query.order_by(ShiftWish.date).all()
-    total = len(all_wishes)
-    items = all_wishes[pagination.offset : pagination.offset + pagination.limit]
+    total = query.count()
+    items = query.order_by(ShiftWish.date).offset(pagination.offset).limit(pagination.limit).all()
     return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 

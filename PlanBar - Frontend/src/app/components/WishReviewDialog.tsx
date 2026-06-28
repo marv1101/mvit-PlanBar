@@ -31,7 +31,7 @@ export function WishReviewDialog({ scheduleId, open, onOpenChange, onComplete, o
     setLoading(true);
     requestService.getPendingShiftWishes(scheduleId)
       .then(res => {
-        setWishes(res.map(requestFromResponse));
+        setWishes(res.items.map(requestFromResponse));
       })
       .catch(() => {
         toast.error('Fehler beim Laden der ausstehenden Wünsche');

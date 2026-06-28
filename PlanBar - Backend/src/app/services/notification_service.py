@@ -32,12 +32,17 @@ def get_user_notifications(
     db: Session,
     user_id: int,
     unread_only: bool = False,
+    offset: int = 0,
+    limit: int | None = None,
 ) -> list[Notification]:
     """Get notifications for a user, optionally filtered to unread only."""
     query = db.query(Notification).filter(Notification.user_id == user_id)
     if unread_only:
         query = query.filter(Notification.read == False)  # noqa: E712
-    return query.order_by(Notification.created_at.desc()).all()
+    query = query.order_by(Notification.created_at.desc())
+    if limit is not None:
+        query = query.offset(offset).limit(limit)
+    return query.all()
 
 
 def mark_as_read(db: Session, notification_id: int) -> Notification | None:

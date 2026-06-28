@@ -1,3 +1,11 @@
+export interface ArbZgWarning {
+  rule: string;
+  message: string;
+  employee_id: number;
+  shift_date: string | null;
+  details?: unknown;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;

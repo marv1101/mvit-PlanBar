@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, Navigate } from 'react-router';
 import { Layout } from './components/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { FullPageSpinner } from './components/FullPageSpinner';
@@ -109,6 +109,10 @@ export const router = createBrowserRouter([
       {
         path: 'privacy',
         element: <LazyPage><PrivacyPolicy /></LazyPage>,
+      },
+      {
+        path: '*',
+        element: <Navigate to="/" replace />,
       },
     ],
   },

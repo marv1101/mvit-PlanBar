@@ -35,8 +35,11 @@ def get_user_by_id(db: Session, user_id: int) -> User | None:
     return db.query(User).filter(User.id == user_id).first()
 
 
-def list_users(db: Session) -> list[User]:
-    return db.query(User).order_by(User.id).all()
+def list_users(db: Session, offset: int = 0, limit: int | None = None) -> list[User]:
+    query = db.query(User).order_by(User.id)
+    if limit is not None:
+        query = query.offset(offset).limit(limit)
+    return query.all()
 
 
 def update_user(db: Session, user: User, user_update: UserUpdate, actor_id: int | None = None) -> User:

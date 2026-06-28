@@ -65,6 +65,9 @@ WS_HEARTBEAT_TIMEOUT = 60
 WS_IDLE_TIMEOUT = 300
 
 
+from app.schemas.pagination import PaginatedResponse, PaginationParams
+
+
 class ThreadCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
 
@@ -201,13 +204,22 @@ def _thread_to_detail_response(thread: PinboardThread) -> ThreadDetailResponse:
     )
 
 
-@router.get("/threads", response_model=list[ThreadResponse])
+@router.get("/threads", response_model=PaginatedResponse[ThreadResponse])
 def list_threads(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    threads = db.query(PinboardThread).order_by(PinboardThread.is_pinned.desc(), PinboardThread.updated_at.desc()).all()
-    return [_thread_to_response(t) for t in threads]
+    total = db.query(PinboardThread).count()
+    threads = (
+        db.query(PinboardThread)
+        .order_by(PinboardThread.is_pinned.desc(), PinboardThread.updated_at.desc())
+        .offset(pagination.offset)
+        .limit(pagination.limit)
+        .all()
+    )
+    items = [_thread_to_response(t) for t in threads]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.post("/threads", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED)
@@ -273,16 +285,20 @@ def delete_thread(
     db.commit()
 
 
-@router.get("/threads/{thread_id}/messages", response_model=list[MessageResponse])
+@router.get("/threads/{thread_id}/messages", response_model=PaginatedResponse[MessageResponse])
 def list_messages(
     thread_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
     thread = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
     if not thread:
         raise NotFoundException(detail="Thread not found")
-    return [_message_to_response(msg) for msg in (thread.messages or [])]
+    all_messages = thread.messages or []
+    total = len(all_messages)
+    items = [_message_to_response(msg) for msg in all_messages[pagination.offset : pagination.offset + pagination.limit]]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.post(

@@ -119,6 +119,7 @@ export function Schedule() {
             addSchedule={addSchedule}
             refresh={refresh}
             currentWeek={currentWeek}
+            setCurrentWeek={setCurrentWeek}
             submitting={submitting}
             pollResult={pollResult}
             currentScheduleId={currentScheduleId}

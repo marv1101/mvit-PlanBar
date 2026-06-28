@@ -4,7 +4,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.models.audit_log import AuditLog
-from app.utils.pagination import PaginationResponse, paginate
+from app.schemas.pagination import PaginatedResponse
 
 
 def log(
@@ -119,15 +119,15 @@ def log_access(
 
 def query(
     db: Session,
-    page: int = 1,
-    page_size: int = 20,
+    offset: int = 0,
+    limit: int = 20,
     user_id: int | None = None,
     action: str | None = None,
     resource_type: str | None = None,
     resource_id: str | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
-) -> tuple[list[AuditLog], PaginationResponse]:
+) -> tuple[list[AuditLog], dict]:
     q = db.query(AuditLog)
 
     if user_id is not None:
@@ -143,8 +143,11 @@ def query(
     if end_date is not None:
         q = q.filter(AuditLog.created_at <= end_date)
 
+    total = q.count()
     q = q.order_by(AuditLog.created_at.desc())
-    return paginate(q, page=page, page_size=page_size)
+    items = q.offset(offset).limit(limit).all()
+    pagination = {"total": total, "offset": offset, "limit": limit}
+    return items, pagination
 
 
 def get_suspicious_patterns(db: Session) -> list[dict]:

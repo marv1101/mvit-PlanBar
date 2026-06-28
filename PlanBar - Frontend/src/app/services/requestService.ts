@@ -66,12 +66,12 @@ export async function rejectShiftWish(id: number, rejectionReason?: string): Pro
   return data;
 }
 
-export async function getPendingShiftWishes(scheduleId: number): Promise<ShiftWishResponseDTO[]> {
-  const { data } = await api.get(`/schedules/${scheduleId}/wishes/pending`);
+export async function getPendingShiftWishes(scheduleId: number, offset?: number, limit?: number): Promise<PaginatedResponse<ShiftWishResponseDTO>> {
+  const { data } = await api.get(`/schedules/${scheduleId}/wishes/pending`, { params: { offset, limit } });
   return data;
 }
 
-export async function getWishesByStatus(scheduleId: number, status: string = 'approved'): Promise<ShiftWishResponseDTO[]> {
-  const { data } = await api.get(`/schedules/${scheduleId}/wishes?status=${status}`);
+export async function getWishesByStatus(scheduleId: number, status: string = 'approved', offset?: number, limit?: number): Promise<PaginatedResponse<ShiftWishResponseDTO>> {
+  const { data } = await api.get(`/schedules/${scheduleId}/wishes?status=${status}`, { params: { offset, limit } });
   return data;
 }

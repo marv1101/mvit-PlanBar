@@ -211,9 +211,8 @@ def list_users_endpoint(
     admin: User = Depends(require_admin),
     pagination: PaginationParams = Depends(),
 ):
-    users = list_users(db)
-    total = len(users)
-    items = users[pagination.offset : pagination.offset + pagination.limit]
+    total = db.query(User).count()
+    items = list_users(db, offset=pagination.offset, limit=pagination.limit)
     return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 

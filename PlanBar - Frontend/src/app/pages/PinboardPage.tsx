@@ -40,7 +40,7 @@ export function PinboardPage() {
     setError(null);
     try {
       const data = await pinboardService.getThreads();
-      setThreads(data.map(pinboardThreadFromResponse));
+      setThreads(data.items.map(pinboardThreadFromResponse));
     } catch {
       setError('Fehler beim Laden der Threads. Bitte versuchen Sie es erneut.');
       toast.error('Fehler beim Laden der Threads');

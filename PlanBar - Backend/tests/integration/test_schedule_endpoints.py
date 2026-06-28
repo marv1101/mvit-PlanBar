@@ -86,7 +86,9 @@ def test_get_schedule_shifts(client, auth_headers):
 
     response = client.get(f"/api/v1/schedules/{schedule_id}/shifts", headers=auth_headers)
     assert response.status_code == 200
-    assert response.json() == []
+    data = response.json()
+    assert data["items"] == []
+    assert data["total"] == 0
 
 
 def test_get_schedule_not_found(client, auth_headers):

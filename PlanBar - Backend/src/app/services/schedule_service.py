@@ -12,6 +12,7 @@ from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
 from app.services import audit_service
 from app.services.arbzg_validator import ArbZgResult, validate_schedule
+from app.services.holiday_service import get_german_holidays
 from app.services.notification_service import create_notification
 from app.services.tito_proxy import tito_proxy
 
@@ -58,8 +59,11 @@ def get_schedule_by_id(db: Session, schedule_id: int) -> Schedule | None:
     return db.query(Schedule).filter(Schedule.id == schedule_id).first()
 
 
-def list_schedules(db: Session) -> list[Schedule]:
-    return db.query(Schedule).order_by(Schedule.created_at.desc()).all()
+def list_schedules(db: Session, offset: int = 0, limit: int | None = None) -> list[Schedule]:
+    query = db.query(Schedule).order_by(Schedule.created_at.desc())
+    if limit is not None:
+        query = query.offset(offset).limit(limit)
+    return query.all()
 
 
 def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate, actor_id: int | None = None) -> Schedule:
@@ -376,6 +380,8 @@ def _build_tito_payload(
     if settings.tito_api_key:
         cb_url += f"?api_key={settings.tito_api_key}"
 
+    holiday_dates = get_german_holidays(schedule.start_date, schedule.end_date)
+
     return {
         "metadata": {
             "tenantId": 1,
@@ -386,6 +392,7 @@ def _build_tito_payload(
         "config": {
             "startDate": schedule.start_date.isoformat(),
             "endDate": schedule.end_date.isoformat(),
+            "holidayDates": holiday_dates,
         },
         "shiftTemplates": shift_templates,
         "requirements": requirements,

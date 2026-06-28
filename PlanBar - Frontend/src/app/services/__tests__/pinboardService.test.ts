@@ -17,13 +17,17 @@ const base = '/api/v1';
 
 describe('pinboardService', () => {
   describe('getThreads', () => {
-    it('ruft GET /pinboard/threads auf und gibt eine Liste zurück', async () => {
+    it('ruft GET /pinboard/threads auf und gibt eine paginierte Liste zurück', async () => {
       const result = await getThreads();
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
-      expect(result[0]).toHaveProperty('id');
-      expect(result[0]).toHaveProperty('title');
-      expect(result[0]).toHaveProperty('author_name');
+      expect(result).toHaveProperty('items');
+      expect(Array.isArray(result.items)).toBe(true);
+      expect(result.items.length).toBeGreaterThan(0);
+      expect(result).toHaveProperty('total');
+      expect(result).toHaveProperty('offset');
+      expect(result).toHaveProperty('limit');
+      expect(result.items[0]).toHaveProperty('id');
+      expect(result.items[0]).toHaveProperty('title');
+      expect(result.items[0]).toHaveProperty('author_name');
     });
   });
 

@@ -40,8 +40,11 @@ def get_employee_by_id(db: Session, employee_id: int) -> Employee | None:
     return db.query(Employee).filter(Employee.id == employee_id).first()
 
 
-def list_employees(db: Session) -> list[Employee]:
-    return db.query(Employee).order_by(Employee.last_name, Employee.first_name).all()
+def list_employees(db: Session, offset: int = 0, limit: int | None = None) -> list[Employee]:
+    query = db.query(Employee).order_by(Employee.last_name, Employee.first_name)
+    if limit is not None:
+        query = query.offset(offset).limit(limit)
+    return query.all()
 
 
 def update_employee(db: Session, employee: Employee, data: EmployeeUpdate, actor_id: int | None = None) -> Employee:
@@ -100,8 +103,11 @@ def get_contract_by_id(db: Session, contract_id: int) -> Contract | None:
     return db.query(Contract).filter(Contract.id == contract_id).first()
 
 
-def list_contracts(db: Session) -> list[Contract]:
-    return db.query(Contract).order_by(Contract.id).all()
+def list_contracts(db: Session, offset: int = 0, limit: int | None = None) -> list[Contract]:
+    query = db.query(Contract).order_by(Contract.id)
+    if limit is not None:
+        query = query.offset(offset).limit(limit)
+    return query.all()
 
 
 def update_contract(db: Session, contract: Contract, data: ContractUpdate, actor_id: int | None = None) -> Contract:
@@ -139,8 +145,11 @@ def get_timecard_by_id(db: Session, timecard_id: int) -> Timecard | None:
     return db.query(Timecard).filter(Timecard.id == timecard_id).first()
 
 
-def list_timecards(db: Session) -> list[Timecard]:
-    return db.query(Timecard).order_by(Timecard.year.desc(), Timecard.week.desc()).all()
+def list_timecards(db: Session, offset: int = 0, limit: int | None = None) -> list[Timecard]:
+    query = db.query(Timecard).order_by(Timecard.year.desc(), Timecard.week.desc())
+    if limit is not None:
+        query = query.offset(offset).limit(limit)
+    return query.all()
 
 
 def update_timecard(db: Session, timecard: Timecard, data: TimecardUpdate, actor_id: int | None = None) -> Timecard:

@@ -95,10 +95,11 @@ describe('requestService', () => {
   });
 
   describe('getPendingShiftWishes', () => {
-    it('ruft GET /schedules/:scheduleId/wishes/pending auf und gibt offene Wünsche zurück', async () => {
+    it('ruft GET /schedules/:scheduleId/wishes/pending auf und gibt paginierte offene Wünsche zurück', async () => {
       const result = await getPendingShiftWishes(1);
-      expect(Array.isArray(result)).toBe(true);
-      for (const wish of result) {
+      expect(result).toHaveProperty('items');
+      expect(Array.isArray(result.items)).toBe(true);
+      for (const wish of result.items) {
         expect(wish.status).toBe('pending');
       }
     });

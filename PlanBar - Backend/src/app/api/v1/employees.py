@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
 from app.dependencies import get_current_user, get_db, require_admin
-from app.db.models.employee import Employee, Timecard
+from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.user import User
 from app.schemas.employee import (
@@ -59,19 +59,21 @@ def list_employees_endpoint(
     current_user: User = Depends(get_current_user),
     pagination: PaginationParams = Depends(),
 ):
-    employees = list_employees(db)
-    total = len(employees)
-    items = employees[pagination.offset : pagination.offset + pagination.limit]
+    total = db.query(Employee).count()
+    items = list_employees(db, offset=pagination.offset, limit=pagination.limit)
     return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
-@router.get("/time-accounts", response_model=list[TimeAccountResponse])
+@router.get("/time-accounts", response_model=PaginatedResponse[TimeAccountResponse])
 def get_all_time_accounts(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
+    pagination: PaginationParams = Depends(),
 ):
-    employees = list_employees(db)
-    return [_build_time_account_response(emp, db) for emp in employees]
+    total = db.query(Employee).count()
+    employees = list_employees(db, offset=pagination.offset, limit=pagination.limit)
+    items = [_build_time_account_response(emp, db) for emp in employees]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.get("/{employee_id}", response_model=EmployeeResponse)
@@ -123,12 +125,15 @@ def create_contract_endpoint(
     return create_contract(db, data, actor_id=current_user.id)
 
 
-@contract_router.get("", response_model=list[ContractResponse])
+@contract_router.get("", response_model=PaginatedResponse[ContractResponse])
 def list_contracts_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    return list_contracts(db)
+    total = db.query(Contract).count()
+    items = list_contracts(db, offset=pagination.offset, limit=pagination.limit)
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @contract_router.get("/{contract_id}", response_model=ContractResponse)
@@ -168,12 +173,15 @@ def create_timecard_endpoint(
     return create_timecard(db, data, actor_id=current_user.id)
 
 
-@timecard_router.get("", response_model=list[TimecardResponse])
+@timecard_router.get("", response_model=PaginatedResponse[TimecardResponse])
 def list_timecards_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    return list_timecards(db)
+    total = db.query(Timecard).count()
+    items = list_timecards(db, offset=pagination.offset, limit=pagination.limit)
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @timecard_router.get("/{timecard_id}", response_model=TimecardResponse)

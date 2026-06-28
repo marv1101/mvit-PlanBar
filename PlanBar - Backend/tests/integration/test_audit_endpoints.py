@@ -21,7 +21,9 @@ class TestAuditEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert "items" in data
-        assert "pagination" in data
+        assert "total" in data
+        assert "offset" in data
+        assert "limit" in data
         assert len(data["items"]) >= 1
 
     def test_list_audit_logs_with_filters(self, client, db_session, auth_headers):
@@ -37,12 +39,13 @@ class TestAuditEndpoints:
     def test_list_audit_logs_pagination(self, client, db_session, auth_headers):
         for _ in range(25):
             _create_audit_log(db_session)
-        response = client.get("/api/v1/audit-logs?page=1&page_size=10", headers=auth_headers)
+        response = client.get("/api/v1/audit-logs?offset=0&limit=10", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert len(data["items"]) == 10
-        assert data["pagination"]["total"] >= 25
-        assert data["pagination"]["total_pages"] >= 3
+        assert data["total"] >= 25
+        assert data["offset"] == 0
+        assert data["limit"] == 10
 
     def test_get_audit_log_by_id(self, client, db_session, auth_headers):
         entry = _create_audit_log(db_session)
