@@ -50,9 +50,7 @@ def test_create_shift_swap(client, auth_headers, employee_auth_headers):
     )
     target_emp_id = target_resp.json()["id"]
 
-    _, requester_shift_id, target_shift_id = _create_schedule_and_shifts(
-        client, admin_headers, emp_id, target_emp_id
-    )
+    _, requester_shift_id, target_shift_id = _create_schedule_and_shifts(client, admin_headers, emp_id, target_emp_id)
 
     response = client.post(
         "/api/v1/shift-swaps",

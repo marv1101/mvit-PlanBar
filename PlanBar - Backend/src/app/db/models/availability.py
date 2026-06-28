@@ -23,6 +23,4 @@ class Availability(Base):
     )
 
     employee = relationship("Employee", backref="availabilities")
-    __table_args__ = (
-        UniqueConstraint("employee_id", "day_of_week", name="uq_availability_employee_day"),
-    )
+    __table_args__ = (UniqueConstraint("employee_id", "day_of_week", name="uq_availability_employee_day"),)
