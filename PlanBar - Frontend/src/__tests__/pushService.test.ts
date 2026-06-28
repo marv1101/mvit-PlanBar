@@ -39,6 +39,7 @@ beforeEach(() => {
       permission: 'default',
       requestPermission: vi.fn().mockResolvedValue('granted'),
     },
+    PushManager: {},
     navigator: {
       serviceWorker: mockServiceWorker,
     },
