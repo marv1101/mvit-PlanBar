@@ -2,6 +2,7 @@ import React from 'react'
 import { render, type RenderOptions } from '@testing-library/react'
 import { MemoryRouter, createMemoryRouter } from 'react-router'
 import { DndProvider } from 'react-dnd'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TouchBackend } from 'react-dnd-touch-backend'
 import { AuthContext } from '../app/context/AuthContext'
 import { AppContext } from '../app/context/AppContext'
@@ -162,6 +163,12 @@ export function AuthTestWrapper({ children }: { children: React.ReactNode }) {
   )
 }
 
+const testQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: false, gcTime: 0 },
+  },
+})
+
 export function AppAndAuthTestWrapper({
   children,
   initialEntries = ['/'],
@@ -173,9 +180,11 @@ export function AppAndAuthTestWrapper({
     <MemoryRouter initialEntries={initialEntries}>
       <AuthContext.Provider value={mockAuthContext as any}>
         <AppContext.Provider value={mockAppContext as any}>
-          <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
-            {children}
-          </DndProvider>
+          <QueryClientProvider client={testQueryClient}>
+            <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
+              {children}
+            </DndProvider>
+          </QueryClientProvider>
         </AppContext.Provider>
       </AuthContext.Provider>
     </MemoryRouter>
