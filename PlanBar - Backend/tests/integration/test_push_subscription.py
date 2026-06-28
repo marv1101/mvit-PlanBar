@@ -1,9 +1,9 @@
 """Integration tests for push notification subscription endpoints."""
 
 
-
 def _clean_push_subscriptions(db_session):
     from app.db.models.push_subscription import PushSubscription
+
     db_session.query(PushSubscription).delete()
     db_session.commit()
 

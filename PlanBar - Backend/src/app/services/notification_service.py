@@ -42,6 +42,7 @@ def create_notification_and_push(
     notification = create_notification(db, user_id, notification_type, title, message, data)
     try:
         from app.services.push_service import send_push_notification_to_user
+
         send_push_notification_to_user(
             db=db,
             user_id=user_id,

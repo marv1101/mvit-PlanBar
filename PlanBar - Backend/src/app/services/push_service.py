@@ -40,9 +40,7 @@ def _load_or_generate_vapid_keys() -> tuple[str, str]:
     _vapid_private_key = vapid.private_pem().decode("utf-8")
     _vapid_public_key = vapid.public_pem().decode("utf-8")
     try:
-        VAPID_KEY_FILE.write_text(
-            json.dumps({"private_key": _vapid_private_key, "public_key": _vapid_public_key})
-        )
+        VAPID_KEY_FILE.write_text(json.dumps({"private_key": _vapid_private_key, "public_key": _vapid_public_key}))
     except Exception as e:
         logger.warning("Could not persist VAPID keys to file: %s", e)
     return _vapid_private_key, _vapid_public_key
@@ -119,11 +117,7 @@ def remove_subscription(db: Session, user_id: int, endpoint: str) -> bool:
 
 
 def get_user_subscriptions(db: Session, user_id: int) -> list[PushSubscription]:
-    return (
-        db.query(PushSubscription)
-        .filter(PushSubscription.user_id == user_id)
-        .all()
-    )
+    return db.query(PushSubscription).filter(PushSubscription.user_id == user_id).all()
 
 
 def send_push_notification(
