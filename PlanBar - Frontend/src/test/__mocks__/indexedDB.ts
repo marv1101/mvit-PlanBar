@@ -82,11 +82,29 @@ class MockIDBObjectStore {
   put(value: unknown): IDBRequest {
     const req = new MockIDBRequest();
     const key = (value as Record<string, unknown>)[this.store.keyPath as string];
+    const effectiveKey = (key !== undefined && key !== null) ? String(key) : String(++this._autoIncrement);
     if (key !== undefined && key !== null) {
-      this.store.data.set(String(key), value);
+      this.store.data.set(effectiveKey, value);
     } else {
-      const id = ++this._autoIncrement;
-      this.store.data.set(String(id), value);
+      this.store.data.set(effectiveKey, value);
+    }
+    // Update indexes
+    for (const [idxName, idx] of this.store.indexes) {
+      const indexValue = (value as Record<string, unknown>)[idx.keyPath];
+      if (indexValue !== undefined && indexValue !== null) {
+        const arr = idx.data.get(String(indexValue)) || [];
+        // Remove old entry if key changed
+        for (const [k, v] of idx.data.entries()) {
+          if (Array.isArray(v)) {
+            const filtered = v.filter((item: any) => item[this.store.keyPath] !== effectiveKey && String((item as any)[this.store.keyPath]) !== effectiveKey);
+            if (filtered.length !== v.length) {
+              idx.data.set(k, filtered);
+            }
+          }
+        }
+        arr.push(value);
+        idx.data.set(String(indexValue), arr);
+      }
     }
     req._resolve(undefined as never);
     return req as unknown as IDBRequest;
@@ -108,7 +126,18 @@ class MockIDBObjectStore {
 
   delete(key: string | number): IDBRequest {
     const req = new MockIDBRequest();
+    const item = this.store.data.get(String(key));
     this.store.data.delete(String(key));
+    // Remove from indexes
+    if (item) {
+      for (const [, idx] of this.store.indexes) {
+        const indexValue = (item as Record<string, unknown>)[idx.keyPath];
+        if (indexValue !== undefined && indexValue !== null) {
+          const arr = idx.data.get(String(indexValue)) || [];
+          idx.data.set(String(indexValue), arr.filter((i: any) => String(i[this.store.keyPath]) !== String(key)));
+        }
+      }
+    }
     req._resolve(undefined as never);
     return req as unknown as IDBRequest;
   }
@@ -116,6 +145,9 @@ class MockIDBObjectStore {
   clear(): IDBRequest {
     const req = new MockIDBRequest();
     this.store.data.clear();
+    for (const [, idx] of this.store.indexes) {
+      idx.data.clear();
+    }
     req._resolve(undefined as never);
     return req as unknown as IDBRequest;
   }

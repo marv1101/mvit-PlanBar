@@ -21,7 +21,7 @@ afterEach(async () => {
 
 describe('IndexedDB', () => {
   it('should store and retrieve items', async () => {
-    const item = { id: 'test-1', name: 'Test', value: 42 };
+    const item = { key: 'test-1', name: 'Test', value: 42 };
     await db.put('syncMeta', item as any);
     const result = await db.get('syncMeta', 'test-1');
     expect(result).toEqual(item);
