@@ -4,7 +4,6 @@ These tests cover the subject rights endpoints that were added as part
 of the GDPR compliance implementation.
 """
 
-
 from app.db.models.employee import Employee
 from app.db.models.user import User
 
