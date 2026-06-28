@@ -133,7 +133,7 @@ def approve_shift_swap(
             user_id=requester_emp.user_id,
             notification_type=NotificationType.SWAP_APPROVED.value,
             title="Schichttausch genehmigt",
-            message=f"Dein Schichttausch wurde genehmigt.",
+            message="Dein Schichttausch wurde genehmigt.",
             data={"swap_id": swap.id},
         )
     if target_emp and target_emp.user_id:
@@ -142,7 +142,7 @@ def approve_shift_swap(
             user_id=target_emp.user_id,
             notification_type=NotificationType.SWAP_APPROVED.value,
             title="Schichttausch genehmigt",
-            message=f"Der Schichttausch wurde genehmigt.",
+            message="Der Schichttausch wurde genehmigt.",
             data={"swap_id": swap.id},
         )
 
