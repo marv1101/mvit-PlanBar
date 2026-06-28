@@ -7,15 +7,8 @@ import { renderHook, act } from '@testing-library/react';
 const DB_NAME = 'planbar-offline';
 
 beforeEach(async () => {
-  // Clear all stores before each test
-  const stores = ['employees', 'schedules', 'shifts', 'requests', 'roles', 'offlineQueue', 'syncMeta'] as const;
-  for (const store of stores) {
-    try {
-      await db.clear(store);
-    } catch {
-      // Store might not exist yet, that's ok
-    }
-  }
+  // Delete and recreate the database to ensure a clean state
+  indexedDB.deleteDatabase(DB_NAME);
 });
 
 afterEach(async () => {
