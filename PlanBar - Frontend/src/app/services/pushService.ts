@@ -60,7 +60,7 @@ export async function initPushState(): Promise<void> {
 }
 
 export async function subscribeToPush(): Promise<boolean> {
-  if (cachedState.permission === 'unsupported') return false;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
 
   if (Notification.permission === 'denied') return false;
 
