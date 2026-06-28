@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.versioning import (
+    ConflictError,
     add_cache_headers,
     check_if_modified_since,
     check_if_none_match,
