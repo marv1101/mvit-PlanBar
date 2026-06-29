@@ -77,6 +77,9 @@ class UserResponse(BaseModel):
     role: str
     must_change_password: bool = True
     employee_id: Optional[int] = None
+    processing_restricted: bool = False
+    objection_filed: bool = False
+    objection_date: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     last_login: Optional[datetime] = None

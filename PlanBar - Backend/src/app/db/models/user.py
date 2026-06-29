@@ -23,6 +23,9 @@ class User(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
     last_login = Column(DateTime, nullable=True)
+    processing_restricted = Column(Boolean, default=False, nullable=False)
+    objection_filed = Column(Boolean, default=False, nullable=False)
+    objection_date = Column(DateTime, nullable=True)
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     employee = relationship(
         "Employee",
