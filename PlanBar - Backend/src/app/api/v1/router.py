@@ -10,6 +10,7 @@ from app.api.v1.employees import (
     router as employees_router,
 )
 from app.api.v1.exports import router as exports_router
+from app.api.v1.reports import router as reports_router
 from app.api.v1.gdpr import admin_router as gdpr_admin_router
 from app.api.v1.gdpr import router as gdpr_router
 from app.api.v1.health import router as health_router
@@ -46,6 +47,7 @@ api_router.include_router(pinboard_router, prefix="/pinboard", tags=["pinboard"]
 api_router.include_router(privacy_router, prefix="", tags=["privacy"])
 api_router.include_router(audit_router, prefix="", tags=["audit"])
 api_router.include_router(exports_router, prefix="/exports", tags=["exports"])
+api_router.include_router(reports_router, prefix="/reports", tags=["reports"])
 api_router.include_router(gdpr_router, prefix="/gdpr", tags=["gdpr"])
 api_router.include_router(gdpr_admin_router, prefix="/admin", tags=["admin"])
 api_router.include_router(shift_swaps_router, prefix="/shift-swaps", tags=["shift-swaps"])
