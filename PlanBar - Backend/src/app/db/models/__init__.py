@@ -7,6 +7,8 @@ from app.db.models.pinboard import PinboardThread, PinboardMessage, PinboardDocu
 from app.db.models.audit_log import AuditLog
 from app.db.models.revoked_token import RevokedToken
 from app.db.models.notification import Notification
+from app.db.models.shift_swap import ShiftSwapRequest
+from app.db.models.availability import Availability
 
 __all__ = [
     "User",
@@ -23,4 +25,6 @@ __all__ = [
     "AuditLog",
     "RevokedToken",
     "Notification",
+    "ShiftSwapRequest",
+    "Availability",
 ]

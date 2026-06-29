@@ -16,6 +16,7 @@ const EmployeeView = lazy(() => import('./pages/EmployeeView').then(m => ({ defa
 const PinboardPage = lazy(() => import('./pages/PinboardPage').then(m => ({ default: m.PinboardPage })));
 const TimeAccounts = lazy(() => import('./pages/TimeAccounts').then(m => ({ default: m.TimeAccounts })));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })));
+const SelfService = lazy(() => import('./pages/SelfService').then(m => ({ default: m.SelfService })));
 
 function LazyPage({ children }: { children: React.ReactNode }) {
   return (
@@ -103,6 +104,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['admin']}>
             <LazyPage><TimeAccounts /></LazyPage>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'self-service',
+        element: (
+          <ProtectedRoute allowedRoles={['admin', 'employee']}>
+            <LazyPage><SelfService /></LazyPage>
           </ProtectedRoute>
         ),
       },

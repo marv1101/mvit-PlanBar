@@ -36,3 +36,12 @@ class NotificationType(str, Enum):
     WISH_REJECTED = "wish_rejected"
     SCHEDULE_PUBLISHED = "schedule_published"
     SHIFT_CHANGED = "shift_changed"
+    SWAP_REQUESTED = "swap_requested"
+    SWAP_APPROVED = "swap_approved"
+    SWAP_REJECTED = "swap_rejected"
+
+
+class ShiftSwapStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router';
-import { Calendar, Users, ClipboardList, LayoutDashboard, UserCog, Eye, LogOut, User, UserPlus, Menu, X, Clock, MessageSquare } from 'lucide-react';
+import { Calendar, Users, ClipboardList, LayoutDashboard, UserCog, Eye, LogOut, User, UserPlus, Menu, X, Clock, MessageSquare, UserCheck } from 'lucide-react';
 import { cn } from './ui/utils';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
@@ -49,6 +49,7 @@ export function Layout() {
     { path: '/requests', label: 'Wünsche', icon: ClipboardList, roles: ['admin', 'employee'] },
     { path: '/schedule', label: 'Schichtplan', icon: Calendar, roles: ['admin'] },
     { path: '/time-accounts', label: 'Zeitkonten', icon: Clock, roles: ['admin'] },
+    { path: '/self-service', label: 'Self-Service', icon: UserCheck, roles: ['admin', 'employee'] },
     { path: '/employee-view', label: 'Mitarbeiteransicht', icon: Eye, roles: ['admin', 'employee'] },
     { path: '/pinboard', label: 'Pinnwand', icon: MessageSquare, roles: ['admin', 'employee'] },
   ];

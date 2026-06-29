@@ -12,9 +12,10 @@ interface RequestFormProps {
   onClose: () => void;
   currentEmployeeId?: string;
   isAdmin?: boolean;
+  defaultType?: RequestType;
 }
 
-export function RequestForm({ request, onClose, currentEmployeeId, isAdmin = true }: RequestFormProps) {
+export function RequestForm({ request, onClose, currentEmployeeId, isAdmin = true, defaultType }: RequestFormProps) {
   const { addRequest, updateRequest, employees } = useApp();
 
   // Use currentEmployeeId for non-admin users, otherwise use first employee or request employee
@@ -28,7 +29,7 @@ export function RequestForm({ request, onClose, currentEmployeeId, isAdmin = tru
       employeeId: defaultEmployeeId,
       date: new Date().toISOString().split('T')[0],
       week: 'A',
-      type: 'urlaubswunsch',
+      type: defaultType || 'urlaubswunsch',
       notes: '',
     }
   );
