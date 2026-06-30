@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.core.auth import generate_password, hash_password, verify_password
 from app.db.models.employee import Employee
 from app.db.models.user import User
@@ -43,6 +44,14 @@ def create_user(db: Session, user_in: UserCreate, role: str = "user") -> User:
 
 def authenticate_user(db: Session, email: str, password: str) -> User | None:
     user = db.query(User).filter(User.email == email).first()
+
+    if settings.ldap_enabled:
+        from app.services.ldap_service import ldap_authenticate
+
+        ldap_user = ldap_authenticate(db, email, password)
+        if ldap_user is not None:
+            return ldap_user
+
     if not user:
         return None
     if not verify_password(password, user.password_hash):
