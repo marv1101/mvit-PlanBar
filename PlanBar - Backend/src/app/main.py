@@ -92,6 +92,7 @@ def create_app() -> FastAPI:
     run_database_setup()
     _repair_one_sided_user_employee_links()
     seed_initial_users()
+    _init_webhook_subscriptions()
     app.add_exception_handler(StarletteHTTPException, http_error_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     return app
@@ -151,6 +152,12 @@ def _generate_complex_password() -> str:
     password = list(uppercase + lowercase + digit + special + rest)
     random.shuffle(password)
     return "".join(password)
+
+
+def _init_webhook_subscriptions() -> None:
+    from app.services.webhook_service import init_event_subscriptions
+
+    init_event_subscriptions()
 
 
 def seed_initial_users() -> None:
