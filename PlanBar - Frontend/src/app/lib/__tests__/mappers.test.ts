@@ -475,7 +475,8 @@ describe('shiftplanToShift', () => {
     expect(result.breakEnd).toBeUndefined();
   });
 
-  it('setzt week=A bei week=null', () => {
+  it('berechnet week aus Datum bei week=null', () => {
+    // 2024-07-04 ist ein Donnerstag in Woche B (referenced from Jan 1, 2024 = Week A Monday)
     const sp = {
       id: 23,
       schedule_id: 1,
@@ -496,7 +497,8 @@ describe('shiftplanToShift', () => {
       updated_at: '',
     };
     const result = shiftplanToShift(sp);
-    expect(result.week).toBe('A');
+    // 2024-07-04 falls in Week B based on the reference date logic
+    expect(result.week).toBe('B');
   });
 });
 

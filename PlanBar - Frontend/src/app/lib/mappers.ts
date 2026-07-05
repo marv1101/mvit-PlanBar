@@ -131,11 +131,25 @@ export function requestToCreate(req: Request): ShiftWishCreateDTO {
 }
 
 export function shiftplanToShift(sp: ShiftplanResponseDTO): Shift {
+  // Calculate week from date if not provided (matches backend _get_week_type logic)
+  const calculateWeekFromDate = (dateStr: string): WeekType => {
+    const date = new Date(dateStr + 'T00:00:00');
+    // Get Monday of the week
+    const dayOfWeek = date.getDay();
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    
+    // Reference date: Jan 1, 2024 = Week A (Monday)
+    const reference = new Date('2024-01-01');
+    const weeksDiff = Math.floor((monday.getTime() - reference.getTime()) / (7 * 24 * 60 * 60 * 1000));
+    return weeksDiff % 2 === 0 ? 'A' : 'B';
+  };
+
   return {
     id: String(sp.id),
     employeeId: String(sp.employee_id),
     date: sp.date,
-    week: (sp.week || 'A') as WeekType,
+    week: sp.week ? (sp.week as WeekType) : calculateWeekFromDate(sp.date),
     startTime: sp.start_time,
     endTime: sp.end_time,
     breakStart: sp.break_start || undefined,
