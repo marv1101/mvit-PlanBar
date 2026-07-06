@@ -613,7 +613,7 @@ def test_vacation_wish_blocks_assignment():
     for assignment in result["solution"]["assignments"]:
         if assignment["employeeId"] == "emp_001":
             assert assignment["date"] != "2026-01-02", (
-                f"emp_001 should NOT be assigned on 2026-01-02 (vacation wish)"
+                "emp_001 should NOT be assigned on 2026-01-02 (vacation wish)"
             )
 
 
@@ -644,7 +644,7 @@ def test_unavailable_wish_blocks_assignment():
     for assignment in result["solution"]["assignments"]:
         if assignment["employeeId"] == "emp_001":
             assert assignment["date"] != "2026-01-02", (
-                f"emp_001 should NOT be assigned on 2026-01-02 (unavailable wish)"
+                "emp_001 should NOT be assigned on 2026-01-02 (unavailable wish)"
             )
 
 
@@ -678,7 +678,7 @@ def test_preferred_wish_without_shift_id_influences_assignment():
         if a["employeeId"] == "emp_001" and a["date"] == "2026-01-02"
     ]
     assert len(emp_001_assignments) > 0, (
-        f"emp_001 should be assigned on 2026-01-02 due to preferred wish"
+        "emp_001 should be assigned on 2026-01-02 due to preferred wish"
     )
 
 
@@ -890,8 +890,8 @@ def test_off_wish_vs_prefer_shift():
     for assignment in result["solution"]["assignments"]:
         if assignment["employeeId"] == "emp_001":
             assert assignment["date"] != "2026-01-02", (
-                f"OFF wish should take priority over PREFER_SHIFT, "
-                f"but emp_001 was assigned on 2026-01-02"
+                "OFF wish should take priority over PREFER_SHIFT, "
+                "but emp_001 was assigned on 2026-01-02"
             )
 
 

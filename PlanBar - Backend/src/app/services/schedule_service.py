@@ -12,9 +12,8 @@ from app.db.models.shift_wish import ShiftWish
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
 from app.services import audit_service
 from app.services.arbzg_validator import ArbZgResult, validate_schedule
-from app.services.notification_service import create_notification_and_push
 from app.services.holiday_service import get_german_holidays
-from app.services.notification_service import create_notification
+from app.services.notification_service import create_notification_and_push
 from app.services.tito_proxy import tito_proxy
 
 logger = logging.getLogger(__name__)

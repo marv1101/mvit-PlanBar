@@ -1,6 +1,11 @@
 from datetime import date
 
-from app.services.holiday_service import _FIXED_NATIONWIDE, _HAS_HOLIDAYS, get_german_holidays
+from app.services.holiday_service import (
+    _FIXED_NATIONWIDE,
+    _HAS_HOLIDAYS,
+    _get_fixed_holidays,
+    get_german_holidays,
+)
 
 
 def test_get_german_holidays_neujahr():
@@ -38,7 +43,8 @@ def test_get_german_holidays_easter():
 
 def test_fallback_fixed_holidays():
     """Fallback returns only fixed nationwide holidays."""
-    result = get_german_holidays(date(2024, 1, 1), date(2024, 12, 31))
+    result = _get_fixed_holidays(date(2024, 1, 1), date(2024, 12, 31))
     for d in result:
         dt = date.fromisoformat(d)
         assert (dt.month, dt.day) in _FIXED_NATIONWIDE
+    assert len(result) == len(_FIXED_NATIONWIDE)

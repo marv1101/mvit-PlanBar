@@ -240,7 +240,7 @@ def test_get_all_time_accounts_batch(client, auth_headers, db_session):
     db_session.add_all([tc1, tc2])
     db_session.commit()
 
-    resp = client.get("/api/v1/employees/time-accounts", headers=auth_headers)
+    resp = client.get("/api/v1/employees/time-accounts?limit=200", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     items = data["items"]

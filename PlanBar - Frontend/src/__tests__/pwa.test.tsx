@@ -49,8 +49,19 @@ describe('PWA - vite.config.ts', () => {
     expect(content).toContain('VitePWA')
     expect(content).toContain('registerType')
     expect(content).toContain('autoUpdate')
+    expect(content).toContain('injectManifest')
+    expect(content).toContain("filename: 'sw.ts'")
+  })
+})
+
+describe('PWA - sw.ts', () => {
+  const swPath = path.resolve(__dirname, '../../src/sw.ts')
+
+  it('contains workbox runtime caching', () => {
+    const content = fs.readFileSync(swPath, 'utf-8')
     expect(content).toContain('workbox')
-    expect(content).toContain('runtimeCaching')
+    expect(content).toContain('registerRoute')
+    expect(content).toContain('NetworkFirst')
   })
 })
 
