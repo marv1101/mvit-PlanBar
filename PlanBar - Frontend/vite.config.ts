@@ -11,51 +11,28 @@ export default defineConfig({
     react(), 
     tailwindcss(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png'],
       manifest: {
-        name: 'PlanBar - Dienstplan',
+        name: 'MVIT PlanBar',
         short_name: 'PlanBar',
-        description: 'Dienstplan-App für Gastronomie, Pflege und Handwerk',
-        theme_color: '#1a1a2e',
-        background_color: '#1a1a2e',
+        description: 'Schichtplanungsanwendung',
+        theme_color: '#2563eb',
+        background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait-primary',
         start_url: '/',
-        scope: '/',
+        lang: 'de-DE',
         icons: [
           {
-            src: '/icons/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: '/icons/icon-512x512.png',
+            src: '/favicon.png',
             sizes: '512x512',
             type: 'image/png',
           },
         ],
-        categories: ['productivity', 'business'],
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^\/api\/.*/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24,
-              },
-              networkTimeoutSeconds: 10,
-            },
-          },
-        ],
-      },
-      devOptions: {
-        enabled: true,
       },
     }),
   ],

@@ -28,6 +28,34 @@ def create_notification(
     return notification
 
 
+def create_notification_and_push(
+    db: Session,
+    user_id: int,
+    notification_type: str,
+    title: str,
+    message: str,
+    data: dict[str, Any] | None = None,
+    push_url: str | None = None,
+    push_tag: str | None = None,
+) -> Notification:
+    """Create an in-app notification and send a push notification."""
+    notification = create_notification(db, user_id, notification_type, title, message, data)
+    try:
+        from app.services.push_service import send_push_notification_to_user
+
+        send_push_notification_to_user(
+            db=db,
+            user_id=user_id,
+            title=title,
+            body=message,
+            url=push_url,
+            tag=push_tag or notification_type,
+        )
+    except Exception:
+        pass
+    return notification
+
+
 def get_user_notifications(
     db: Session,
     user_id: int,

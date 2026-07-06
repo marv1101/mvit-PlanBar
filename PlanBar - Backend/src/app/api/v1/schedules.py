@@ -20,7 +20,7 @@ from app.schemas.schedule import (
     ShiftplanUpdate,
 )
 from app.schemas.pagination import PaginatedResponse, PaginationParams
-from app.services.notification_service import create_notification
+from app.services.notification_service import create_notification_and_push
 from app.services.schedule_service import (
     create_schedule,
     delete_schedule,
@@ -243,7 +243,7 @@ def update_shiftplan(
     # Notify the employee about the shift change
     employee = db.query(Employee).filter(Employee.id == shiftplan.employee_id).first()
     if employee and employee.user_id:
-        create_notification(
+        create_notification_and_push(
             db=db,
             user_id=employee.user_id,
             notification_type="shift_changed",
@@ -255,6 +255,8 @@ def update_shiftplan(
                 "date": str(shiftplan.date),
                 "shift_id": shiftplan.shift_id,
             },
+            push_url="/employee-view",
+            push_tag="shift_changed",
         )
 
     # Reload schedule with all shiftplans for ArbZG validation and full response
