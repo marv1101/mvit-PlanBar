@@ -99,9 +99,13 @@ describe('scheduleService', () => {
   });
 
   describe('getScheduleShifts', () => {
-    it('ruft GET /schedules/:id/shifts auf und gibt die Schichten zurück', async () => {
+    it('ruft GET /schedules/:id/shifts auf und gibt paginierte Schichten zurück', async () => {
       const result = await getScheduleShifts(1);
-      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveProperty('items');
+      expect(Array.isArray(result.items)).toBe(true);
+      expect(result).toHaveProperty('total');
+      expect(result).toHaveProperty('offset');
+      expect(result).toHaveProperty('limit');
     });
   });
 

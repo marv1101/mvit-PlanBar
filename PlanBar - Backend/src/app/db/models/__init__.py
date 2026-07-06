@@ -8,6 +8,8 @@ from app.db.models.audit_log import AuditLog
 from app.db.models.revoked_token import RevokedToken
 from app.db.models.notification import Notification
 from app.db.models.push_subscription import PushSubscription
+from app.db.models.shift_swap import ShiftSwapRequest
+from app.db.models.availability import Availability
 
 __all__ = [
     "User",
@@ -25,4 +27,6 @@ __all__ = [
     "RevokedToken",
     "Notification",
     "PushSubscription",
+    "ShiftSwapRequest",
+    "Availability",
 ]

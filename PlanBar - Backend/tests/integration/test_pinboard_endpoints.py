@@ -64,8 +64,8 @@ def test_list_threads(client, auth_headers):
     response = client.get("/api/v1/pinboard/threads", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
-    assert len(data) >= 2
+    assert "items" in data
+    assert len(data["items"]) >= 2
 
 
 def test_get_thread(client, auth_headers):
@@ -194,8 +194,8 @@ def test_list_messages(client, auth_headers):
     )
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
-    assert len(data) == 2
+    assert "items" in data
+    assert len(data["items"]) == 2
 
 
 def test_create_message_thread_not_found(client, auth_headers):
@@ -411,8 +411,9 @@ def test_pinned_threads_appear_first(client, auth_headers):
 
     response = client.get("/api/v1/pinboard/threads", headers=auth_headers)
     data = response.json()
-    pinned_indices = [i for i, t in enumerate(data) if t["is_pinned"]]
-    unpinned_indices = [i for i, t in enumerate(data) if not t["is_pinned"]]
+    items = data["items"]
+    pinned_indices = [i for i, t in enumerate(items) if t["is_pinned"]]
+    unpinned_indices = [i for i, t in enumerate(items) if not t["is_pinned"]]
     if pinned_indices and unpinned_indices:
         assert max(pinned_indices) < min(unpinned_indices)
 

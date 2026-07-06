@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -78,10 +79,11 @@ def _clear_auth_cookies(response: JSONResponse) -> None:
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("30/minute")
 def register_user(user_in: UserCreate, request: Request, db: Session = Depends(get_db)):
-    existing = db.query(User).filter((User.email == user_in.email) | (User.username == user_in.username)).first()
-    if existing:
+    try:
+        user = create_user(db, user_in)
+    except IntegrityError:
+        db.rollback()
         raise ConflictException(detail="User with email or username already exists")
-    user = create_user(db, user_in)
     return user
 
 
@@ -211,9 +213,8 @@ def list_users_endpoint(
     admin: User = Depends(require_admin),
     pagination: PaginationParams = Depends(),
 ):
-    users = list_users(db)
-    total = len(users)
-    items = users[pagination.offset : pagination.offset + pagination.limit]
+    total = db.query(User).count()
+    items = list_users(db, offset=pagination.offset, limit=pagination.limit)
     return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
@@ -282,11 +283,11 @@ def admin_create_user_endpoint(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    existing = db.query(User).filter((User.email == user_in.email) | (User.username == user_in.username)).first()
-    if existing:
+    try:
+        user, password = admin_create_user(db, user_in, actor_id=admin.id)
+    except IntegrityError:
+        db.rollback()
         raise ConflictException(detail="User with email or username already exists")
-
-    user, password = admin_create_user(db, user_in, actor_id=admin.id)
 
     return AdminUserCreateResponse(
         id=user.id,

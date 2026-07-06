@@ -192,7 +192,8 @@ export const handlers = [
   }),
 
   http.get(`${base}/employees/time-accounts`, () => {
-    return HttpResponse.json(mockTimeAccounts satisfies TimeAccountResponseDTO[])
+    const res: PaginatedResponse<TimeAccountResponseDTO> = { items: mockTimeAccounts, total: mockTimeAccounts.length, offset: 0, limit: 50 }
+    return HttpResponse.json(res)
   }),
 
   http.get(`${base}/employees/:id`, ({ params }) => {
@@ -262,7 +263,8 @@ export const handlers = [
   // -- Roles ---------------------------------------------------------------
 
   http.get(`${base}/roles`, () => {
-    return HttpResponse.json(mockRoles satisfies RoleResponseDTO[])
+    const res: PaginatedResponse<RoleResponseDTO> = { items: mockRoles, total: mockRoles.length, offset: 0, limit: 50 }
+    return HttpResponse.json(res)
   }),
 
   http.post(`${base}/roles`, async ({ request }) => {
@@ -344,7 +346,8 @@ export const handlers = [
 
   http.get(`${base}/schedules/:id/wishes/pending`, () => {
     const wishes = mockRequests.filter(r => r.status === 'pending')
-    return HttpResponse.json(wishes satisfies ShiftWishResponseDTO[])
+    const res: PaginatedResponse<ShiftWishResponseDTO> = { items: wishes, total: wishes.length, offset: 0, limit: 50 }
+    return HttpResponse.json(res)
   }),
 
   // -- Schedules -----------------------------------------------------------
@@ -438,7 +441,8 @@ export const handlers = [
 
   http.get(`${base}/schedules/:id/shifts`, ({ params }) => {
     const shifts = mockShiftplans.filter(sp => sp.schedule_id === Number(params.id))
-    return HttpResponse.json(shifts satisfies ShiftplanResponseDTO[])
+    const res: PaginatedResponse<ShiftplanResponseDTO> = { items: shifts, total: shifts.length, offset: 0, limit: 50 }
+    return HttpResponse.json(res)
   }),
 
   http.put(`${base}/schedules/:id/shifts`, async ({ params, request }) => {
@@ -500,7 +504,8 @@ export const handlers = [
   // -- Pinboard ------------------------------------------------------------
 
   http.get(`${base}/pinboard/threads`, () => {
-    return HttpResponse.json(mockThreads satisfies ThreadResponseDTO[])
+    const res: PaginatedResponse<ThreadResponseDTO> = { items: mockThreads, total: mockThreads.length, offset: 0, limit: 50 }
+    return HttpResponse.json(res)
   }),
 
   http.post(`${base}/pinboard/threads`, async ({ request }) => {

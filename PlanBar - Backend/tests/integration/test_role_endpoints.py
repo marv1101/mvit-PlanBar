@@ -27,7 +27,9 @@ def test_create_duplicate_role(client, auth_headers):
 def test_list_roles(client, auth_headers):
     response = client.get("/api/v1/roles", headers=auth_headers)
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert "items" in data
+    assert isinstance(data["items"], list)
 
 
 def test_update_role(client, auth_headers):

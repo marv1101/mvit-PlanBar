@@ -16,6 +16,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from app.config import settings
+
 CSRF_COOKIE_NAME = "csrf_token"
 CSRF_HEADER_NAME = "X-CSRF-Token"
 TOKEN_LENGTH = 32  # 32 bytes → 64 hex chars
@@ -63,7 +65,7 @@ class CsrfMiddleware(BaseHTTPMiddleware):
                 value=token,
                 samesite="lax",
                 httponly=False,
-                secure=False,  # set True in production behind HTTPS
+                secure=settings.environment == "production",
                 max_age=86400,  # 24 h
             )
 

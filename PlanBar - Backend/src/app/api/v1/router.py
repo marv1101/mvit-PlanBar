@@ -5,6 +5,8 @@ from app.api.v1.privacy import router as privacy_router
 from app.api.v1.callbacks import router as callbacks_router
 from app.api.v1.exports import router as exports_router
 from app.api.v1.gdpr import admin_router as gdpr_admin_router
+from app.api.v1.shift_swaps import router as shift_swaps_router
+from app.api.v1.self_service import router as self_service_router
 from app.api.v1.gdpr import router as gdpr_router
 from app.api.v1.employees import (
     contract_router,
@@ -40,3 +42,5 @@ api_router.include_router(audit_router, prefix="", tags=["audit"])
 api_router.include_router(exports_router, prefix="/exports", tags=["exports"])
 api_router.include_router(gdpr_router, prefix="/gdpr", tags=["gdpr"])
 api_router.include_router(gdpr_admin_router, prefix="/admin", tags=["admin"])
+api_router.include_router(shift_swaps_router, prefix="/shift-swaps", tags=["shift-swaps"])
+api_router.include_router(self_service_router, prefix="/my", tags=["self-service"])

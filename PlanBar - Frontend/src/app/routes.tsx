@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, Navigate } from 'react-router';
 import { Layout } from './components/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { FullPageSpinner } from './components/FullPageSpinner';
@@ -16,6 +16,7 @@ const EmployeeView = lazy(() => import('./pages/EmployeeView').then(m => ({ defa
 const PinboardPage = lazy(() => import('./pages/PinboardPage').then(m => ({ default: m.PinboardPage })));
 const TimeAccounts = lazy(() => import('./pages/TimeAccounts').then(m => ({ default: m.TimeAccounts })));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })));
+const SelfService = lazy(() => import('./pages/SelfService').then(m => ({ default: m.SelfService })));
 
 function LazyPage({ children }: { children: React.ReactNode }) {
   return (
@@ -107,8 +108,20 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: 'self-service',
+        element: (
+          <ProtectedRoute allowedRoles={['admin', 'employee']}>
+            <LazyPage><SelfService /></LazyPage>
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: 'privacy',
         element: <LazyPage><PrivacyPolicy /></LazyPage>,
+      },
+      {
+        path: '*',
+        element: <Navigate to="/" replace />,
       },
     ],
   },

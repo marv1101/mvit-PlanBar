@@ -11,7 +11,7 @@ export function useRoles() {
     queryKey: QUERY_KEY,
     queryFn: async () => {
       const res = await roleService.getRoles();
-      return res.map(roleFromResponse);
+      return res.items.map(roleFromResponse);
     },
   });
 }

@@ -41,3 +41,12 @@ class NotificationType(str, Enum):
 class PushDeviceType(str, Enum):
     WEB = "web"
     MOBILE = "mobile"
+    SWAP_REQUESTED = "swap_requested"
+    SWAP_APPROVED = "swap_approved"
+    SWAP_REJECTED = "swap_rejected"
+
+
+class ShiftSwapStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"

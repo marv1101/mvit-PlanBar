@@ -5,7 +5,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
+from app.db.models.notification import Notification
 from app.db.models.user import User
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services.notification_service import (
     get_user_notifications,
     get_unread_count,
@@ -38,14 +40,21 @@ def get_unread_notification_count(
     return {"count": count}
 
 
-@router.get("")
+@router.get("", response_model=PaginatedResponse[NotificationResponse])
 def list_notifications(
     unread_only: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    notifications = get_user_notifications(db, current_user.id, unread_only=unread_only)
-    return [
+    total_query = db.query(Notification).filter(Notification.user_id == current_user.id)
+    if unread_only:
+        total_query = total_query.filter(Notification.read == False)  # noqa: E712
+    total = total_query.count()
+    notifications = get_user_notifications(
+        db, current_user.id, unread_only=unread_only, offset=pagination.offset, limit=pagination.limit
+    )
+    items = [
         {
             "id": n.id,
             "user_id": n.user_id,
@@ -58,6 +67,7 @@ def list_notifications(
         }
         for n in notifications
     ]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.put("/read-all")
@@ -75,7 +85,7 @@ def mark_notification_read(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    notification = mark_as_read(db, notification_id)
+    notification = db.query(Notification).filter(Notification.id == notification_id).first()
     if not notification:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -86,6 +96,7 @@ def mark_notification_read(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
         )
+    notification = mark_as_read(db, notification_id)
     return {
         "id": notification.id,
         "user_id": notification.user_id,

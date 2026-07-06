@@ -60,7 +60,7 @@ class UserUpdate(BaseModel):
     username: Optional[str] = Field(None, min_length=3, max_length=64)
     email: Optional[EmailStr] = None
     password: Optional[str] = Field(None, min_length=8)
-    role: Optional[str] = None
+    role: Optional[str] = Field(None, pattern=r"^(admin|user)$")
 
     @field_validator("password")
     @classmethod
@@ -77,6 +77,9 @@ class UserResponse(BaseModel):
     role: str
     must_change_password: bool = True
     employee_id: Optional[int] = None
+    processing_restricted: bool = False
+    objection_filed: bool = False
+    objection_date: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     last_login: Optional[datetime] = None

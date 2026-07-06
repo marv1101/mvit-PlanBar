@@ -95,8 +95,8 @@ export async function getEmployeeTimeAccount(id: number): Promise<TimeAccountRes
   return data;
 }
 
-export async function getAllTimeAccounts(): Promise<TimeAccountResponseDTO[]> {
-  const { data } = await api.get('/employees/time-accounts');
+export async function getAllTimeAccounts(offset?: number, limit?: number): Promise<PaginatedResponse<TimeAccountResponseDTO>> {
+  const { data } = await api.get('/employees/time-accounts', { params: { offset, limit } });
   return data;
 }
 

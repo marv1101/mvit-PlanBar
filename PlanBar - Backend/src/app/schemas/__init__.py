@@ -28,6 +28,18 @@ from app.schemas.schedule import (
     ShiftplanUpdate,
 )
 from app.schemas.tito import TiTOJobResponse, TiTOJobStatus, TiTOCallbackPayload
+from app.schemas.shift_swap import (
+    ShiftSwapCreate,
+    ShiftSwapReject,
+    ShiftSwapResponse,
+    ShiftSwapUpdate,
+)
+from app.schemas.availability import (
+    AvailabilityEntry,
+    AvailabilityResponse,
+    AvailabilityUpdate,
+)
+from app.schemas.self_service import MyOvertimeResponse, MyShiftResponse
 
 __all__ = [
     "UserCreate",
@@ -57,4 +69,13 @@ __all__ = [
     "TiTOJobResponse",
     "TiTOJobStatus",
     "TiTOCallbackPayload",
+    "ShiftSwapCreate",
+    "ShiftSwapUpdate",
+    "ShiftSwapResponse",
+    "ShiftSwapReject",
+    "AvailabilityEntry",
+    "AvailabilityUpdate",
+    "AvailabilityResponse",
+    "MyOvertimeResponse",
+    "MyShiftResponse",
 ]

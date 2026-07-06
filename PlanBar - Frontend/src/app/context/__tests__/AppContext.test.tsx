@@ -161,7 +161,7 @@ describe('AppContext', () => {
     server.resetHandlers()
     server.use(
       http.get(`${base}/employees`, () => HttpResponse.json({ items: employeeDTOs, total: employeeDTOs.length, offset: 0, limit: 50 })),
-      http.get(`${base}/roles`, () => HttpResponse.json(roleDTOs)),
+      http.get(`${base}/roles`, () => HttpResponse.json({ items: roleDTOs, total: roleDTOs.length, offset: 0, limit: 50 })),
       http.get(`${base}/requests`, () => HttpResponse.json({ items: requestDTOs, total: requestDTOs.length, offset: 0, limit: 50 })),
       http.get(`${base}/schedules`, () => HttpResponse.json({ items: scheduleDTOs, total: scheduleDTOs.length, offset: 0, limit: 50 })),
     )
