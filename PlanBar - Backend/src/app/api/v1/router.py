@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.sync import router as sync_router
 from app.api.v1.audit import router as audit_router
 from app.api.v1.privacy import router as privacy_router
 from app.api.v1.callbacks import router as callbacks_router
@@ -24,6 +25,7 @@ from app.api.v1.schedules import router as schedules_router
 from app.api.v1.users import router as users_router
 
 api_router = APIRouter()
+api_router.include_router(sync_router, prefix="", tags=["sync"])
 api_router.include_router(health_router, prefix="/health", tags=["health"])
 api_router.include_router(users_router, prefix="/users", tags=["users"])
 api_router.include_router(employees_router, prefix="/employees", tags=["employees"])
