@@ -18,6 +18,14 @@ from app.services import audit_service
 router = APIRouter()
 
 
+def _csv_escape(value: str | None) -> str:
+    if value is None:
+        return ""
+    if value and value[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
 @router.get("/audit-logs/suspicious", response_model=list[SuspiciousPatternResponse])
 def get_suspicious_patterns(
     db: Session = Depends(get_db),
@@ -37,8 +45,8 @@ def export_audit_logs(
 ):
     items, _ = audit_service.query(
         db,
-        page=1,
-        page_size=10000,
+        offset=0,
+        limit=10000,
         action=action,
         resource_type=resource_type,
         start_date=start_date,
@@ -67,10 +75,10 @@ def export_audit_logs(
                 entry.user_id,
                 entry.action,
                 entry.resource_type,
-                entry.resource_id,
-                entry.details,
-                entry.ip_address,
-                entry.user_agent,
+                _csv_escape(entry.resource_id),
+                _csv_escape(entry.details),
+                _csv_escape(entry.ip_address),
+                _csv_escape(entry.user_agent),
                 entry.created_at.isoformat(),
             ]
         )
@@ -85,8 +93,8 @@ def export_audit_logs(
 
 @router.get("/audit-logs", response_model=AuditLogListResponse)
 def list_audit_logs(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=200),
     user_id: int | None = None,
     action: str | None = None,
     resource_type: str | None = None,
@@ -98,8 +106,8 @@ def list_audit_logs(
 ):
     items, pagination = audit_service.query(
         db,
-        page=page,
-        page_size=page_size,
+        offset=offset,
+        limit=limit,
         user_id=user_id,
         action=action,
         resource_type=resource_type,
@@ -107,7 +115,7 @@ def list_audit_logs(
         start_date=start_date,
         end_date=end_date,
     )
-    return {"items": items, "pagination": pagination}
+    return {"items": items, "total": pagination["total"], "offset": pagination["offset"], "limit": pagination["limit"]}
 
 
 @router.get("/audit-logs/{log_id}", response_model=AuditLogResponse)

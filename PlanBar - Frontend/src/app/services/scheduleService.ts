@@ -1,5 +1,5 @@
 import api from '../lib/api';
-import type { PaginatedResponse } from '../types';
+import type { PaginatedResponse, ArbZgWarning } from '../types';
 
 export interface ShiftplanCreateDTO {
   employee_id: number;
@@ -76,6 +76,10 @@ export interface ScheduleResponseDTO {
   updated_at: string;
 }
 
+export interface ScheduleWithArbzgDTO extends ScheduleResponseDTO {
+  arbZgWarnings: ArbZgWarning[];
+}
+
 export interface ScheduleSummaryDTO {
   id: number;
   name: string;
@@ -95,7 +99,7 @@ export async function getSchedule(id: number): Promise<ScheduleResponseDTO> {
   return data;
 }
 
-export async function createSchedule(dto: ScheduleCreateDTO): Promise<ScheduleResponseDTO> {
+export async function createSchedule(dto: ScheduleCreateDTO): Promise<ScheduleWithArbzgDTO> {
   const { data } = await api.post('/schedules', dto);
   return data;
 }
@@ -124,17 +128,17 @@ export async function getScheduleSummary(id: number): Promise<ScheduleSummaryDTO
   return data;
 }
 
-export async function getScheduleShifts(id: number): Promise<ShiftplanResponseDTO[]> {
-  const { data } = await api.get(`/schedules/${id}/shifts`);
+export async function getScheduleShifts(id: number, offset?: number, limit?: number): Promise<PaginatedResponse<ShiftplanResponseDTO>> {
+  const { data } = await api.get(`/schedules/${id}/shifts`, { params: { offset, limit } });
   return data;
 }
 
-export async function updateShiftplan(scheduleId: number, shiftplanId: number, dto: Partial<ShiftplanCreateDTO>): Promise<ShiftplanResponseDTO> {
+export async function updateShiftplan(scheduleId: number, shiftplanId: number, dto: Partial<ShiftplanCreateDTO>): Promise<ScheduleWithArbzgDTO> {
   const { data } = await api.put(`/schedules/${scheduleId}/shifts/${shiftplanId}`, dto);
   return data;
 }
 
-export async function replaceAllShifts(scheduleId: number, shifts: ShiftplanCreateDTO[]): Promise<ScheduleResponseDTO> {
+export async function replaceAllShifts(scheduleId: number, shifts: ShiftplanCreateDTO[]): Promise<ScheduleWithArbzgDTO> {
   const { data } = await api.put(`/schedules/${scheduleId}/shifts`, { shiftplans: shifts });
   return data;
 }

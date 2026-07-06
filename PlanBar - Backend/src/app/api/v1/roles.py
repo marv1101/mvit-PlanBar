@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.user import User
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.schemas.role import RoleCreate, RoleUpdate
 from app.services import role_service
 
@@ -28,12 +29,15 @@ def create_role(
     return role_service.create_role(db, data)
 
 
-@router.get("", response_model=list[RoleResponse])
+@router.get("", response_model=PaginatedResponse[RoleResponse])
 def list_roles(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    return role_service.get_roles(db)
+    total = db.query(role_service.Role).count()
+    items = role_service.list_roles(db, offset=pagination.offset, limit=pagination.limit)
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.put("/{role_id}", response_model=RoleResponse)

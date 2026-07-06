@@ -36,6 +36,8 @@ import { scheduleFromResponse } from '../../lib/mappers';
 import { TIMEZONE } from '../../lib/timezone';
 import { exportShiftsCSV } from '../../lib/csv';
 import { StatusBadge } from './StatusBadge';
+import { ArbZgConfirmDialog } from './ArbZgConfirmDialog';
+import type { ArbZgWarning } from '../../types';
 
 interface ScheduleManageListProps {
   schedules: ScheduleType[];
@@ -72,6 +74,9 @@ export function ScheduleManageList({
 }: ScheduleManageListProps) {
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleType | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ScheduleType | null>(null);
+  const [arbZgDialogOpen, setArbZgDialogOpen] = useState(false);
+  const [arbZgWarnings, setArbZgWarnings] = useState<ArbZgWarning[]>([]);
+  const [pendingShiftplans, setPendingShiftplans] = useState<scheduleService.ShiftplanCreateDTO[]>([]);
 
   const isDraft = selectedSchedule?.status === 'draft';
   const hasWeekA = selectedSchedule?.shifts.some(s => s.week === 'A') ?? false;
@@ -99,7 +104,7 @@ export function ScheduleManageList({
   const handleSubmitExisting = async (schedule: ScheduleType) => {
     try {
       const pending = await requestService.getPendingShiftWishes(Number(schedule.id));
-      if (pending.length > 0) {
+      if (pending.items.length > 0) {
         onWishReview(Number(schedule.id));
         return;
       }
@@ -168,10 +173,38 @@ export function ScheduleManageList({
       break_start: s.breakStart,
       break_end: s.breakEnd,
     }));
-    await scheduleService.replaceAllShifts(Number(selectedSchedule.id), shiftplans);
+
+    try {
+      const result = await scheduleService.replaceAllShifts(Number(selectedSchedule.id), shiftplans);
+      if (result.arbZgWarnings && result.arbZgWarnings.length > 0) {
+        setPendingShiftplans(shiftplans);
+        setArbZgWarnings(result.arbZgWarnings);
+        setArbZgDialogOpen(true);
+        return;
+      }
+      finalizeManageSave(shifts);
+    } catch {
+      toast.error('Fehler beim Speichern des Schichtplans');
+    }
+  };
+
+  const finalizeManageSave = async (shifts: ScheduleType['shifts']) => {
     await refresh();
     setSelectedSchedule(prev => prev ? { ...prev, shifts } : null);
+    setArbZgDialogOpen(false);
+    setArbZgWarnings([]);
+    setPendingShiftplans([]);
     toast.success('Schichtplan gespeichert');
+  };
+
+  const handleConfirmArbZg = async () => {
+    if (!selectedSchedule || pendingShiftplans.length === 0) return;
+    try {
+      await scheduleService.replaceAllShifts(Number(selectedSchedule.id), pendingShiftplans);
+      finalizeManageSave(selectedSchedule.shifts);
+    } catch {
+      toast.error('Fehler beim Speichern des Schichtplans');
+    }
   };
 
   const handleUpdateSchedule = (updatedSchedule: ScheduleType) => {
@@ -464,6 +497,12 @@ export function ScheduleManageList({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <ArbZgConfirmDialog
+        open={arbZgDialogOpen}
+        warnings={arbZgWarnings}
+        onConfirm={handleConfirmArbZg}
+        onCancel={() => setArbZgDialogOpen(false)}
+      />
     </>
   );
 }

@@ -62,7 +62,9 @@ class TestNotificationEndpoints:
         _clean_notifications(db_session)
         resp = client.get("/api/v1/notifications", headers=auth_headers)
         assert resp.status_code == 200
-        assert resp.json() == []
+        data = resp.json()
+        assert data["items"] == []
+        assert data["total"] == 0
 
     def test_unread_count_empty(self, client, auth_headers, db_session):
         _clean_notifications(db_session)
@@ -92,10 +94,10 @@ class TestNotificationEndpoints:
         resp = client.get("/api/v1/notifications", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 1
-        assert data[0]["type"] == "wish_approved"
-        assert data[0]["read"] is False
-        assert data[0]["data"]["wish_id"] == 1
+        assert len(data["items"]) == 1
+        assert data["items"][0]["type"] == "wish_approved"
+        assert data["items"][0]["read"] is False
+        assert data["items"][0]["data"]["wish_id"] == 1
 
     def test_unread_count(self, client, db_session, auth_headers):
         _clean_notifications(db_session)
@@ -143,8 +145,8 @@ class TestNotificationEndpoints:
         resp = client.get("/api/v1/notifications?unread_only=true", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 1
-        assert data[0]["title"] == "Unread"
+        assert len(data["items"]) == 1
+        assert data["items"][0]["title"] == "Unread"
 
     def test_mark_as_read(self, client, db_session, auth_headers):
         _clean_notifications(db_session)
@@ -245,7 +247,7 @@ class TestWishApprovalNotification:
         # Employee should see a notification
         noti_resp = client.get("/api/v1/notifications", headers=emp_headers)
         assert noti_resp.status_code == 200
-        notis = noti_resp.json()
+        notis = noti_resp.json()["items"]
         wish_notis = [n for n in notis if n["type"] == "wish_approved"]
         assert len(wish_notis) == 1
         assert "genehmigt" in wish_notis[0]["message"].lower()
@@ -275,7 +277,7 @@ class TestWishApprovalNotification:
 
         noti_resp = client.get("/api/v1/notifications", headers=emp_headers)
         assert noti_resp.status_code == 200
-        notis = noti_resp.json()
+        notis = noti_resp.json()["items"]
         reject_notis = [n for n in notis if n["type"] == "wish_rejected"]
         assert len(reject_notis) == 1
         assert "abgelehnt" in reject_notis[0]["message"].lower()
@@ -322,7 +324,7 @@ class TestScheduleStatusNotification:
         # Employee should see a schedule_published notification
         noti_resp = client.get("/api/v1/notifications", headers=emp_headers)
         assert noti_resp.status_code == 200
-        notis = noti_resp.json()
+        notis = noti_resp.json()["items"]
         sched_notis = [n for n in notis if n["type"] == "schedule_published"]
         assert len(sched_notis) == 1
         assert "Notification Schedule" in sched_notis[0]["message"]
@@ -360,7 +362,7 @@ class TestShiftUpdateNotification:
 
         # Get the shiftplan id
         shifts_resp = client.get(f"/api/v1/schedules/{schedule_id}/shifts", headers=auth_headers)
-        shiftplan_id = shifts_resp.json()[0]["id"]
+        shiftplan_id = shifts_resp.json()["items"][0]["id"]
 
         # Update the shift
         update_resp = client.put(
@@ -373,7 +375,7 @@ class TestShiftUpdateNotification:
         # Employee should see a shift_changed notification
         noti_resp = client.get("/api/v1/notifications", headers=emp_headers)
         assert noti_resp.status_code == 200
-        notis = noti_resp.json()
+        notis = noti_resp.json()["items"]
         shift_notis = [n for n in notis if n["type"] == "shift_changed"]
         assert len(shift_notis) >= 1
         assert "geändert" in shift_notis[0]["message"].lower()

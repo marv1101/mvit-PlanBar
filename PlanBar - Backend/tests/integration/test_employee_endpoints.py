@@ -177,7 +177,9 @@ def test_create_contract(client, auth_headers):
 def test_list_contracts(client, auth_headers):
     response = client.get("/api/v1/contracts", headers=auth_headers)
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert "items" in data
+    assert isinstance(data["items"], list)
 
 
 def test_create_timecard(client, auth_headers):
@@ -203,4 +205,6 @@ def test_create_timecard(client, auth_headers):
 def test_list_timecards(client, auth_headers):
     response = client.get("/api/v1/timecards", headers=auth_headers)
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert "items" in data
+    assert isinstance(data["items"], list)

@@ -29,6 +29,7 @@ from app.dependencies import get_current_user, get_db
 from app.db.models.pinboard import PinboardThread, PinboardMessage, PinboardDocument
 from app.db.models.user import User
 from app.db.database import SessionLocal
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +178,9 @@ def _validate_magic_bytes(content: bytes, ext: str):
         ".gif": [(b"GIF87a", 0), (b"GIF89a", 0)],
         ".webp": [(b"RIFF", 0), (b"WEBP", 8)],
         ".pdf": [(b"%PDF", 0)],
+        ".docx": [(b"PK\x03\x04", 0)],
+        ".xlsx": [(b"PK\x03\x04", 0)],
+        ".doc": [(b"\xd0\xcf\x11\xe0", 0)],
     }
     if ext not in MAGIC_PATTERNS:
         return
@@ -201,13 +205,22 @@ def _thread_to_detail_response(thread: PinboardThread) -> ThreadDetailResponse:
     )
 
 
-@router.get("/threads", response_model=list[ThreadResponse])
+@router.get("/threads", response_model=PaginatedResponse[ThreadResponse])
 def list_threads(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    threads = db.query(PinboardThread).order_by(PinboardThread.is_pinned.desc(), PinboardThread.updated_at.desc()).all()
-    return [_thread_to_response(t) for t in threads]
+    total = db.query(PinboardThread).count()
+    threads = (
+        db.query(PinboardThread)
+        .order_by(PinboardThread.is_pinned.desc(), PinboardThread.updated_at.desc())
+        .offset(pagination.offset)
+        .limit(pagination.limit)
+        .all()
+    )
+    items = [_thread_to_response(t) for t in threads]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.post("/threads", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED)
@@ -273,16 +286,22 @@ def delete_thread(
     db.commit()
 
 
-@router.get("/threads/{thread_id}/messages", response_model=list[MessageResponse])
+@router.get("/threads/{thread_id}/messages", response_model=PaginatedResponse[MessageResponse])
 def list_messages(
     thread_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
     thread = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
     if not thread:
         raise NotFoundException(detail="Thread not found")
-    return [_message_to_response(msg) for msg in (thread.messages or [])]
+    all_messages = thread.messages or []
+    total = len(all_messages)
+    items = [
+        _message_to_response(msg) for msg in all_messages[pagination.offset : pagination.offset + pagination.limit]
+    ]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.post(
@@ -587,8 +606,8 @@ async def websocket_endpoint(
         try:
             payload = verify_token(token_str)
             user_id = int(payload.get("sub", 0))
-        except (ValueError, Exception) as e:
-            logger.warning(f"WebSocket auth failed: invalid token - {e}")
+        except (ValueError, Exception):
+            logger.warning("WebSocket auth failed: invalid token")
             await websocket.close(code=4001, reason="Invalid token")
             return
 

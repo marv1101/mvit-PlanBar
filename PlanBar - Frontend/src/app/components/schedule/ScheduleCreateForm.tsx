@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -14,6 +14,8 @@ import * as requestService from '../../services/requestService';
 import { scheduleFromResponse } from '../../lib/mappers';
 import { exportShiftsCSV } from '../../lib/csv';
 import { StatusBadge } from './StatusBadge';
+import { ArbZgConfirmDialog } from './ArbZgConfirmDialog';
+import type { ArbZgWarning } from '../../types';
 
 interface ScheduleCreateFormProps {
   roles: Role[];
@@ -22,6 +24,7 @@ interface ScheduleCreateFormProps {
   addSchedule: (schedule: ScheduleType) => void;
   refresh: () => Promise<void>;
   currentWeek: WeekType;
+  setCurrentWeek: (w: WeekType) => void;
   submitting: boolean;
   pollResult: ScheduleType | null;
   currentScheduleId: string | null;
@@ -40,6 +43,7 @@ export function ScheduleCreateForm({
   addSchedule,
   refresh,
   currentWeek,
+  setCurrentWeek,
   submitting,
   pollResult,
   currentScheduleId,
@@ -62,6 +66,22 @@ export function ScheduleCreateForm({
   const [manualEndDate, setManualEndDate] = useState('');
   const [manualWeekType, setManualWeekType] = useState<WeekType | ''>('A');
   const [manuallyCreatedSchedule, setManuallyCreatedSchedule] = useState<ScheduleType | null>(null);
+
+  const [arbZgDialogOpen, setArbZgDialogOpen] = useState(false);
+  const [arbZgWarnings, setArbZgWarnings] = useState<ArbZgWarning[]>([]);
+  const [pendingShiftplans, setPendingShiftplans] = useState<scheduleService.ShiftplanCreateDTO[]>([]);
+
+  // Auto-switch currentWeek when pollResult only contains shifts from one week
+  useEffect(() => {
+    if (!pollResult || pollResult.shifts.length === 0) return;
+    const hasWeekA = pollResult.shifts.some(s => s.week === 'A');
+    const hasWeekB = pollResult.shifts.some(s => s.week === 'B');
+    if (currentWeek === 'A' && !hasWeekA && hasWeekB) {
+      setCurrentWeek('B');
+    } else if (currentWeek === 'B' && !hasWeekB && hasWeekA) {
+      setCurrentWeek('A');
+    }
+  }, [pollResult, currentWeek, setCurrentWeek]);
 
   const resetCreateState = () => {
     setCurrentScheduleId(null);
@@ -108,6 +128,10 @@ export function ScheduleCreateForm({
       toast.error('Bitte Name, Start- und Enddatum eingeben');
       return;
     }
+    if (startDate > endDate) {
+      toast.error('Startdatum darf nicht nach dem Enddatum liegen');
+      return;
+    }
     if (shiftTemplates.length === 0 || shiftTemplates.some(st => !st.name || !st.startTime || !st.endTime)) {
       toast.error('Bitte mindestens ein vollständiges Schicht-Template definieren');
       return;
@@ -138,7 +162,7 @@ export function ScheduleCreateForm({
 
       try {
         const pending = await requestService.getPendingShiftWishes(created.id);
-        if (pending.length > 0) {
+        if (pending.items.length > 0) {
           onWishReview(created.id);
           return;
         }
@@ -163,6 +187,10 @@ export function ScheduleCreateForm({
   const createManual = async () => {
     if (!manualName || !manualStartDate || !manualEndDate) {
       toast.error('Bitte Name, Start- und Enddatum eingeben');
+      return;
+    }
+    if (manualStartDate > manualEndDate) {
+      toast.error('Startdatum darf nicht nach dem Enddatum liegen');
       return;
     }
     try {
@@ -194,7 +222,22 @@ export function ScheduleCreateForm({
       break_start: s.breakStart,
       break_end: s.breakEnd,
     }));
-    await scheduleService.replaceAllShifts(Number(manuallyCreatedSchedule.id), shiftplans);
+
+    try {
+      const result = await scheduleService.replaceAllShifts(Number(manuallyCreatedSchedule.id), shiftplans);
+      if (result.arbZgWarnings && result.arbZgWarnings.length > 0) {
+        setPendingShiftplans(shiftplans);
+        setArbZgWarnings(result.arbZgWarnings);
+        setArbZgDialogOpen(true);
+        return;
+      }
+      finalizeManualSave();
+    } catch {
+      toast.error('Fehler beim Speichern des Schichtplans');
+    }
+  };
+
+  const finalizeManualSave = async () => {
     await refresh();
     setManuallyCreatedSchedule(null);
     setManualName('');
@@ -202,7 +245,20 @@ export function ScheduleCreateForm({
     setManualEndDate('');
     setManualWeekType('A');
     setCreationMode('tito');
+    setArbZgDialogOpen(false);
+    setArbZgWarnings([]);
+    setPendingShiftplans([]);
     toast.success('Schichtplan gespeichert');
+  };
+
+  const handleConfirmArbZg = async () => {
+    if (!manuallyCreatedSchedule || pendingShiftplans.length === 0) return;
+    try {
+      await scheduleService.replaceAllShifts(Number(manuallyCreatedSchedule.id), pendingShiftplans);
+      finalizeManualSave();
+    } catch {
+      toast.error('Fehler beim Speichern des Schichtplans');
+    }
   };
 
   const handleChangeStatus = async (schedule: ScheduleType, newStatus: string) => {
@@ -459,6 +515,7 @@ export function ScheduleCreateForm({
                 onChange={(e) => setScheduleName(e.target.value)}
                 placeholder="z.B. April 2026"
                 disabled={submitting}
+                maxLength={100}
               />
             </div>
 
@@ -563,8 +620,9 @@ export function ScheduleCreateForm({
                             <Input
                               type="number"
                               min="0"
+                              max="999"
                               value={st.requirements[role.id] || 0}
-                              onChange={(e) => updateRequirement(index, role.id, parseInt(e.target.value) || 0)}
+                              onChange={(e) => updateRequirement(index, role.id, Math.min(999, Math.max(0, parseInt(e.target.value) || 0)))}
                               className="w-16 h-8 text-xs"
                               disabled={submitting}
                             />
@@ -621,6 +679,7 @@ export function ScheduleCreateForm({
                 value={manualName}
                 onChange={(e) => setManualName(e.target.value)}
                 placeholder="z.B. April 2026 (manuell)"
+                maxLength={100}
               />
             </div>
 
@@ -678,6 +737,13 @@ export function ScheduleCreateForm({
           </CardContent>
         </Card>
       )}
+
+      <ArbZgConfirmDialog
+        open={arbZgDialogOpen}
+        warnings={arbZgWarnings}
+        onConfirm={handleConfirmArbZg}
+        onCancel={() => setArbZgDialogOpen(false)}
+      />
     </>
   );
 }

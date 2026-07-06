@@ -35,7 +35,7 @@ export function TimeAccounts() {
     setLoading(true);
     setError(null);
     getAllTimeAccounts()
-      .then(res => setAccounts(res.map(timeAccountFromResponse)))
+      .then(res => setAccounts(res.items.map(timeAccountFromResponse)))
       .catch(() => setError('Fehler beim Laden der Zeitkonten'))
       .finally(() => setLoading(false));
   }

@@ -1,25 +1,24 @@
 {
-  "name": "MVIT PlanBar",
+  "name": "PlanBar - Dienstplan",
   "short_name": "PlanBar",
-  "description": "Schichtplanungsanwendung",
-  "start_url": "/",
+  "description": "Dienstplan-App für Gastronomie, Pflege und Handwerk",
+  "theme_color": "#1a1a2e",
+  "background_color": "#1a1a2e",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#2563eb",
   "orientation": "portrait-primary",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
     {
-      "src": "/favicon.png",
+      "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
-      "src": "/favicon.png",
+      "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     }
   ],
-  "categories": ["business", "productivity"]
+  "categories": ["productivity", "business"]
 }

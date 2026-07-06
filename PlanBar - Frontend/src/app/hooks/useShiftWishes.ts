@@ -24,7 +24,7 @@ export function useApprovedWishes(scheduleId: number | null) {
     queryFn: async () => {
       if (!scheduleId) return [];
       const res = await requestService.getWishesByStatus(scheduleId, 'approved');
-      return res.map(requestFromResponse) as Request[];
+      return res.items.map(requestFromResponse) as Request[];
     },
     enabled: !!scheduleId,
   });

@@ -58,7 +58,7 @@ async function loadAll() {
   ]);
   return {
     employees: empRes.items.map(employeeFromResponse),
-    roles: roleRes.map(roleFromResponse),
+    roles: roleRes.items.map(roleFromResponse),
     requests: reqRes.items.map(requestFromResponse),
     schedules: schedRes.items.map(scheduleFromResponse),
   };
@@ -92,7 +92,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refresh();
+    let mounted = true;
+    refresh().then(() => {
+      if (!mounted) return;
+    });
+    return () => { mounted = false; };
   }, [refresh]);
 
   const addEmployee = useCallback((employee: Employee) => {
