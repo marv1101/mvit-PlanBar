@@ -16,6 +16,7 @@ const EmployeeView = lazy(() => import('./pages/EmployeeView').then(m => ({ defa
 const PinboardPage = lazy(() => import('./pages/PinboardPage').then(m => ({ default: m.PinboardPage })));
 const TimeAccounts = lazy(() => import('./pages/TimeAccounts').then(m => ({ default: m.TimeAccounts })));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })));
+const Imprint = lazy(() => import('./pages/Imprint').then(m => ({ default: m.Imprint })));
 const SelfService = lazy(() => import('./pages/SelfService').then(m => ({ default: m.SelfService })));
 
 function LazyPage({ children }: { children: React.ReactNode }) {
@@ -118,6 +119,10 @@ export const router = createBrowserRouter([
       {
         path: 'privacy',
         element: <LazyPage><PrivacyPolicy /></LazyPage>,
+      },
+      {
+        path: 'impressum',
+        element: <LazyPage><Imprint /></LazyPage>,
       },
       {
         path: '*',
