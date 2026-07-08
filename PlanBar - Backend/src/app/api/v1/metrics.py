@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db, require_admin
+from app.dependencies import get_db, require_admin
 from app.db.models.user import User
 from app.services.metrics_service import get_aggregated_metrics, get_robustness_metrics
 

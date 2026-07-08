@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db, require_admin
+from app.dependencies import get_db, require_admin
 from app.db.models.user import User
 from app.services.tito_proxy import tito_proxy
 

@@ -3,8 +3,8 @@ line-length = 120
 
 [lint]
 # Ignore E402 in test files and TiTO/main.py (module imports not at top - needed for env/path setup)
-per-file-ignores."*/tests/conftest.py" = ["E402"]
-per-file-ignores."*/tests/*" = ["E402"]
+per-file-ignores."**/tests/conftest.py" = ["E402"]
+per-file-ignores."**/tests/*" = ["E402"]
 per-file-ignores."TiTO/main.py" = ["E402"]
 
 [format]
