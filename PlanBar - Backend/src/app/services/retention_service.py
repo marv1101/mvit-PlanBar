@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.db.models.audit_log import AuditLog
-from app.db.models.employee import Contract, Employee, Timecard
+from app.db.models.employee import Employee, Timecard
 from app.db.models.pinboard import PinboardMessage, PinboardThread
 from app.db.models.retention_audit import RetentionAuditLog
 from app.db.models.schedule import Schedule, Shiftplan

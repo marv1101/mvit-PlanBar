@@ -8,7 +8,7 @@ GET    /api/v1/retention/preview   — Dry-Run, zeigt was gelöscht würde
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db, require_admin
+from app.dependencies import get_db, require_admin
 from app.db.models.user import User
 from app.services.retention_service import cleanup_expired_data, get_policies
 

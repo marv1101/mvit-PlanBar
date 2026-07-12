@@ -9,7 +9,7 @@ from app.db.models.audit_log import AuditLog
 from app.db.models.employee import Employee, Timecard
 from app.db.models.pinboard import PinboardThread
 from app.db.models.retention_audit import RetentionAuditLog
-from app.db.models.schedule import Schedule, Shiftplan
+from app.db.models.schedule import Schedule
 from app.db.models.shift_swap import ShiftSwapRequest
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
@@ -244,7 +244,7 @@ class TestDeleteEmployeeAfter10Years:
 
     def test_does_not_touch_active_employee(self, db_session):
         user = _make_user(db_session)
-        emp = _make_employee(db_session, user_id=user.id)
+        _make_employee(db_session, user_id=user.id)  # active employee, must stay
 
         report = cleanup_expired_data(db_session, dry_run=False)
         if "employee" in report:
