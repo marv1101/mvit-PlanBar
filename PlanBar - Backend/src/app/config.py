@@ -36,5 +36,8 @@ class Settings(BaseSettings):
     # and admins must use POST /api/v1/users/admin-create instead.
     enable_self_registration: bool = Field(False)
 
+    retention_auto_enabled: bool = Field(False)
+    retention_cleanup_hour: int = Field(3)
+
 
 settings = Settings()
