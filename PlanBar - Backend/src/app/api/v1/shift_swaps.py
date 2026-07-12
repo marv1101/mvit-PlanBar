@@ -10,6 +10,7 @@ from app.db.models.schedule import Shiftplan
 from app.db.models.shift_swap import ShiftSwapRequest
 from app.db.models.user import User
 from app.dependencies import get_current_user, get_db, require_admin_or_planer
+from app.core.event_bus import event_bus
 from app.schemas.shift_swap import (
     ShiftSwapCreate,
     ShiftSwapReject,
@@ -159,6 +160,14 @@ def approve_shift_swap(
             message="Der Schichttausch wurde genehmigt.",
             data={"swap_id": swap.id},
         )
+
+    event_bus.dispatch("shift.swapped", {
+        "swap_id": swap.id,
+        "requester_employee_id": swap.employee_id,
+        "target_employee_id": swap.target_employee_id,
+        "requester_shift_id": swap.requester_shift_id,
+        "target_shift_id": swap.target_shift_id,
+    })
 
     return swap
 
