@@ -4,6 +4,7 @@ from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.notification import Notification
 from app.db.models.pinboard import PinboardDocument, PinboardMessage, PinboardThread
 from app.db.models.push_subscription import PushSubscription
+from app.db.models.retention_audit import RetentionAuditLog
 from app.db.models.revoked_token import RevokedToken
 from app.db.models.role import Role
 from app.db.models.schedule import Schedule, Shiftplan
@@ -23,6 +24,7 @@ __all__ = [
     "PinboardMessage",
     "PinboardThread",
     "PushSubscription",
+    "RetentionAuditLog",
     "RevokedToken",
     "Role",
     "Schedule",

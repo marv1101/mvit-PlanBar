@@ -2,15 +2,12 @@ from fastapi import APIRouter
 
 from app.api.v1.audit import router as audit_router
 from app.api.v1.callbacks import router as callbacks_router
-<<<<<<< HEAD
-=======
 from app.api.v1.exports import router as exports_router
 from app.api.v1.gdpr import admin_router as gdpr_admin_router
+from app.api.v1.gdpr import router as gdpr_router
 from app.api.v1.retention import router as retention_router
 from app.api.v1.shift_swaps import router as shift_swaps_router
 from app.api.v1.self_service import router as self_service_router
-from app.api.v1.gdpr import router as gdpr_router
->>>>>>> c80145d (feat(retention): add admin endpoints for cleanup and preview (#48))
 from app.api.v1.employees import (
     contract_router,
     timecard_router,
@@ -18,9 +15,6 @@ from app.api.v1.employees import (
 from app.api.v1.employees import (
     router as employees_router,
 )
-from app.api.v1.exports import router as exports_router
-from app.api.v1.gdpr import admin_router as gdpr_admin_router
-from app.api.v1.gdpr import router as gdpr_router
 from app.api.v1.health import router as health_router
 from app.api.v1.metrics import router as metrics_router
 from app.api.v1.notifications import router as notifications_router
@@ -30,8 +24,6 @@ from app.api.v1.push import router as push_router
 from app.api.v1.requests import router as requests_router
 from app.api.v1.roles import router as roles_router
 from app.api.v1.schedules import router as schedules_router
-from app.api.v1.self_service import router as self_service_router
-from app.api.v1.shift_swaps import router as shift_swaps_router
 from app.api.v1.sync import router as sync_router
 from app.api.v1.teams import router as teams_router
 from app.api.v1.time_tracking import router as time_tracking_router
@@ -59,9 +51,6 @@ api_router.include_router(gdpr_router, prefix="/gdpr", tags=["gdpr"])
 api_router.include_router(gdpr_admin_router, prefix="/admin", tags=["admin"])
 api_router.include_router(shift_swaps_router, prefix="/shift-swaps", tags=["shift-swaps"])
 api_router.include_router(self_service_router, prefix="/my", tags=["self-service"])
-<<<<<<< HEAD
 api_router.include_router(teams_router, prefix="/teams", tags=["teams"])
 api_router.include_router(time_tracking_router, prefix="/time-tracking", tags=["time-tracking"])
-=======
 api_router.include_router(retention_router, prefix="/retention", tags=["retention"])
->>>>>>> c80145d (feat(retention): add admin endpoints for cleanup and preview (#48))
