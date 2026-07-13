@@ -10,6 +10,7 @@ from app.db.models.notification import Notification
 from app.db.models.push_subscription import PushSubscription
 from app.db.models.shift_swap import ShiftSwapRequest
 from app.db.models.availability import Availability
+from app.db.models.time_tracking import TimeEntry
 
 __all__ = [
     "User",
@@ -29,4 +30,5 @@ __all__ = [
     "PushSubscription",
     "ShiftSwapRequest",
     "Availability",
+    "TimeEntry",
 ]
