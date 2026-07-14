@@ -7,7 +7,17 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    UploadFile,
+    File,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -19,6 +29,7 @@ from app.dependencies import get_current_user, get_db
 from app.db.models.pinboard import PinboardThread, PinboardMessage, PinboardDocument
 from app.db.models.user import User
 from app.db.database import SessionLocal
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +178,9 @@ def _validate_magic_bytes(content: bytes, ext: str):
         ".gif": [(b"GIF87a", 0), (b"GIF89a", 0)],
         ".webp": [(b"RIFF", 0), (b"WEBP", 8)],
         ".pdf": [(b"%PDF", 0)],
+        ".docx": [(b"PK\x03\x04", 0)],
+        ".xlsx": [(b"PK\x03\x04", 0)],
+        ".doc": [(b"\xd0\xcf\x11\xe0", 0)],
     }
     if ext not in MAGIC_PATTERNS:
         return
@@ -191,17 +205,22 @@ def _thread_to_detail_response(thread: PinboardThread) -> ThreadDetailResponse:
     )
 
 
-@router.get("/threads", response_model=list[ThreadResponse])
+@router.get("/threads", response_model=PaginatedResponse[ThreadResponse])
 def list_threads(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
+    total = db.query(PinboardThread).count()
     threads = (
         db.query(PinboardThread)
         .order_by(PinboardThread.is_pinned.desc(), PinboardThread.updated_at.desc())
+        .offset(pagination.offset)
+        .limit(pagination.limit)
         .all()
     )
-    return [_thread_to_response(t) for t in threads]
+    items = [_thread_to_response(t) for t in threads]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.post("/threads", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED)
@@ -267,19 +286,29 @@ def delete_thread(
     db.commit()
 
 
-@router.get("/threads/{thread_id}/messages", response_model=list[MessageResponse])
+@router.get("/threads/{thread_id}/messages", response_model=PaginatedResponse[MessageResponse])
 def list_messages(
     thread_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
     thread = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
     if not thread:
         raise NotFoundException(detail="Thread not found")
-    return [_message_to_response(msg) for msg in (thread.messages or [])]
+    all_messages = thread.messages or []
+    total = len(all_messages)
+    items = [
+        _message_to_response(msg) for msg in all_messages[pagination.offset : pagination.offset + pagination.limit]
+    ]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
-@router.post("/threads/{thread_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/threads/{thread_id}/messages",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_message(
     thread_id: int,
     data: MessageCreate,
@@ -337,7 +366,11 @@ def delete_message(
     db.commit()
 
 
-@router.post("/messages/{message_id}/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/messages/{message_id}/documents",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_document(
     message_id: int,
     file: UploadFile = File(...),
@@ -352,9 +385,7 @@ async def upload_document(
     ext = os.path.splitext(file.filename or "file")[1].lower()
 
     if ext in BLOCKED_EXTENSIONS:
-        logger.warning(
-            f"Blocked upload attempt - user={current_user.id} file={file.filename} ext={ext}"
-        )
+        logger.warning(f"Blocked upload attempt - user={current_user.id} file={file.filename} ext={ext}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File type is not allowed.",
@@ -393,11 +424,14 @@ async def upload_document(
     db.refresh(doc)
 
     doc_response = DocumentResponse.model_validate(doc)
-    await _broadcast(message.thread_id, {
-        "type": "document_uploaded",
-        "message_id": message_id,
-        "document": doc_response.model_dump(mode="json"),
-    })
+    await _broadcast(
+        message.thread_id,
+        {
+            "type": "document_uploaded",
+            "message_id": message_id,
+            "document": doc_response.model_dump(mode="json"),
+        },
+    )
     return doc_response
 
 
@@ -510,10 +544,13 @@ def _notify_clients(thread_id: int, message: MessageResponse):
         loop = asyncio.get_event_loop()
         if loop.is_running():
             asyncio.ensure_future(
-                _broadcast(thread_id, {
-                    "type": "new_message",
-                    "message": message.model_dump(mode="json"),
-                })
+                _broadcast(
+                    thread_id,
+                    {
+                        "type": "new_message",
+                        "message": message.model_dump(mode="json"),
+                    },
+                )
             )
     except RuntimeError:
         pass
@@ -569,8 +606,8 @@ async def websocket_endpoint(
         try:
             payload = verify_token(token_str)
             user_id = int(payload.get("sub", 0))
-        except (ValueError, Exception) as e:
-            logger.warning(f"WebSocket auth failed: invalid token - {e}")
+        except (ValueError, Exception):
+            logger.warning("WebSocket auth failed: invalid token")
             await websocket.close(code=4001, reason="Invalid token")
             return
 
@@ -626,10 +663,13 @@ async def websocket_endpoint(
                     db.refresh(message)
 
                     msg_response = _message_to_response(message)
-                    await _broadcast(thread_id, {
-                        "type": "new_message",
-                        "message": msg_response.model_dump(mode="json"),
-                    })
+                    await _broadcast(
+                        thread_id,
+                        {
+                            "type": "new_message",
+                            "message": msg_response.model_dump(mode="json"),
+                        },
+                    )
                 finally:
                     db.close()
             else:

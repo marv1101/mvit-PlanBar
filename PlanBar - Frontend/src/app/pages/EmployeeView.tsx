@@ -1,18 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { User, Calendar, Clock, Coffee, Download, Loader2 } from 'lucide-react';
-import { getWeekType } from '../lib/week';
+import { User, Calendar, Clock, Coffee, Download, Loader2, RotateCcw, AlertTriangle } from 'lucide-react';
 import { WeekType, Shift } from '../types';
 import { toast } from 'sonner';
 import { TIMEZONE } from '../lib/timezone';
 import { TimeAccountCard } from '../components/TimeAccountCard';
 
 export function EmployeeView() {
-  const { employees, schedules, roles, loading } = useApp();
+  const { employees, schedules, roles, loading, error, refresh } = useApp();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>('');
   const [currentWeek, setCurrentWeek] = useState<WeekType>('A');
@@ -42,6 +41,18 @@ export function EmployeeView() {
   const employeeShiftsByWeek = useMemo(() => {
     return employeeShifts.filter(shift => shift.week === currentWeek);
   }, [employeeShifts, currentWeek]);
+
+  const hasWeekA = employeeShifts.some(s => s.week === 'A');
+  const hasWeekB = employeeShifts.some(s => s.week === 'B');
+
+  useEffect(() => {
+    if (employeeShifts.length === 0) return;
+    if (currentWeek === 'A' && !hasWeekA && hasWeekB) {
+      setCurrentWeek('B');
+    } else if (currentWeek === 'B' && !hasWeekB && hasWeekA) {
+      setCurrentWeek('A');
+    }
+  }, [employeeShifts, currentWeek, hasWeekA, hasWeekB]);
 
   // Calculate statistics
   const statistics = useMemo(() => {
@@ -200,6 +211,27 @@ export function EmployeeView() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="font-semibold text-2xl mb-2">Mitarbeiteransicht</h2>
+          <p className="text-gray-600">Persönliche Schichtübersicht für Mitarbeiter</p>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="h-8 w-8 mx-auto text-red-500 mb-4" />
+            <p className="text-red-600 font-medium mb-4">{error}</p>
+            <Button onClick={refresh} variant="outline">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Erneut versuchen
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -336,157 +368,162 @@ export function EmployeeView() {
           <TimeAccountCard employeeId={selectedEmployeeId} />
 
           {/* Schedule View */}
-          <Tabs value={currentWeek} onValueChange={(v) => setCurrentWeek(v as WeekType)}>
-            <TabsList className="w-full">
-              <TabsTrigger value="A" className="flex-1">Woche A</TabsTrigger>
-              <TabsTrigger value="B" className="flex-1">Woche B</TabsTrigger>
-            </TabsList>
+          {hasWeekA || hasWeekB ? (
+            <Tabs value={currentWeek} onValueChange={(v) => setCurrentWeek(v as WeekType)}>
+              <TabsList className="w-full">
+                {hasWeekA && <TabsTrigger value="A" className="flex-1">Woche A</TabsTrigger>}
+                {hasWeekB && <TabsTrigger value="B" className="flex-1">Woche B</TabsTrigger>}
+              </TabsList>
 
-            <TabsContent value={currentWeek} className="space-y-6">
-              {/* Calendar View */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Kalenderansicht - Woche {currentWeek}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="border rounded-lg overflow-x-auto">
-                    <div className="min-w-[700px]">
-                      <div className="grid grid-cols-7 bg-gray-100 border-b">
-                      {weekDays.map(day => (
-                        <div key={day} className="p-2 text-center font-medium text-sm">
-                          {day}
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {calendarWeeks.map((week, weekIndex) => {
-                      // Determine week type
-                      const weekType = getWeekType(week[0]);
+              <TabsContent value={currentWeek} className="space-y-6">
+                {/* Calendar View */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      Kalenderansicht - Woche {currentWeek}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="border rounded-lg overflow-x-auto">
+                      <div className="min-w-[700px]">
+                        <div className="grid grid-cols-7 bg-gray-100 border-b">
+                        {weekDays.map(day => (
+                          <div key={day} className="p-2 text-center font-medium text-sm">
+                            {day}
+                          </div>
+                        ))}
+                      </div>
                       
-                      if (weekType !== currentWeek) return null;
-
-                      return (
-                        <div key={weekIndex} className="grid grid-cols-7">
-                          {week.map((day, dayIndex) => {
-                            const emptyStart = weekIndex === 0 && dayIndex === 0 
-                              ? Array.from({ length: day.getDay() === 0 ? 6 : day.getDay() - 1 })
-                              : [];
-                            
-                            const dateStr = day.toISOString().split('T')[0];
-                            const dayShifts = shiftsByDate[dateStr] || [];
-                            const isToday = day.toDateString() === new Date().toDateString();
-
-                            return (
-                              <React.Fragment key={day.toISOString()}>
-                                {emptyStart.map((_, i) => (
-                                  <div key={`empty-${i}`} className="border p-2 bg-gray-50 min-h-[100px]" />
-                                ))}
-                                <div
-                                  className={`border p-2 min-h-[100px] ${
-                                    isToday ? 'bg-blue-50' : ''
-                                  } ${dayShifts.length > 0 ? 'bg-green-50' : ''}`}
-                                >
-                                  <div className="font-medium text-sm mb-2 text-gray-700">
-                                    {day.getDate()}
-                                  </div>
-                                  {dayShifts.map(shift => (
-                                    <div
-                                      key={shift.id}
-                                      className="p-2 rounded text-xs mb-1"
-                                      style={{ 
-                                        backgroundColor: selectedEmployee.color + '20', 
-                                        borderLeft: `3px solid ${selectedEmployee.color}` 
-                                      }}
-                                    >
-                                      <div className="font-medium flex items-center gap-1" style={{ color: selectedEmployee.color }}>
-                                        <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[9px] font-bold leading-none ${
-                                          shift.week === 'A' ? 'bg-blue-500 text-white' : 'bg-purple-500 text-white'
-                                        }`}>
-                                          {shift.week}
-                                        </span>
-                                        {shift.startTime} - {shift.endTime}
-                                      </div>
-                                      {shift.breakStart && shift.breakEnd && (
-                                        <div className="text-gray-600 flex items-center gap-1 mt-1">
-                                          <Coffee className="h-3 w-3" />
-                                          {shift.breakStart} - {shift.breakEnd}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </React.Fragment>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                </CardContent>
-              </Card>
-
-              {/* List View */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5" />
-                    Schichtenliste - Woche {currentWeek}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {employeeShiftsByWeek.length > 0 ? (
-                    <div className="space-y-3">
-                      {employeeShiftsByWeek.map(shift => {
-                        const date = new Date(shift.date);
-                        const weekday = date.toLocaleDateString('de-DE', { timeZone: TIMEZONE, weekday: 'long' });
-                        
+                      {calendarWeeks.map((week, weekIndex) => {
                         return (
-                          <div
-                            key={shift.id}
-                            className="border rounded-lg p-4"
-                            style={{ borderLeftWidth: '4px', borderLeftColor: selectedEmployee.color }}
-                          >
-                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                              <div>
-                                <p className="font-semibold">
-                                  {date.toLocaleDateString('de-DE', { timeZone: TIMEZONE })} - {weekday}
-                                </p>
-                                <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                                  <div className="flex items-center gap-1">
-                                    <span className={`inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold leading-none ${
-                                      shift.week === 'A' ? 'bg-blue-500 text-white' : 'bg-purple-500 text-white'
-                                    }`}>
-                                      {shift.week}
-                                    </span>
-                                    <Clock className="h-4 w-4" />
-                                    {shift.startTime} - {shift.endTime}
-                                  </div>
-                                  {shift.breakStart && shift.breakEnd && (
-                                    <div className="flex items-center gap-1">
-                                      <Coffee className="h-4 w-4" />
-                                      Pause: {shift.breakStart} - {shift.breakEnd}
+                          <div key={weekIndex} className="grid grid-cols-7">
+                            {week.map((day, dayIndex) => {
+                              const emptyStart = weekIndex === 0 && dayIndex === 0 
+                                ? Array.from({ length: day.getDay() === 0 ? 6 : day.getDay() - 1 })
+                                : [];
+                              
+                              const dateStr = day.toISOString().split('T')[0];
+                              const dayShifts = shiftsByDate[dateStr] || [];
+                              const isToday = day.toDateString() === new Date().toDateString();
+
+                              return (
+                                <React.Fragment key={day.toISOString()}>
+                                  {emptyStart.map((_, i) => (
+                                    <div key={`empty-${i}`} className="border p-2 bg-gray-50 min-h-[100px]" />
+                                  ))}
+                                  <div
+                                    className={`border p-2 min-h-[100px] ${
+                                      isToday ? 'bg-blue-50' : ''
+                                    } ${dayShifts.length > 0 ? 'bg-green-50' : ''}`}
+                                  >
+                                    <div className="font-medium text-sm mb-2 text-gray-700">
+                                      {day.getDate()}
                                     </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
+                                    {dayShifts.map(shift => (
+                                      <div
+                                        key={shift.id}
+                                        className="p-2 rounded text-xs mb-1"
+                                        style={{ 
+                                          backgroundColor: selectedEmployee.color + '20', 
+                                          borderLeft: `3px solid ${selectedEmployee.color}` 
+                                        }}
+                                      >
+                                        <div className="font-medium flex items-center gap-1" style={{ color: selectedEmployee.color }}>
+                                          <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[9px] font-bold leading-none ${
+                                            shift.week === 'A' ? 'bg-blue-500 text-white' : 'bg-purple-500 text-white'
+                                          }`}>
+                                            {shift.week}
+                                          </span>
+                                          {shift.startTime} - {shift.endTime}
+                                        </div>
+                                        {shift.breakStart && shift.breakEnd && (
+                                          <div className="text-gray-600 flex items-center gap-1 mt-1">
+                                            <Coffee className="h-3 w-3" />
+                                            {shift.breakStart} - {shift.breakEnd}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </React.Fragment>
+                              );
+                            })}
                           </div>
                         );
                       })}
                     </div>
-                  ) : (
-                    <p className="text-gray-500 text-center py-8">
-                      Keine Schichten in Woche {currentWeek}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                  </div>
+                  </CardContent>
+                </Card>
+
+                {/* List View */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Clock className="h-5 w-5" />
+                      Schichtenliste - Woche {currentWeek}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {employeeShiftsByWeek.length > 0 ? (
+                      <div className="space-y-3">
+                        {employeeShiftsByWeek.map(shift => {
+                          const date = new Date(shift.date);
+                          const weekday = date.toLocaleDateString('de-DE', { timeZone: TIMEZONE, weekday: 'long' });
+                          
+                          return (
+                            <div
+                              key={shift.id}
+                              className="border rounded-lg p-4"
+                              style={{ borderLeftWidth: '4px', borderLeftColor: selectedEmployee.color }}
+                            >
+                              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <div>
+                                  <p className="font-semibold">
+                                    {date.toLocaleDateString('de-DE', { timeZone: TIMEZONE })} - {weekday}
+                                  </p>
+                                  <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                                    <div className="flex items-center gap-1">
+                                      <span className={`inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold leading-none ${
+                                        shift.week === 'A' ? 'bg-blue-500 text-white' : 'bg-purple-500 text.white'
+                                      }`}>
+                                        {shift.week}
+                                      </span>
+                                      <Clock className="h-4 w-4" />
+                                      {shift.startTime} - {shift.endTime}
+                                    </div>
+                                    {shift.breakStart && shift.breakEnd && (
+                                      <div className="flex items-center gap-1">
+                                        <Coffee className="h-4 w-4" />
+                                        Pause: {shift.breakStart} - {shift.breakEnd}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-center py-8">
+                        Keine Schichten in Woche {currentWeek}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <Calendar className="h-12 w-12 mb-4 opacity-50" />
+                <p className="text-lg font-medium">Keine Schichten vorhanden</p>
+                <p className="text-sm">Für diesen Mitarbeiter sind in diesem Plan keine Schichten geplant.</p>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 

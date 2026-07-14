@@ -1,6 +1,3 @@
-from datetime import date
-
-
 def test_approve_shift_wish(client, auth_headers):
     emp_resp = client.post(
         "/api/v1/employees",
@@ -91,7 +88,12 @@ def test_reject_shift_wish_without_reason(client, auth_headers):
     assert data["rejection_reason"] is None
 
 
-def test_get_pending_wishes_for_schedule(client, auth_headers):
+def test_get_pending_wishes_for_schedule(client, auth_headers, db_session):
+    from app.db.models.shift_wish import ShiftWish
+
+    db_session.query(ShiftWish).delete()
+    db_session.commit()
+
     emp_resp = client.post(
         "/api/v1/employees",
         json={"first_name": "Pending", "last_name": "List"},
@@ -99,17 +101,22 @@ def test_get_pending_wishes_for_schedule(client, auth_headers):
     )
     emp_id = emp_resp.json()["id"]
 
-    for day_offset, status in [(1, "pending"), (3, "pending"), (5, "approved")]:
-        client.post(
+    # Create 3 wishes — all start as 'pending' (status field removed from create)
+    wish_ids = []
+    for day_offset in [1, 3, 5]:
+        resp = client.post(
             "/api/v1/requests",
             json={
                 "employee_id": emp_id,
                 "date": f"2026-06-{day_offset:02d}",
                 "type": "preferred",
-                "status": status,
             },
             headers=auth_headers,
         )
+        wish_ids.append(resp.json()["id"])
+
+    # Approve the third wish via the approve endpoint (admin only)
+    client.put(f"/api/v1/requests/{wish_ids[2]}/approve", headers=auth_headers)
 
     schedule_resp = client.post(
         "/api/v1/schedules",
@@ -128,8 +135,9 @@ def test_get_pending_wishes_for_schedule(client, auth_headers):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 2
-    for wish in data:
+    items = data["items"]
+    assert len(items) == 2
+    for wish in items:
         assert wish["status"] == "pending"
 
 

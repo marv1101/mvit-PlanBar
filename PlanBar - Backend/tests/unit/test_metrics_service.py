@@ -14,8 +14,16 @@ def db_session():
     TestSession = sessionmaker(bind=engine)
     session = TestSession()
 
-    s1 = Schedule(name="S1", status="completed", metrics_json={"solveTimeSeconds": 10.5, "wishFulfillmentRate": 0.85})
-    s2 = Schedule(name="S2", status="completed", metrics_json={"solveTimeSeconds": 5.2, "wishFulfillmentRate": 0.92})
+    s1 = Schedule(
+        name="S1",
+        status="completed",
+        metrics_json={"solveTimeSeconds": 10.5, "wishFulfillmentRate": 0.85},
+    )
+    s2 = Schedule(
+        name="S2",
+        status="completed",
+        metrics_json={"solveTimeSeconds": 5.2, "wishFulfillmentRate": 0.92},
+    )
     s3 = Schedule(name="S3", status="completed", metrics_json={"solveTimeSeconds": 8.0})
     s4 = Schedule(name="S4", status="failed")
     s5 = Schedule(name="S5", status="draft")

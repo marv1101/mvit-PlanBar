@@ -15,6 +15,7 @@ class ShiftplanBase(BaseModel):
     week: Optional[str] = Field(None, pattern=r"^[AB]$")
     break_start: Optional[str] = None
     break_end: Optional[str] = None
+    label: Optional[str] = Field(None, max_length=100)
     notes: Optional[str] = None
 
 
@@ -31,6 +32,7 @@ class ShiftplanUpdate(BaseModel):
     week: Optional[str] = Field(None, pattern=r"^[AB]$")
     break_start: Optional[str] = None
     break_end: Optional[str] = None
+    label: Optional[str] = Field(None, max_length=100)
     notes: Optional[str] = None
 
 
@@ -59,6 +61,7 @@ class ScheduleCreate(ScheduleBase):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     role_requirements: Optional[Any] = None
+    shift_templates: Optional[Any] = None
     shiftplans: list[ShiftplanCreate] = []
 
 
@@ -66,6 +69,7 @@ class ScheduleUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=128)
     week_type: Optional[str] = Field(None, pattern=r"^[AB]$")
     status: Optional[ScheduleStatus] = None
+    shift_templates: Optional[Any] = None
 
 
 class ScheduleResponse(ScheduleBase):
@@ -74,6 +78,7 @@ class ScheduleResponse(ScheduleBase):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     role_requirements: Optional[Any] = None
+    shift_templates: Optional[Any] = None
     tito_job_id: Optional[int] = None
     metadata_json: Optional[Any] = None
     metrics_json: Optional[Any] = None
@@ -92,3 +97,23 @@ class ScheduleSummary(BaseModel):
     total_shifts: int
     total_employees: int
     date_range: Optional[tuple[date, date]] = None
+
+
+# ── ArbZG compliance response schemas ──────────────────────────────────────
+class ArbZgViolationResponse(BaseModel):
+    rule: str
+    message: str
+    employee_id: int
+    shift_date: Optional[date] = None
+    details: Optional[dict[str, Any]] = None
+
+
+class ArbZgCheckResponse(BaseModel):
+    is_valid: bool
+    violations: list[ArbZgViolationResponse] = []
+
+
+class ScheduleWithArbzgResponse(ScheduleResponse):
+    """Schedule response that includes ArbZG compliance warnings."""
+
+    arbZgWarnings: list[ArbZgViolationResponse] = []

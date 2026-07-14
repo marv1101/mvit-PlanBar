@@ -10,15 +10,15 @@ def test_ready_endpoint(client):
     assert response.json() == {"status": "ready"}
 
 
-def test_db_health(client):
-    response = client.get("/api/v1/health/db")
+def test_db_health(client, auth_headers):
+    response = client.get("/api/v1/health/db", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"
     assert data["database"] == "connected"
 
 
-def test_tito_health(client):
-    response = client.get("/api/v1/health/tito")
+def test_tito_health(client, auth_headers):
+    response = client.get("/api/v1/health/tito", headers=auth_headers)
     assert response.status_code == 200
     assert "status" in response.json()

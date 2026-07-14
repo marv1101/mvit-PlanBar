@@ -1,6 +1,17 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, JSON, String, Text, Time, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+    Time,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -16,20 +27,37 @@ class Schedule(Base):
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
     role_requirements = Column(JSON, nullable=True)
+    shift_templates = Column(JSON, nullable=True)
     tito_job_id = Column(Integer, nullable=True)
     metadata_json = Column(JSON, nullable=True)
     metrics_json = Column(JSON, nullable=True)
     diagnostics_json = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
-    shiftplans = relationship("Shiftplan", back_populates="schedule", lazy="selectin", cascade="all, delete-orphan")
+    shiftplans = relationship(
+        "Shiftplan",
+        back_populates="schedule",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
 
 class Shiftplan(Base):
     __tablename__ = "shiftplans"
     __table_args__ = (
-        UniqueConstraint("schedule_id", "employee_id", "date", "shift_id", name="uq_shiftplan_schedule_employee_date_shift"),
+        UniqueConstraint(
+            "schedule_id",
+            "employee_id",
+            "date",
+            "shift_id",
+            name="uq_shiftplan_schedule_employee_date_shift",
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -42,11 +70,17 @@ class Shiftplan(Base):
     week = Column(String(1), nullable=True)
     break_start = Column(String(5), nullable=True)
     break_end = Column(String(5), nullable=True)
+    label = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     metadata_json = Column(JSON, nullable=True)
     metrics_json = Column(JSON, nullable=True)
     diagnostics_json = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
     schedule = relationship("Schedule", back_populates="shiftplans")

@@ -1,14 +1,14 @@
 """Integration tests for TiTO callback flow."""
-from datetime import date, time
+
+from datetime import date
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy.orm import Session
 
-from app.db.models.employee import Employee
+from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
-from app.schemas.schedule import ScheduleCreate, ShiftplanCreate
 from app.services.schedule_service import submit_schedule_to_tito
 
 
@@ -53,14 +53,28 @@ def test_employees_two(db_session: Session) -> dict[str, Employee]:
     return {"001": emp1, "002": emp2}
 
 
+@pytest.fixture(autouse=True)
+def _dev_environment():
+    """Ensure callback processing tests run in development mode (no auth required)."""
+    from app.config import settings
+
+    original = settings.environment
+    settings.environment = "development"
+    yield
+    settings.environment = original
+
+
 @pytest.fixture
 def test_shift_wish(db_session: Session, test_employee: Employee) -> ShiftWish:
-    """Create a test shift wish."""
+    """Create a test shift wish (approved, so it doesn't block TiTO submission)."""
+    db_session.query(ShiftWish).delete()
+    db_session.commit()
     wish = ShiftWish(
         employee_id=test_employee.id,
         date=date(2026, 5, 24),
         type="preferred",
         note="Morning shift preferred",
+        status="approved",
     )
     db_session.add(wish)
     db_session.commit()
@@ -70,7 +84,10 @@ def test_shift_wish(db_session: Session, test_employee: Employee) -> ShiftWish:
 
 @pytest.mark.asyncio
 async def test_submit_schedule_includes_callback_url(
-    db_session: Session, test_schedule: Schedule, test_employee: Employee, test_shift_wish: ShiftWish
+    db_session: Session,
+    test_schedule: Schedule,
+    test_employee: Employee,
+    test_shift_wish: ShiftWish,
 ):
     """Test that submitted job includes callback_url in metadata."""
     mock_response = {"jobId": 123, "status": "queued"}
@@ -99,7 +116,12 @@ async def test_submit_schedule_includes_callback_url(
         assert f"schedule_{test_schedule.id}" == payload["metadata"]["idempotency_key"]
 
 
-def test_callback_endpoint_processes_results(client, db_session: Session, test_schedule: Schedule, test_employees_two: dict[str, Employee]):
+def test_callback_endpoint_processes_results(
+    client,
+    db_session: Session,
+    test_schedule: Schedule,
+    test_employees_two: dict[str, Employee],
+):
     """Test that callback endpoint correctly updates schedule."""
     alice = test_employees_two["001"]
     test_schedule.status = "submitted"
@@ -158,7 +180,12 @@ def test_callback_endpoint_processes_results(client, db_session: Session, test_s
     assert shiftplans[0].shift_id == "morning"
 
 
-def test_duplicate_callback_does_not_create_duplicate_shiftplans(client, db_session: Session, test_schedule: Schedule, test_employees_two: dict[str, Employee]):
+def test_duplicate_callback_does_not_create_duplicate_shiftplans(
+    client,
+    db_session: Session,
+    test_schedule: Schedule,
+    test_employees_two: dict[str, Employee],
+):
     """Simulate receiving the same callback twice (e.g., due to retry or idempotency logic)."""
     alice = test_employees_two["001"]
     test_schedule.status = "submitted"
@@ -169,7 +196,11 @@ def test_duplicate_callback_does_not_create_duplicate_shiftplans(client, db_sess
     callback_payload = {
         "job_id": 128,
         "status": "SUCCESS",
-        "metadata": {"status": "success", "solveTimeSeconds": 1.0, "timestamp": "2026-05-24T12:30:00"},
+        "metadata": {
+            "status": "success",
+            "solveTimeSeconds": 1.0,
+            "timestamp": "2026-05-24T12:30:00",
+        },
         "solution": {
             "assignments": [
                 {
@@ -182,7 +213,12 @@ def test_duplicate_callback_does_not_create_duplicate_shiftplans(client, db_sess
             ],
             "unassignedRequirements": [],
         },
-        "metrics": {"wishFulfillmentRate": 1.0, "totalObjectiveScore": 100.0, "employeeUtilization": {f"emp_{alice.id:03d}": 1.0}, "violations": None},
+        "metrics": {
+            "wishFulfillmentRate": 1.0,
+            "totalObjectiveScore": 100.0,
+            "employeeUtilization": {f"emp_{alice.id:03d}": 1.0},
+            "violations": None,
+        },
         "diagnostics": {"isOptimal": True, "info": "Solution is optimal"},
     }
 
@@ -201,7 +237,12 @@ def test_duplicate_callback_does_not_create_duplicate_shiftplans(client, db_sess
     assert shiftplans[0].shift_id == "morning"
 
 
-def test_callback_endpoint_with_feasible_status(client, db_session: Session, test_schedule: Schedule, test_employees_two: dict[str, Employee]):
+def test_callback_endpoint_with_feasible_status(
+    client,
+    db_session: Session,
+    test_schedule: Schedule,
+    test_employees_two: dict[str, Employee],
+):
     """Test that FEASIBLE solver status is treated as completed."""
     alice = test_employees_two["001"]
     bob = test_employees_two["002"]
@@ -240,7 +281,10 @@ def test_callback_endpoint_with_feasible_status(client, db_session: Session, tes
         "metrics": {
             "wishFulfillmentRate": 0.85,
             "totalObjectiveScore": 750.0,
-            "employeeUtilization": {f"emp_{alice.id:03d}": 0.90, f"emp_{bob.id:03d}": 0.80},
+            "employeeUtilization": {
+                f"emp_{alice.id:03d}": 0.90,
+                f"emp_{bob.id:03d}": 0.80,
+            },
             "violations": None,
         },
         "diagnostics": {
@@ -262,7 +306,12 @@ def test_callback_endpoint_with_feasible_status(client, db_session: Session, tes
     assert len(shiftplans) == 2
 
 
-def test_callback_endpoint_with_multiple_assignments(client, db_session: Session, test_schedule: Schedule, test_employees_two: dict[str, Employee]):
+def test_callback_endpoint_with_multiple_assignments(
+    client,
+    db_session: Session,
+    test_schedule: Schedule,
+    test_employees_two: dict[str, Employee],
+):
     """Test callback with multiple employee assignments."""
     alice = test_employees_two["001"]
     bob = test_employees_two["002"]
@@ -301,7 +350,10 @@ def test_callback_endpoint_with_multiple_assignments(client, db_session: Session
         "metrics": {
             "wishFulfillmentRate": 0.98,
             "totalObjectiveScore": 920.3,
-            "employeeUtilization": {f"emp_{alice.id:03d}": 0.95, f"emp_{bob.id:03d}": 0.88},
+            "employeeUtilization": {
+                f"emp_{alice.id:03d}": 0.95,
+                f"emp_{bob.id:03d}": 0.88,
+            },
             "violations": None,
         },
         "diagnostics": {
@@ -318,6 +370,126 @@ def test_callback_endpoint_with_multiple_assignments(client, db_session: Session
     shiftplans = db_session.query(Shiftplan).filter(Shiftplan.schedule_id == test_schedule.id).all()
     assert len(shiftplans) == 2
     assert {sp.employee_id for sp in shiftplans} == {alice.id, bob.id}
+
+
+def test_callback_multiweek_schedule_balance_chaining(client, db_session: Session, test_employee: Employee):
+    """Test that balance chains correctly across multiple weeks in one schedule."""
+    contract = Contract(employee_id=test_employee.id, weekly_working_hours=40.0, break_time=30)
+    db_session.add(contract)
+    db_session.commit()
+
+    schedule = Schedule(
+        name="Multi-Week Test",
+        week_type="A",
+        status="submitted",
+        start_date=date(2026, 5, 25),
+        end_date=date(2026, 6, 7),
+        tito_job_id=200,
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    callback_payload = {
+        "job_id": 200,
+        "status": "SUCCESS",
+        "metadata": {
+            "status": "success",
+            "solveTimeSeconds": 1.0,
+            "timestamp": "2026-05-25T12:00:00",
+        },
+        "solution": {
+            "assignments": [
+                # ISO week 22: 2026-05-25 (Mon) to 2026-05-31 (Sun)
+                {
+                    "employeeId": f"emp_{test_employee.id:03d}",
+                    "date": "2026-05-25",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                {
+                    "employeeId": f"emp_{test_employee.id:03d}",
+                    "date": "2026-05-26",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                {
+                    "employeeId": f"emp_{test_employee.id:03d}",
+                    "date": "2026-05-27",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                {
+                    "employeeId": f"emp_{test_employee.id:03d}",
+                    "date": "2026-05-28",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                # ISO week 23: 2026-06-01 (Mon) to 2026-06-07 (Sun)
+                {
+                    "employeeId": f"emp_{test_employee.id:03d}",
+                    "date": "2026-06-01",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                {
+                    "employeeId": f"emp_{test_employee.id:03d}",
+                    "date": "2026-06-02",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                {
+                    "employeeId": f"emp_{test_employee.id:03d}",
+                    "date": "2026-06-03",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                {
+                    "employeeId": f"emp_{test_employee.id:03d}",
+                    "date": "2026-06-04",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+            ],
+            "unassignedRequirements": [],
+        },
+        "metrics": {
+            "wishFulfillmentRate": 1.0,
+            "totalObjectiveScore": 100.0,
+            "employeeUtilization": {},
+            "violations": None,
+        },
+        "diagnostics": {"isOptimal": True, "info": "Optimal solution found"},
+    }
+
+    response = client.post("/api/v1/callbacks/tito", json=callback_payload)
+    assert response.status_code == 200
+
+    timecards = (
+        db_session.query(Timecard)
+        .filter(Timecard.employee_id == test_employee.id)
+        .order_by(Timecard.year, Timecard.week)
+        .all()
+    )
+
+    assert len(timecards) == 2
+
+    tc_w22 = timecards[0]
+    assert tc_w22.scheduled_hours == 30.0
+    assert tc_w22.contract_hours == 40.0
+    assert tc_w22.balance == -10.0
+
+    tc_w23 = timecards[1]
+    assert tc_w23.scheduled_hours == 30.0
+    assert tc_w23.contract_hours == 40.0
+    assert tc_w23.balance == -20.0
 
 
 def test_callback_endpoint_with_invalid_job_id(client):
@@ -350,3 +522,230 @@ def test_callback_endpoint_with_invalid_job_id(client):
 
     # Should return error or 404
     assert response.status_code in [404, 400, 500]
+
+
+def test_callback_clears_manual_adjustment_on_reschedule(client, db_session: Session, test_employee: Employee):
+    """When a callback updates a timecard that has manual_adjustment_hours (from an
+    earlier adjustment that was applied on top of schedule data), the manual_adjustment_hours
+    and adjustment_reason should be cleared because the balance is recalculated."""
+    emp = test_employee
+    contract = Contract(employee_id=emp.id, weekly_working_hours=40.0, break_time=30)
+    db_session.add(contract)
+    db_session.commit()
+
+    tc = Timecard(
+        employee_id=emp.id,
+        week=21,
+        year=2026,
+        scheduled_hours=38.0,
+        contract_hours=40.0,
+        manual_adjustment_hours=5.0,
+        adjustment_reason="Korrektur",
+        balance=3.0,
+    )
+    db_session.add(tc)
+    db_session.commit()
+
+    schedule = Schedule(
+        name="Reschedule",
+        start_date=date(2026, 5, 18),
+        end_date=date(2026, 5, 24),
+        status="submitted",
+        tito_job_id=300,
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    callback_payload = {
+        "job_id": 300,
+        "status": "SUCCESS",
+        "metadata": {
+            "status": "success",
+            "solveTimeSeconds": 1.0,
+            "timestamp": "2026-05-18T12:00:00",
+        },
+        "solution": {
+            "assignments": [
+                {
+                    "employeeId": f"emp_{emp.id:03d}",
+                    "date": "2026-05-18",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                {
+                    "employeeId": f"emp_{emp.id:03d}",
+                    "date": "2026-05-19",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                {
+                    "employeeId": f"emp_{emp.id:03d}",
+                    "date": "2026-05-20",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                {
+                    "employeeId": f"emp_{emp.id:03d}",
+                    "date": "2026-05-21",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                {
+                    "employeeId": f"emp_{emp.id:03d}",
+                    "date": "2026-05-22",
+                    "shiftId": "morning",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+            ],
+            "unassignedRequirements": [],
+        },
+        "metrics": {
+            "wishFulfillmentRate": 1.0,
+            "totalObjectiveScore": 100.0,
+            "employeeUtilization": {},
+            "violations": None,
+        },
+        "diagnostics": {"isOptimal": True, "info": "Optimal"},
+    }
+
+    response = client.post("/api/v1/callbacks/tito", json=callback_payload)
+    assert response.status_code == 200
+
+    updated_tc = (
+        db_session.query(Timecard)
+        .filter(Timecard.employee_id == emp.id, Timecard.week == 21, Timecard.year == 2026)
+        .first()
+    )
+
+    assert updated_tc is not None
+    assert updated_tc.scheduled_hours == 37.5
+    assert updated_tc.contract_hours == 40.0
+    assert updated_tc.manual_adjustment_hours == 0.0
+    assert updated_tc.adjustment_reason is None
+
+
+# --- TiTO callback auth tests ---
+
+
+def _minimal_callback_payload(job_id: int = 1) -> dict:
+    """Minimal valid callback payload for auth tests."""
+    return {
+        "job_id": job_id,
+        "status": "SUCCESS",
+        "metadata": {
+            "status": "success",
+            "solveTimeSeconds": 1.0,
+            "timestamp": "2026-06-01T00:00:00",
+        },
+        "solution": {"assignments": [], "unassignedRequirements": []},
+        "metrics": {
+            "wishFulfillmentRate": 0.0,
+            "totalObjectiveScore": 0.0,
+            "employeeUtilization": {},
+            "violations": None,
+        },
+        "diagnostics": {"isOptimal": True, "info": "ok"},
+    }
+
+
+def test_callback_auth_valid_key(client, db_session, test_schedule):
+    """Valid API key should be accepted."""
+    test_schedule.tito_job_id = 500
+    test_schedule.status = "submitted"
+    db_session.commit()
+
+    from app.config import settings
+
+    original = settings.tito_api_key
+    settings.tito_api_key = "secret-token-123"
+    try:
+        response = client.post(
+            "/api/v1/callbacks/tito",
+            json=_minimal_callback_payload(500),
+            headers={"Authorization": "Bearer secret-token-123"},
+        )
+        assert response.status_code == 200
+    finally:
+        settings.tito_api_key = original
+
+
+def test_callback_auth_invalid_key(client, test_schedule):
+    """Wrong API key should return 401."""
+    from app.config import settings
+
+    original = settings.tito_api_key
+    settings.tito_api_key = "real-key"
+    try:
+        response = client.post(
+            "/api/v1/callbacks/tito",
+            json=_minimal_callback_payload(1),
+            headers={"Authorization": "Bearer wrong-key"},
+        )
+        assert response.status_code in [401, 403]
+    finally:
+        settings.tito_api_key = original
+
+
+def test_callback_auth_missing_header(client, test_schedule):
+    """Missing Authorization header should return 401 when key is configured."""
+    from app.config import settings
+
+    original = settings.tito_api_key
+    settings.tito_api_key = "some-key"
+    try:
+        response = client.post(
+            "/api/v1/callbacks/tito",
+            json=_minimal_callback_payload(1),
+        )
+        assert response.status_code in [401, 403]
+    finally:
+        settings.tito_api_key = original
+
+
+def test_callback_auth_no_key_configured(client, db_session, test_schedule):
+    """When tito_api_key is None in development, requests are allowed (dev fallback)."""
+    from app.config import settings
+
+    original_key = settings.tito_api_key
+    original_env = settings.environment
+    settings.tito_api_key = None
+    settings.environment = "development"
+    test_schedule.tito_job_id = 600
+    test_schedule.status = "submitted"
+    db_session.commit()
+    try:
+        response = client.post(
+            "/api/v1/callbacks/tito",
+            json=_minimal_callback_payload(600),
+        )
+        assert response.status_code == 200
+    finally:
+        settings.tito_api_key = original_key
+        settings.environment = original_env
+
+
+def test_callback_auth_no_key_rejects_in_production(client, db_session, test_schedule):
+    """When tito_api_key is None in production, requests are rejected with 503."""
+    from app.config import settings
+
+    original_key = settings.tito_api_key
+    original_env = settings.environment
+    settings.tito_api_key = None
+    settings.environment = "production"
+    test_schedule.tito_job_id = 700
+    test_schedule.status = "submitted"
+    db_session.commit()
+    try:
+        response = client.post(
+            "/api/v1/callbacks/tito",
+            json=_minimal_callback_payload(700),
+        )
+        assert response.status_code == 503
+    finally:
+        settings.tito_api_key = original_key
+        settings.environment = original_env

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Employee, Request, Schedule, WeekType, Role } from '../types';
+import { getWeekType } from '../lib/week';
 import { toast } from 'sonner';
 import * as employeeService from '../services/employeeService';
 import * as roleService from '../services/roleService';
@@ -42,10 +43,11 @@ interface AppContextType {
   deleteRole: (id: string) => void;
 
   loading: boolean;
+  error: string | null;
   refresh: () => Promise<void>;
 }
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 async function loadAll() {
   const [empRes, roleRes, reqRes, schedRes] = await Promise.all([
@@ -55,10 +57,10 @@ async function loadAll() {
     scheduleService.getSchedules(),
   ]);
   return {
-    employees: empRes.map(employeeFromResponse),
-    roles: roleRes.map(roleFromResponse),
-    requests: reqRes.map(requestFromResponse),
-    schedules: schedRes.map(scheduleFromResponse),
+    employees: empRes.items.map(employeeFromResponse),
+    roles: roleRes.items.map(roleFromResponse),
+    requests: reqRes.items.map(requestFromResponse),
+    schedules: schedRes.items.map(scheduleFromResponse),
   };
 }
 
@@ -68,11 +70,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [currentSchedule, setCurrentSchedule] = useState<Schedule | null>(null);
-  const [currentWeek, setCurrentWeek] = useState<WeekType>('A');
+  const [currentWeek, setCurrentWeek] = useState<WeekType>(() => getWeekType(new Date()));
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await loadAll();
       setEmployees(data.employees);
@@ -80,6 +84,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setRequests(data.requests);
       setSchedules(data.schedules);
     } catch {
+      setError('Fehler beim Laden der Daten. Bitte versuchen Sie es erneut.');
       toast.error('Fehler beim Laden der Daten');
     } finally {
       setLoading(false);
@@ -87,7 +92,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refresh();
+    let mounted = true;
+    refresh().then(() => {
+      if (!mounted) return;
+    });
+    return () => { mounted = false; };
   }, [refresh]);
 
   const addEmployee = useCallback((employee: Employee) => {
@@ -154,7 +163,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateSchedule = useCallback((id: string, schedule: Schedule) => {
-    scheduleService.updateSchedule(Number(id), { name: schedule.name, week_type: undefined, status: schedule.status })
+    scheduleService.updateSchedule(Number(id), { name: schedule.name, week_type: schedule.weekType || undefined, status: schedule.status })
       .then(() => {
         setSchedules(prev => prev.map(s => s.id === id ? schedule : s));
         toast.success('Schichtplan aktualisiert');
@@ -227,6 +236,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateRole,
         deleteRole,
         loading,
+        error,
         refresh,
       }}
     >

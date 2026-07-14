@@ -2,7 +2,13 @@ import json
 from pathlib import Path
 
 from tito.config import Settings
-from tito.db import get_connection, enqueue_job, fetch_next_job, mark_job_processing, store_result
+from tito.db import (
+    get_connection,
+    enqueue_job,
+    fetch_next_job,
+    mark_job_processing,
+    store_result,
+)
 
 
 def test_sqlite_job_lifecycle(tmp_path: Path):

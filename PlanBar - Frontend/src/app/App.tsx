@@ -1,14 +1,23 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { RouterProvider } from 'react-router';
 import { router } from './routes';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { QueryProvider } from './providers/QueryProvider';
 import { Toaster } from './components/ui/sonner';
 import { Login } from './pages/Login';
 import { ChangePasswordDialog } from './components/ChangePasswordDialog';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { initPushState } from './services/pushService';
 
 function AppContent() {
   const { user, isLoading, mustChangePassword } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      initPushState();
+    }
+  }, [user]);
 
   if (isLoading) {
     return (
@@ -26,18 +35,22 @@ function AppContent() {
   }
 
   return (
-    <AppProvider>
-      {mustChangePassword && <ChangePasswordDialog />}
-      <RouterProvider router={router} />
-      <Toaster />
-    </AppProvider>
+    <QueryProvider>
+      <AppProvider>
+        {mustChangePassword && <ChangePasswordDialog />}
+        <RouterProvider router={router} />
+        <Toaster />
+      </AppProvider>
+    </QueryProvider>
   );
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

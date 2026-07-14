@@ -1,6 +1,17 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Table, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -19,6 +30,7 @@ class Employee(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    processing_restricted = Column(Boolean, default=False, nullable=False)
     first_name = Column(String(64), nullable=False)
     last_name = Column(String(64), nullable=False)
     email = Column(String(120), nullable=True)
@@ -28,9 +40,14 @@ class Employee(Base):
     break_end = Column(String(5), nullable=True)
     max_work_hours = Column(Float, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
-    user = relationship("User", backref="employees", lazy="selectin")
+    user = relationship("User", foreign_keys=[user_id], backref="employees", lazy="selectin")
     contracts = relationship("Contract", back_populates="employee", lazy="selectin")
     timecards = relationship("Timecard", back_populates="employee", lazy="selectin")
     shift_wishes = relationship("ShiftWish", back_populates="employee", lazy="selectin")
@@ -50,7 +67,12 @@ class Contract(Base):
     break_time = Column(Integer, nullable=False, default=30)
     hired_role = Column(String(64), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
     employee = relationship("Employee", back_populates="contracts")
 
@@ -69,7 +91,12 @@ class Timecard(Base):
     manual_adjustment_hours = Column(Float, default=0.0)
     adjustment_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
     employee = relationship("Employee", back_populates="timecards")
     __table_args__ = (UniqueConstraint("employee_id", "week", "year", name="uq_timecard_employee_week_year"),)

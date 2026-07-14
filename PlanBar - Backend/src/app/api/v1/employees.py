@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
@@ -23,6 +23,7 @@ from app.schemas.employee import (
     TimecardResponse,
     TimecardUpdate,
 )
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services.employee_service import (
     create_contract,
     create_employee,
@@ -43,30 +44,51 @@ from app.services.tito_callback import _calc_effective_hours
 router = APIRouter()
 
 
+def _check_employee_access(current_user: User, employee_id: int) -> None:
+    if current_user.role == "admin":
+        return
+    if current_user.employee_id != employee_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized",
+        )
+
+
 @router.post("", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)
 def create_employee_endpoint(
     data: EmployeeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
-    return create_employee(db, data, actor_id=current_user.id)
+    return create_employee(db, data, actor_id=admin.id)
 
 
-@router.get("", response_model=list[EmployeeResponse])
+@router.get("", response_model=PaginatedResponse[EmployeeResponse])
 def list_employees_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    return list_employees(db)
+    if current_user.role == "admin":
+        total = db.query(Employee).count()
+        items = list_employees(db, offset=pagination.offset, limit=pagination.limit)
+    else:
+        query = db.query(Employee).filter(Employee.id == current_user.employee_id)
+        total = query.count()
+        items = query.offset(pagination.offset).limit(pagination.limit).all()
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
-@router.get("/time-accounts", response_model=list[TimeAccountResponse])
+@router.get("/time-accounts", response_model=PaginatedResponse[TimeAccountResponse])
 def get_all_time_accounts(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
+    pagination: PaginationParams = Depends(),
 ):
-    employees = list_employees(db)
-    return [_build_time_account_response(emp, db) for emp in employees]
+    total = db.query(Employee).count()
+    employees = list_employees(db, offset=pagination.offset, limit=pagination.limit)
+    items = [_build_time_account_response(emp, db) for emp in employees]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.get("/{employee_id}", response_model=EmployeeResponse)
@@ -78,6 +100,7 @@ def get_employee_endpoint(
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
+    _check_employee_access(current_user, employee_id)
     return employee
 
 
@@ -91,6 +114,7 @@ def update_employee_endpoint(
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
+    _check_employee_access(current_user, employee_id)
     return update_employee(db, employee, data, actor_id=current_user.id)
 
 
@@ -113,17 +137,25 @@ contract_router = APIRouter()
 def create_contract_endpoint(
     data: ContractCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
-    return create_contract(db, data, actor_id=current_user.id)
+    return create_contract(db, data, actor_id=admin.id)
 
 
-@contract_router.get("", response_model=list[ContractResponse])
+@contract_router.get("", response_model=PaginatedResponse[ContractResponse])
 def list_contracts_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    return list_contracts(db)
+    if current_user.role == "admin":
+        total = db.query(Contract).count()
+        items = list_contracts(db, offset=pagination.offset, limit=pagination.limit)
+    else:
+        query = db.query(Contract).join(Employee).filter(Employee.id == current_user.employee_id)
+        total = query.count()
+        items = query.offset(pagination.offset).limit(pagination.limit).all()
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @contract_router.get("/{contract_id}", response_model=ContractResponse)
@@ -135,6 +167,7 @@ def get_contract_endpoint(
     contract = get_contract_by_id(db, contract_id)
     if not contract:
         raise NotFoundException(detail="Contract not found")
+    _check_employee_access(current_user, contract.employee_id)
     return contract
 
 
@@ -148,6 +181,7 @@ def update_contract_endpoint(
     contract = get_contract_by_id(db, contract_id)
     if not contract:
         raise NotFoundException(detail="Contract not found")
+    _check_employee_access(current_user, contract.employee_id)
     return update_contract(db, contract, data, actor_id=current_user.id)
 
 
@@ -158,17 +192,25 @@ timecard_router = APIRouter()
 def create_timecard_endpoint(
     data: TimecardCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
-    return create_timecard(db, data, actor_id=current_user.id)
+    return create_timecard(db, data, actor_id=admin.id)
 
 
-@timecard_router.get("", response_model=list[TimecardResponse])
+@timecard_router.get("", response_model=PaginatedResponse[TimecardResponse])
 def list_timecards_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
-    return list_timecards(db)
+    if current_user.role == "admin":
+        total = db.query(Timecard).count()
+        items = list_timecards(db, offset=pagination.offset, limit=pagination.limit)
+    else:
+        query = db.query(Timecard).join(Employee).filter(Employee.id == current_user.employee_id)
+        total = query.count()
+        items = query.offset(pagination.offset).limit(pagination.limit).all()
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @timecard_router.get("/{timecard_id}", response_model=TimecardResponse)
@@ -180,6 +222,7 @@ def get_timecard_endpoint(
     timecard = get_timecard_by_id(db, timecard_id)
     if not timecard:
         raise NotFoundException(detail="Timecard not found")
+    _check_employee_access(current_user, timecard.employee_id)
     return timecard
 
 
@@ -193,46 +236,66 @@ def update_timecard_endpoint(
     timecard = get_timecard_by_id(db, timecard_id)
     if not timecard:
         raise NotFoundException(detail="Timecard not found")
+    _check_employee_access(current_user, timecard.employee_id)
     return update_timecard(db, timecard, data, actor_id=current_user.id)
 
 
 def _build_time_account_response(employee: Employee, db: Session) -> TimeAccountResponse:
-    timecards = db.query(Timecard).filter(
-        Timecard.employee_id == employee.id,
-    ).order_by(Timecard.year.asc(), Timecard.week.asc()).all()
+    timecards = (
+        db.query(Timecard)
+        .filter(
+            Timecard.employee_id == employee.id,
+        )
+        .order_by(Timecard.year.asc(), Timecard.week.asc())
+        .all()
+    )
 
     history = []
     for tc in timecards:
-        history.append(TimeAccountEntry(
-            week=tc.week,
-            year=tc.year,
-            scheduled_hours=tc.scheduled_hours,
-            contract_hours=tc.contract_hours,
-            delta=tc.scheduled_hours - tc.contract_hours,
-            balance=tc.balance,
-            manual_adjustment=tc.manual_adjustment_hours or 0.0,
-            adjustment_reason=tc.adjustment_reason,
-        ))
+        delta = tc.scheduled_hours - tc.contract_hours
+        total_change = delta + (tc.manual_adjustment_hours or 0.0)
+        history.append(
+            TimeAccountEntry(
+                week=tc.week,
+                year=tc.year,
+                scheduled_hours=tc.scheduled_hours,
+                contract_hours=tc.contract_hours,
+                delta=delta,
+                balance=tc.balance,
+                manual_adjustment=tc.manual_adjustment_hours or 0.0,
+                adjustment_reason=tc.adjustment_reason,
+                total_change=total_change,
+            )
+        )
 
     current_balance = timecards[-1].balance if timecards else 0.0
 
     projected = None
-    latest_schedule = db.query(Schedule).filter(
-        Schedule.status.in_(["completed", "submitted"]),
-    ).order_by(Schedule.end_date.desc()).first()
+    latest_schedule = (
+        db.query(Schedule)
+        .filter(
+            Schedule.status == "submitted",
+        )
+        .order_by(Schedule.end_date.desc())
+        .first()
+    )
 
     if latest_schedule:
-        shiftplans = db.query(Shiftplan).filter(
-            Shiftplan.schedule_id == latest_schedule.id,
-            Shiftplan.employee_id == employee.id,
-        ).all()
+        shiftplans = (
+            db.query(Shiftplan)
+            .filter(
+                Shiftplan.schedule_id == latest_schedule.id,
+                Shiftplan.employee_id == employee.id,
+            )
+            .all()
+        )
         if shiftplans:
             contract = employee.contracts[0] if employee.contracts else None
-            from_schedule = sum(
-                _calc_effective_hours(sp, contract) for sp in shiftplans
-            )
+            from_schedule = sum(_calc_effective_hours(sp, contract) for sp in shiftplans)
             weekly_hours = contract.weekly_working_hours if contract else 40.0
-            expected_balance_after = current_balance + from_schedule - weekly_hours
+            iso_weeks = {sp.date.isocalendar()[:2] for sp in shiftplans}
+            num_weeks = len(iso_weeks)
+            expected_balance_after = current_balance + from_schedule - (weekly_hours * num_weeks)
             projected = TimeAccountProjected(
                 from_schedule=from_schedule,
                 expected_balance_after=expected_balance_after,
@@ -256,10 +319,15 @@ def get_employee_time_account(
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
+    _check_employee_access(current_user, employee_id)
     return _build_time_account_response(employee, db)
 
 
-@router.post("/{employee_id}/time-account/adjust", response_model=TimeAccountResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/{employee_id}/time-account/adjust",
+    response_model=TimeAccountResponse,
+    status_code=status.HTTP_200_OK,
+)
 def adjust_employee_time_account(
     employee_id: int,
     data: TimeAccountAdjust,
@@ -270,30 +338,37 @@ def adjust_employee_time_account(
     if not employee:
         raise NotFoundException(detail="Employee not found")
 
-    latest_tc = db.query(Timecard).filter(
-        Timecard.employee_id == employee_id,
-    ).order_by(Timecard.year.desc(), Timecard.week.desc()).first()
+    latest_tc = (
+        db.query(Timecard)
+        .filter(
+            Timecard.employee_id == employee_id,
+        )
+        .order_by(Timecard.year.desc(), Timecard.week.desc())
+        .with_for_update()
+        .first()
+    )
 
     if latest_tc:
-        prev_balance = latest_tc.balance
+        latest_tc.balance = latest_tc.balance + data.delta_hours
+        latest_tc.manual_adjustment_hours = (latest_tc.manual_adjustment_hours or 0) + data.delta_hours
+        if data.reason:
+            existing_reason = latest_tc.adjustment_reason or ""
+            latest_tc.adjustment_reason = (
+                f"{existing_reason}; {data.reason}".strip("; ") if existing_reason else data.reason
+            )
     else:
-        prev_balance = 0.0
-
-    new_balance = prev_balance + data.delta_hours
-
-    now_utc = datetime.now(timezone.utc)
-    tc = Timecard(
-        employee_id=employee_id,
-        week=now_utc.isocalendar()[1],
-        year=now_utc.year,
-        scheduled_hours=0.0,
-        contract_hours=0.0,
-        manual_adjustment_hours=data.delta_hours,
-        adjustment_reason=data.reason,
-        balance=new_balance,
-    )
-    db.add(tc)
+        now_utc = datetime.now(timezone.utc)
+        tc = Timecard(
+            employee_id=employee_id,
+            week=now_utc.isocalendar()[1],
+            year=now_utc.year,
+            scheduled_hours=0.0,
+            contract_hours=0.0,
+            manual_adjustment_hours=data.delta_hours,
+            adjustment_reason=data.reason,
+            balance=data.delta_hours,
+        )
+        db.add(tc)
     db.commit()
-    db.refresh(tc)
 
     return _build_time_account_response(employee, db)

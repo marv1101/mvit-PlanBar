@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router';
-import { Calendar, Users, ClipboardList, LayoutDashboard, UserCog, Eye, LogOut, User, UserPlus, Menu, X, Clock, MessageSquare } from 'lucide-react';
+import { Calendar, Users, ClipboardList, LayoutDashboard, UserCog, Eye, LogOut, User, UserPlus, Menu, X, Clock, MessageSquare, UserCheck } from 'lucide-react';
+import { PushBell } from './PushBell';
 import { cn } from './ui/utils';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { useIsMobile } from './ui/use-mobile';
+import { OfflineIndicator } from './OfflineIndicator';
 
 function NavContent({ navItems, onNavigate }: { navItems: { path: string; label: string; icon: React.ComponentType; }[]; onNavigate?: () => void }) {
   const location = useLocation();
@@ -49,6 +51,7 @@ export function Layout() {
     { path: '/requests', label: 'Wünsche', icon: ClipboardList, roles: ['admin', 'employee'] },
     { path: '/schedule', label: 'Schichtplan', icon: Calendar, roles: ['admin'] },
     { path: '/time-accounts', label: 'Zeitkonten', icon: Clock, roles: ['admin'] },
+    { path: '/self-service', label: 'Self-Service', icon: UserCheck, roles: ['admin', 'employee'] },
     { path: '/employee-view', label: 'Mitarbeiteransicht', icon: Eye, roles: ['admin', 'employee'] },
     { path: '/pinboard', label: 'Pinnwand', icon: MessageSquare, roles: ['admin', 'employee'] },
   ];
@@ -58,7 +61,7 @@ export function Layout() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
@@ -77,6 +80,7 @@ export function Layout() {
               <h1 className="font-semibold text-xl truncate">MVIT PlanBar</h1>
             </div>
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+              <PushBell />
               <div className="hidden sm:flex items-center gap-2 text-sm text-gray-700">
                 <User className="h-4 w-4" />
                 <span className="truncate max-w-[120px]">{user?.name}</span>
@@ -123,7 +127,7 @@ export function Layout() {
         </Sheet>
       )}
 
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-4 py-6 flex-1">
         <div className="flex gap-6">
           <nav className="hidden md:block w-64 flex-shrink-0">
             <NavContent navItems={navItems} />
@@ -134,6 +138,18 @@ export function Layout() {
           </main>
         </div>
       </div>
+
+      <footer className="border-t bg-white mt-8">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <span>&copy; {new Date().getFullYear()} MVIT PlanBar</span>
+            <Link to="/privacy" className="hover:text-blue-600 transition-colors">
+              Datenschutzerklärung
+            </Link>
+          </div>
+        </div>
+      </footer>
+      <OfflineIndicator />
     </div>
   );
 }

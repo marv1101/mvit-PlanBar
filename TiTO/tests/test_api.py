@@ -2,7 +2,6 @@ import base64
 import hashlib
 import hmac
 import json
-import tempfile
 import time
 from pathlib import Path
 
@@ -22,10 +21,7 @@ def test_health_check():
 
 def test_job_enqueue_and_list(tmp_path: Path):
     db_file = tmp_path / "api_tito.db"
-    settings = Settings.from_env({
-        "DATABASE_URL": f"sqlite:///{db_file}",
-        "API_TOKENS": "test-token"
-    })
+    settings = Settings.from_env({"DATABASE_URL": f"sqlite:///{db_file}", "API_TOKENS": "test-token"})
     app = create_app(settings)
     client = app.test_client()
     headers = {"Authorization": "Bearer test-token"}
@@ -49,38 +45,45 @@ def test_job_enqueue_and_list(tmp_path: Path):
 
 def test_worker_token_restricted_to_worker_endpoints(tmp_path: Path):
     db_file = tmp_path / "api_tito.db"
-    settings = Settings.from_env({
-        "DATABASE_URL": f"sqlite:///{db_file}",
-        "API_TOKEN_ROLES": "worker-token=worker"
-    })
+    settings = Settings.from_env(
+        {
+            "DATABASE_URL": f"sqlite:///{db_file}",
+            "API_TOKEN_ROLES": "worker-token=worker",
+        }
+    )
     app = create_app(settings)
     client = app.test_client()
     worker_headers = {"Authorization": "Bearer worker-token"}
 
-    register_response = client.post("/workers/register", json={
-        "worker_id": "worker-2",
-        "cpu_usage": 10.0,
-        "ram_usage": 20.0,
-    }, headers=worker_headers)
+    register_response = client.post(
+        "/workers/register",
+        json={
+            "worker_id": "worker-2",
+            "cpu_usage": 10.0,
+            "ram_usage": 20.0,
+        },
+        headers=worker_headers,
+    )
     assert register_response.status_code == 200
 
-    post_response = client.post("/jobs", json={
-        "metadata": {"jobId": "job-worker-test", "priority": 1},
-        "config": {},
-        "shiftTemplates": [],
-        "requirements": [],
-        "employees": [],
-    }, headers=worker_headers)
+    post_response = client.post(
+        "/jobs",
+        json={
+            "metadata": {"jobId": "job-worker-test", "priority": 1},
+            "config": {},
+            "shiftTemplates": [],
+            "requirements": [],
+            "employees": [],
+        },
+        headers=worker_headers,
+    )
     assert post_response.status_code == 403
     assert post_response.json["error"] == "Forbidden"
 
 
 def test_admin_token_can_access_jobs(tmp_path: Path):
     db_file = tmp_path / "api_tito.db"
-    settings = Settings.from_env({
-        "DATABASE_URL": f"sqlite:///{db_file}",
-        "API_TOKEN_ROLES": "admin-token=admin"
-    })
+    settings = Settings.from_env({"DATABASE_URL": f"sqlite:///{db_file}", "API_TOKEN_ROLES": "admin-token=admin"})
     app = create_app(settings)
     client = app.test_client()
     headers = {"Authorization": "Bearer admin-token"}
@@ -103,10 +106,7 @@ def test_admin_token_can_access_jobs(tmp_path: Path):
 
 def test_job_enqueue_requires_auth(tmp_path: Path):
     db_file = tmp_path / "api_tito.db"
-    settings = Settings.from_env({
-        "DATABASE_URL": f"sqlite:///{db_file}",
-        "API_TOKENS": "test-token"
-    })
+    settings = Settings.from_env({"DATABASE_URL": f"sqlite:///{db_file}", "API_TOKENS": "test-token"})
     app = create_app(settings)
     client = app.test_client()
 
@@ -125,10 +125,7 @@ def test_job_enqueue_requires_auth(tmp_path: Path):
 
 def test_metrics_with_auth(tmp_path: Path):
     db_file = tmp_path / "api_tito.db"
-    settings = Settings.from_env({
-        "DATABASE_URL": f"sqlite:///{db_file}",
-        "API_TOKENS": "test-token"
-    })
+    settings = Settings.from_env({"DATABASE_URL": f"sqlite:///{db_file}", "API_TOKENS": "test-token"})
     app = create_app(settings)
     client = app.test_client()
     headers = {"Authorization": "Bearer test-token"}
@@ -144,10 +141,7 @@ def test_metrics_with_auth(tmp_path: Path):
 
 def test_metrics_prometheus_endpoint(tmp_path: Path):
     db_file = tmp_path / "api_tito.db"
-    settings = Settings.from_env({
-        "DATABASE_URL": f"sqlite:///{db_file}",
-        "API_TOKENS": "test-token"
-    })
+    settings = Settings.from_env({"DATABASE_URL": f"sqlite:///{db_file}", "API_TOKENS": "test-token"})
     app = create_app(settings)
     client = app.test_client()
     headers = {"Authorization": "Bearer test-token"}
@@ -164,10 +158,7 @@ def test_metrics_prometheus_endpoint(tmp_path: Path):
 
 def test_openapi_json_endpoint(tmp_path: Path):
     db_file = tmp_path / "api_tito.db"
-    settings = Settings.from_env({
-        "DATABASE_URL": f"sqlite:///{db_file}",
-        "API_TOKENS": "test-token"
-    })
+    settings = Settings.from_env({"DATABASE_URL": f"sqlite:///{db_file}", "API_TOKENS": "test-token"})
     app = create_app(settings)
     client = app.test_client()
 
@@ -204,19 +195,20 @@ def _create_jwt(secret: str, role: str, audience: str | None = None, issuer: str
 
 def test_worker_register_and_job_queue(tmp_path: Path):
     db_file = tmp_path / "api_tito.db"
-    settings = Settings.from_env({
-        "DATABASE_URL": f"sqlite:///{db_file}",
-        "API_TOKENS": "test-token"
-    })
+    settings = Settings.from_env({"DATABASE_URL": f"sqlite:///{db_file}", "API_TOKENS": "test-token"})
     app = create_app(settings)
     client = app.test_client()
     headers = {"Authorization": "Bearer test-token"}
 
-    register_response = client.post("/workers/register", json={
-        "worker_id": "worker-1",
-        "cpu_usage": 1.5,
-        "ram_usage": 7.2,
-    }, headers=headers)
+    register_response = client.post(
+        "/workers/register",
+        json={
+            "worker_id": "worker-1",
+            "cpu_usage": 1.5,
+            "ram_usage": 7.2,
+        },
+        headers=headers,
+    )
     assert register_response.status_code == 200
     assert register_response.json["status"] == "registered"
 
@@ -239,11 +231,13 @@ def test_worker_register_and_job_queue(tmp_path: Path):
 def test_jwt_admin_token_allows_jobs(tmp_path: Path):
     db_file = tmp_path / "api_tito.db"
     secret = "super-secret"
-    settings = Settings.from_env({
-        "DATABASE_URL": f"sqlite:///{db_file}",
-        "JWT_SECRET": secret,
-        "JWT_ALGORITHMS": "HS256",
-    })
+    settings = Settings.from_env(
+        {
+            "DATABASE_URL": f"sqlite:///{db_file}",
+            "JWT_SECRET": secret,
+            "JWT_ALGORITHMS": "HS256",
+        }
+    )
     app = create_app(settings)
     client = app.test_client()
     token = _create_jwt(secret, "admin")
@@ -268,10 +262,7 @@ def test_jwt_admin_token_allows_jobs(tmp_path: Path):
 
 def test_api_key_header_support(tmp_path: Path):
     db_file = tmp_path / "api_tito.db"
-    settings = Settings.from_env({
-        "DATABASE_URL": f"sqlite:///{db_file}",
-        "API_TOKENS": "header-token"
-    })
+    settings = Settings.from_env({"DATABASE_URL": f"sqlite:///{db_file}", "API_TOKENS": "header-token"})
     app = create_app(settings)
     client = app.test_client()
     headers = {"X-API-Key": "header-token"}

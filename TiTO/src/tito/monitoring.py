@@ -4,8 +4,11 @@ from datetime import datetime
 from typing import Any
 
 from .db import (
-    count_jobs, fetch_callback_count_grouped_by_status, fetch_dlq_count,
-    fetch_jobs_grouped_by_status, get_workers
+    count_jobs,
+    fetch_callback_count_grouped_by_status,
+    fetch_dlq_count,
+    fetch_jobs_grouped_by_status,
+    get_workers,
 )
 
 
@@ -74,7 +77,9 @@ def _compute_duration_metrics(connection: sqlite3.Connection | Any, queue_table:
     }
 
 
-def _compute_timeout_metrics(connection: sqlite3.Connection | Any, queue_table: str, timeout_seconds: int | None) -> dict:
+def _compute_timeout_metrics(
+    connection: sqlite3.Connection | Any, queue_table: str, timeout_seconds: int | None
+) -> dict:
     if timeout_seconds is None:
         return {"solver_timeout_count": 0, "solver_timeout_rate": 0.0}
 
@@ -105,7 +110,11 @@ def _compute_error_rate(job_status_counts: dict) -> float:
     return round((failures / processed) * 100, 2)
 
 
-def get_metrics(connection: sqlite3.Connection | Any, queue_table: str, timeout_seconds: int | None = None) -> dict:
+def get_metrics(
+    connection: sqlite3.Connection | Any,
+    queue_table: str,
+    timeout_seconds: int | None = None,
+) -> dict:
     """Gibt aktuelle Monitoring-Daten zurück."""
     workers = get_workers(connection)
     job_status_counts = fetch_jobs_grouped_by_status(connection, queue_table)
@@ -129,7 +138,12 @@ def get_metrics(connection: sqlite3.Connection | Any, queue_table: str, timeout_
     }
 
 
-def export_prometheus(connection: sqlite3.Connection | Any, queue_table: str, timeout_seconds: int | None = None, prefix: str = "tito") -> str:
+def export_prometheus(
+    connection: sqlite3.Connection | Any,
+    queue_table: str,
+    timeout_seconds: int | None = None,
+    prefix: str = "tito",
+) -> str:
     metrics = get_metrics(connection, queue_table, timeout_seconds)
     lines = [
         f"# HELP {prefix}_queue_length Anzahl der Jobs in der Warteschlange.",
@@ -165,13 +179,13 @@ def export_prometheus(connection: sqlite3.Connection | Any, queue_table: str, ti
         lines.append(f"# HELP {prefix}_jobs_total Gesamtzahl der Jobs nach Status.")
         lines.append(f"# TYPE {prefix}_jobs_total gauge")
         for status, count in metrics["job_status_counts"].items():
-            lines.append(f"{prefix}_jobs_total{{status=\"{status}\"}} {count}")
+            lines.append(f'{prefix}_jobs_total{{status="{status}"}} {count}')
 
     if metrics["callback_counts"]:
         lines.append(f"# HELP {prefix}_callbacks_total Gesamtzahl der Callbacks nach Status.")
         lines.append(f"# TYPE {prefix}_callbacks_total gauge")
         for status, count in metrics["callback_counts"].items():
-            lines.append(f"{prefix}_callbacks_total{{status=\"{status}\"}} {count}")
+            lines.append(f'{prefix}_callbacks_total{{status="{status}"}} {count}')
 
     if metrics["workers"]:
         lines.append(f"# HELP {prefix}_worker_cpu_usage_percent CPU-Auslastung des Workers.")
@@ -185,8 +199,8 @@ def export_prometheus(connection: sqlite3.Connection | Any, queue_table: str, ti
             cpu_usage = worker.get("cpu_usage") or 0.0
             ram_usage = worker.get("ram_usage") or 0.0
             active_jobs = worker.get("active_jobs") or 0
-            lines.append(f"{prefix}_worker_cpu_usage_percent{{worker_id=\"{worker_id}\"}} {cpu_usage}")
-            lines.append(f"{prefix}_worker_ram_usage_percent{{worker_id=\"{worker_id}\"}} {ram_usage}")
-            lines.append(f"{prefix}_worker_active_jobs{{worker_id=\"{worker_id}\"}} {active_jobs}")
+            lines.append(f'{prefix}_worker_cpu_usage_percent{{worker_id="{worker_id}"}} {cpu_usage}')
+            lines.append(f'{prefix}_worker_ram_usage_percent{{worker_id="{worker_id}"}} {ram_usage}')
+            lines.append(f'{prefix}_worker_active_jobs{{worker_id="{worker_id}"}} {active_jobs}')
 
     return "\n".join(lines) + "\n"

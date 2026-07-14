@@ -21,14 +21,15 @@ interface AuthContextType {
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function mapBackendUser(data: { id: number; username: string; email: string; role: string }): User {
+function mapBackendUser(data: { id: number; username: string; email: string; role: string; employee_id?: number | null }): User {
   return {
     id: String(data.id),
     name: data.username,
     email: data.email,
     role: data.role === 'user' ? 'employee' : (data.role as 'admin' | 'employee'),
+    employeeId: data.employee_id ? String(data.employee_id) : undefined,
   };
 }
 
@@ -60,9 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setMustChangePassword(mustChange);
       return { success: true, mustChangePassword: mustChange };
     } catch (err) {
-      const msg = axios.isAxiosError(err)
-        ? err.response?.data?.detail || 'Login fehlgeschlagen'
-        : 'Netzwerkfehler';
+      const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null;
+      const msg = Array.isArray(detail) ? detail.map(d => d.msg).join('; ') : detail || 'Login fehlgeschlagen';
       toast.error(msg);
       return { success: false, mustChangePassword: false };
     }
@@ -74,9 +74,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setMustChangePassword(false);
       return true;
     } catch (err) {
-      const msg = axios.isAxiosError(err)
-        ? err.response?.data?.detail || 'Passwort ändern fehlgeschlagen'
-        : 'Netzwerkfehler';
+      const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null;
+      const msg = Array.isArray(detail) ? detail.map(d => d.msg).join('; ') : detail || 'Passwort ändern fehlgeschlagen';
       toast.error(msg);
       return false;
     }

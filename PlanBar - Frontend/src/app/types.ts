@@ -1,3 +1,18 @@
+export interface ArbZgWarning {
+  rule: string;
+  message: string;
+  employee_id: number;
+  shift_date: string | null;
+  details?: unknown;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
 export type WeekType = 'A' | 'B';
 
 export interface Role {
@@ -72,6 +87,7 @@ export interface Shift {
   endTime: string;
   breakStart?: string;
   breakEnd?: string;
+  label?: string;
 }
 
 export interface TiTOViolation {
@@ -84,6 +100,16 @@ export interface TiTOViolation {
 export interface TiTODiagnostics {
   isOptimal: boolean;
   info: string;
+  aggregatedMessages?: TiTOAggregatedMessage[];
+}
+
+export interface TiTOAggregatedMessage {
+  severity: string;
+  skill: string;
+  message: string;
+  totalMissingShifts: number;
+  totalMissingHours: number;
+  affectedDays: number;
 }
 
 export interface EmployeeFairnessEntry {
@@ -113,6 +139,14 @@ export interface AppUser {
   lastLogin: string | null;
 }
 
+export interface ShiftTemplateEntry {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  requirements: Record<string, number>;
+}
+
 export interface Schedule {
   id: string;
   name: string;
@@ -121,6 +155,8 @@ export interface Schedule {
   endDate: string;
   shifts: Shift[];
   roleRequirements?: Record<EmployeeRole, number>;
+  shiftTemplates?: ShiftTemplateEntry[];
+  weekType?: WeekType | null;
   titoJobId?: number | null;
   diagnostics?: TiTODiagnostics | null;
   metrics?: TiTOMetrics | null;
@@ -135,6 +171,7 @@ export interface TimeAccountEntry {
   balance: number;
   manualAdjustment: number;
   adjustmentReason: string | null;
+  totalChange: number;
 }
 
 export interface TimeAccountProjected {
@@ -192,3 +229,28 @@ export interface PinboardThreadDetail {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface ShiftSwap {
+  id: string;
+  employeeId: string;
+  requesterShiftId: string;
+  targetEmployeeId: string;
+  targetShiftId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  note?: string;
+  rejectionReason?: string | null;
+  createdAt: string;
+}
+
+export interface AvailabilityEntry {
+  dayOfWeek: number;
+  available: boolean;
+  note?: string;
+}
+
+export interface AvailabilityRecord extends AvailabilityEntry {
+  id: string;
+  employeeId: string;
+}
+
+export type SelfServiceTab = 'schedule' | 'shift-swap' | 'vacation' | 'availability';

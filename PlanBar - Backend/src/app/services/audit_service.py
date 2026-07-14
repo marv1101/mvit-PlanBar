@@ -1,11 +1,9 @@
-import json
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.models.audit_log import AuditLog
-from app.utils.pagination import PaginationResponse, paginate
 
 
 def log(
@@ -120,15 +118,15 @@ def log_access(
 
 def query(
     db: Session,
-    page: int = 1,
-    page_size: int = 20,
+    offset: int = 0,
+    limit: int = 20,
     user_id: int | None = None,
     action: str | None = None,
     resource_type: str | None = None,
     resource_id: str | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
-) -> tuple[list[AuditLog], PaginationResponse]:
+) -> tuple[list[AuditLog], dict]:
     q = db.query(AuditLog)
 
     if user_id is not None:
@@ -144,8 +142,11 @@ def query(
     if end_date is not None:
         q = q.filter(AuditLog.created_at <= end_date)
 
+    total = q.count()
     q = q.order_by(AuditLog.created_at.desc())
-    return paginate(q, page=page, page_size=page_size)
+    items = q.offset(offset).limit(limit).all()
+    pagination = {"total": total, "offset": offset, "limit": limit}
+    return items, pagination
 
 
 def get_suspicious_patterns(db: Session) -> list[dict]:
@@ -174,12 +175,14 @@ def get_suspicious_patterns(db: Session) -> list[dict]:
             .limit(10)
             .all()
         )
-        patterns.append({
-            "pattern_type": "brute_force",
-            "description": f"Multiple failed logins from IP {row.ip_address}",
-            "count": row.cnt,
-            "details": logs,
-        })
+        patterns.append(
+            {
+                "pattern_type": "brute_force",
+                "description": f"Multiple failed logins from IP {row.ip_address}",
+                "count": row.cnt,
+                "details": logs,
+            }
+        )
 
     # 2. Logins for non-existent users
     recent_failures_all = (
@@ -193,12 +196,14 @@ def get_suspicious_patterns(db: Session) -> list[dict]:
         .all()
     )
     if recent_failures_all:
-        patterns.append({
-            "pattern_type": "non_existent_user",
-            "description": "Login attempts for non-existent or unknown users",
-            "count": len(recent_failures_all),
-            "details": recent_failures_all,
-        })
+        patterns.append(
+            {
+                "pattern_type": "non_existent_user",
+                "description": "Login attempts for non-existent or unknown users",
+                "count": len(recent_failures_all),
+                "details": recent_failures_all,
+            }
+        )
 
     # 3. Rapid successive operations by same user (potential scripted access)
     recent_ops = (
@@ -222,11 +227,13 @@ def get_suspicious_patterns(db: Session) -> list[dict]:
             .limit(10)
             .all()
         )
-        patterns.append({
-            "pattern_type": "rapid_operations",
-            "description": f"High volume of operations by user {row.user_id} in last 5 minutes",
-            "count": row.cnt,
-            "details": logs,
-        })
+        patterns.append(
+            {
+                "pattern_type": "rapid_operations",
+                "description": f"High volume of operations by user {row.user_id} in last 5 minutes",
+                "count": row.cnt,
+                "details": logs,
+            }
+        )
 
     return patterns

@@ -1,22 +1,23 @@
-<%page args="context"/>
 """${message}
 Revision ID: ${up_revision}
 Revises: ${down_revision | comma,n}
 Create Date: ${datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")}
 """
+from typing import Sequence, Union
+
 from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = ${repr(up_revision)}
-down_revision = ${repr(down_revision)}
-branch_labels = ${repr(branch_labels)}
-definition_labels = ${repr(definition_labels)}
+revision: str = ${repr(up_revision)}
+down_revision: Union[str, None] = ${repr(down_revision)}
+branch_labels: Union[str, Sequence[str], None] = ${repr(branch_labels)}
+depends_on: Union[str, Sequence[str], None] = ${repr(depends_on)}
 
 
-def upgrade():
+def upgrade() -> None:
     pass
 
 
-def downgrade():
+def downgrade() -> None:
     pass

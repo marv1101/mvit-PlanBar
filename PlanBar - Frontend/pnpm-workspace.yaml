@@ -4,3 +4,9 @@ packages:
 allowBuilds:
   '@tailwindcss/oxide': true
   esbuild: true
+  msw: true
+
+overrides:
+  esbuild: '>=0.28.1'
+  form-data: '>=4.0.6'
+  vite: '6.4.3'

@@ -10,6 +10,7 @@ class TiTOAssignment(BaseModel):
     shiftId: str
     startTime: str
     endTime: str
+    name: str = ""
 
 
 class TiTOMetadata(BaseModel):
@@ -20,6 +21,7 @@ class TiTOMetadata(BaseModel):
 
 class TiTORequestMetadata(BaseModel):
     """Metadata sent with job submission to TiTO"""
+
     callback_url: str
     idempotency_key: Optional[str] = None
     tenant_id: Optional[str] = None
