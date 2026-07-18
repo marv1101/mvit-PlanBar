@@ -34,6 +34,7 @@ jobs:
         run: pytest
       - name: Security audit (pip-audit)
         run: |
+          pip install --upgrade "setuptools>=83.0.0"
           pip install pip-audit
           pip-audit
 
@@ -56,6 +57,7 @@ jobs:
         run: pytest
       - name: Security audit (pip-audit)
         run: |
+          pip install --upgrade "setuptools>=83.0.0"
           pip install pip-audit
           pip-audit
 

@@ -1,4 +1,5 @@
 """Time-tracking service (Issue #29 - Digitale Zeiterfassung)."""
+
 from datetime import date, datetime, timezone
 from typing import List, Optional
 
@@ -30,9 +31,7 @@ def _get_open_entry(db: Session, employee_id: int) -> Optional[TimeEntry]:
     return db.execute(stmt).scalars().first()
 
 
-def clock_in(
-    db: Session, employee_id: int, notes: Optional[str] = None
-) -> TimeEntry:
+def clock_in(db: Session, employee_id: int, notes: Optional[str] = None) -> TimeEntry:
     _get_employee(db, employee_id)
     if _get_open_entry(db, employee_id) is not None:
         raise ValueError(f"Employee {employee_id} is already clocked in")
@@ -65,9 +64,7 @@ def clock_out(db: Session, employee_id: int) -> TimeEntry:
     return entry
 
 
-def get_daily_entries(
-    db: Session, employee_id: int, target_date: date
-) -> List[TimeEntry]:
+def get_daily_entries(db: Session, employee_id: int, target_date: date) -> List[TimeEntry]:
     _get_employee(db, employee_id)
     # Match by the calendar date of clock_in (UTC). This is the natural
     # definition of "entries for day X" — any shift whose start date
@@ -87,4 +84,5 @@ def get_daily_entries(
 
 def _one_day():
     from datetime import timedelta
+
     return timedelta(days=1)

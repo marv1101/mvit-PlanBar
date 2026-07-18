@@ -1,4 +1,5 @@
 """Pydantic schemas for time tracking (Issue #29)."""
+
 from datetime import datetime
 from typing import Optional
 

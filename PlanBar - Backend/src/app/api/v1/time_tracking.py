@@ -1,4 +1,5 @@
 """Time-Tracking API endpoints (Issue #29 - Digitale Zeiterfassung)."""
+
 from datetime import date, datetime, timezone
 from typing import List, Optional
 
@@ -17,9 +18,7 @@ from app.services.time_tracking_service import (
 router = APIRouter()
 
 
-def _resolve_employee_id(
-    employee_id: Optional[int], current_user
-) -> int:
+def _resolve_employee_id(employee_id: Optional[int], current_user) -> int:
     """Non-admins can only clock in/out themselves."""
     if employee_id is None:
         # map current user -> employee via employee_id link
@@ -84,14 +83,13 @@ def list_entries(
     current_user=Depends(get_current_user),
 ):
     if not db.get(Employee, employee_id):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
     # Simple range: union of daily entries between start_date and end_date (inclusive)
     sd: date = start_date if start_date is not None else datetime.now(timezone.utc).date()
     ed: date = end_date if end_date is not None else sd
 
     from datetime import timedelta
+
     results = []
     cur = sd
     while cur <= ed:
