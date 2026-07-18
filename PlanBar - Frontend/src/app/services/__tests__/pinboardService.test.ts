@@ -91,11 +91,10 @@ describe('pinboardService', () => {
 
   describe('uploadDocument', () => {
     it('sendet POST /pinboard/messages/:id/documents mit FormData', async () => {
-      let capturedContentType: string | null = null;
-
       server.use(
         http.post(`${base}/pinboard/messages/:messageId/documents`, async ({ request, params }) => {
-          capturedContentType = request.headers.get('Content-Type') || null;
+          const ct = request.headers.get('Content-Type') || '';
+          expect(ct).toContain('multipart/form-data');
 
           return HttpResponse.json({
             id: 100,
@@ -111,7 +110,6 @@ describe('pinboardService', () => {
       const file = new File(['test content'], 'dokument.pdf', { type: 'application/pdf' });
       const result = await uploadDocument(1, file);
 
-      expect(capturedContentType).toContain('multipart/form-data');
       expect(result).toHaveProperty('id', 100);
       expect(result).toHaveProperty('file_name');
       expect(result).toHaveProperty('file_size');

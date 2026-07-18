@@ -108,7 +108,7 @@ export async function uploadDocument(messageId: number, file: File): Promise<Doc
   const formData = new FormData();
   formData.append('file', file);
   const { data } = await api.post(`/pinboard/messages/${messageId}/documents`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: { 'Content-Type': null },
   });
   return data;
 }

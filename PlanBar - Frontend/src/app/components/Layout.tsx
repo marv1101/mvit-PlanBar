@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { useIsMobile } from './ui/use-mobile';
 import { OfflineIndicator } from './OfflineIndicator';
 
-function NavContent({ navItems, onNavigate }: { navItems: { path: string; label: string; icon: React.ComponentType; }[]; onNavigate?: () => void }) {
+function NavContent({ navItems, onNavigate }: { navItems: { path: string; label: string; icon: React.ComponentType<{ className?: string }>; }[]; onNavigate?: () => void }) {
   const location = useLocation();
   return (
     <div className="bg-white rounded-lg shadow-sm p-2">

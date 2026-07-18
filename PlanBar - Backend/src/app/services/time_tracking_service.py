@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 
 from app.db.models.employee import Employee
 from app.db.models.time_tracking import TimeEntry
-from app.schemas.time_tracking import TimeEntryCreate
 
 
 def _get_employee(db: Session, employee_id: int) -> Employee:

@@ -1,5 +1,5 @@
 import { useDocumentUrl } from './useDocumentUrl';
-import { Download, Loader2, FileText } from 'lucide-react';
+import { Download, FileText } from 'lucide-react';
 import { PinboardDocument } from '../../types';
 import { Button } from '../ui/button';
 

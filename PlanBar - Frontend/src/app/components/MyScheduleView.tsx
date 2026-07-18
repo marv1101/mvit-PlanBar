@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, Clock, Coffee, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -14,8 +14,8 @@ export function MyScheduleView() {
     queryFn: getMySchedule,
   });
 
-  const { shiftsByDate, calendarDays, calendarWeeks, totalHours } = useMemo(() => {
-    if (!shifts) return { shiftsByDate: {} as Record<string, typeof shifts>, calendarDays: [] as Date[], calendarWeeks: [] as Date[][], totalHours: 0 };
+  const { shiftsByDate, calendarWeeks, totalHours } = useMemo(() => {
+    if (!shifts || shifts.length === 0) return { shiftsByDate: {} as Record<string, typeof shifts>, calendarWeeks: [] as Date[][], totalHours: 0 };
 
     const byDate: Record<string, typeof shifts> = {};
     let hours = 0;

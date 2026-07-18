@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Repeat, Loader2, Send, CheckCircle, XCircle } from 'lucide-react';
+import { Repeat, Loader2, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -14,6 +14,7 @@ import {
 } from '../services/selfService';
 import { getEmployees } from '../services/employeeService';
 import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
   pending: { label: 'Ausstehend', variant: 'default' },
@@ -25,6 +26,7 @@ const dayLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
 export function ShiftSwapForm() {
   const { user } = useAuth();
+  const { schedules } = useApp();
   const queryClient = useQueryClient();
   const [targetEmployeeId, setTargetEmployeeId] = useState('');
   const [requesterShiftId, setRequesterShiftId] = useState('');
@@ -63,9 +65,17 @@ export function ShiftSwapForm() {
   });
 
   const otherEmployees = allEmployees?.items?.filter(e => String(e.id) !== user?.employeeId) || [];
-  const targetShifts = targetEmployeeId
-    ? (myShifts || []).filter(s => s.employee_id === Number(targetEmployeeId))
-    : [];
+  const targetShifts = useMemo(() => {
+    if (!targetEmployeeId) return [];
+    return schedules.flatMap(s => s.shifts)
+      .filter(s => s.employeeId === targetEmployeeId)
+      .map(s => ({
+        id: Number(s.id),
+        date: s.date,
+        start_time: s.startTime,
+        end_time: s.endTime,
+      }));
+  }, [schedules, targetEmployeeId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

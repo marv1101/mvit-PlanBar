@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface LightboxImage {
   id: string;

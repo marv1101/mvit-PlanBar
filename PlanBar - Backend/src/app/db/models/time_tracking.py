@@ -1,7 +1,7 @@
 """Time-Tracking Models (Issue #29 - Digitale Zeiterfassung)."""
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Text
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base

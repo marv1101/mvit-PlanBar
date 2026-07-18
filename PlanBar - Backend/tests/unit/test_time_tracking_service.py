@@ -7,12 +7,10 @@ from sqlalchemy.orm import sessionmaker
 from app.db.base import Base
 from app.db.models.employee import Employee
 from app.db.models.time_tracking import TimeEntry
-from app.schemas.time_tracking import TimeEntryCreate
 from app.services.time_tracking_service import (
     clock_in,
     clock_out,
     get_daily_entries,
-    get_employee_by_id as get_emp,
 )
 
 
