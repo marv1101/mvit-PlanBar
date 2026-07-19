@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     libpq-dev \
+    postgresql-client-15 \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

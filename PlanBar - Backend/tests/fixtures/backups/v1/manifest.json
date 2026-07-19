@@ -1,0 +1,42 @@
+{
+  "manifest_version": "1.0",
+  "created_at": "2026-07-14T03:00:00Z",
+  "tool_version": "0.1.0",
+  "tenant": "kunde1",
+  "verified": false,
+  "components": {
+    "planbar_db": {
+      "type": "postgres_dump",
+      "format": "custom",
+      "alembic_version": "0010",
+      "migration_history": ["0001", "0002", "0003"],
+      "key": "kunde1/20260714-030000/planbar_db.dump",
+      "size_bytes": 245821,
+      "checksum_sha256": "abc123def456"
+    },
+    "tito_db": {
+      "type": "postgres_dump",
+      "format": "custom",
+      "schema_version": "1.0",
+      "key": "kunde1/20260714-030000/tito_db.dump",
+      "size_bytes": 18932,
+      "checksum_sha256": "def456abc789"
+    },
+    "uploads": {
+      "type": "tar_gz",
+      "key": "kunde1/20260714-030000/uploads.tar.gz",
+      "size_bytes": 1048576,
+      "checksum_sha256": "789abc123def"
+    },
+    "config": {
+      "type": "env_dir",
+      "key": "kunde1/20260714-030000/config.tar.gz",
+      "checksum_sha256": "xyz123"
+    },
+    "migrations": {
+      "type": "directory_archive",
+      "key": "kunde1/20260714-030000/migrations.tar.gz",
+      "checksum_sha256": "mig123"
+    }
+  }
+}
