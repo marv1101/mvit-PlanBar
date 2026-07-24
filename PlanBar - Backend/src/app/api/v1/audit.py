@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, require_admin
 from app.db.models.user import User
+from app.dependencies import get_db, require_admin
 from app.schemas.audit import (
     AuditLogListResponse,
     AuditLogResponse,

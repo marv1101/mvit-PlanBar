@@ -1,16 +1,14 @@
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db
 from app.db.models.notification import Notification
 from app.db.models.user import User
+from app.dependencies import get_current_user, get_db
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services.notification_service import (
-    get_user_notifications,
     get_unread_count,
+    get_user_notifications,
     mark_all_read,
     mark_as_read,
 )
@@ -25,7 +23,7 @@ class NotificationResponse(BaseModel):
     title: str
     message: str
     read: bool
-    data: Optional[dict] = None
+    data: dict | None = None
     created_at: str
 
     model_config = {"from_attributes": True}
@@ -49,7 +47,7 @@ def list_notifications(
 ):
     total_query = db.query(Notification).filter(Notification.user_id == current_user.id)
     if unread_only:
-        total_query = total_query.filter(Notification.read == False)  # noqa: E712
+        total_query = total_query.filter(Notification.read == False)
     total = total_query.count()
     notifications = get_user_notifications(
         db, current_user.id, unread_only=unread_only, offset=pagination.offset, limit=pagination.limit

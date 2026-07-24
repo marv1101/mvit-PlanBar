@@ -1,7 +1,4 @@
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.core.auth import verify_password
 from app.db.base import Base
 from app.db.models.employee import Employee
@@ -16,6 +13,8 @@ from app.services.user_service import (
     list_users,
     update_user,
 )
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture
@@ -150,6 +149,6 @@ def test_admin_create_user_with_employee(db_session):
         role="admin",
         employee_id=employee.id,
     )
-    user, password = admin_create_user(db_session, admin_in)
+    user, _password = admin_create_user(db_session, admin_in)
     db_session.refresh(employee)
     assert employee.user_id == user.id

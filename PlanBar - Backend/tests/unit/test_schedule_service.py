@@ -1,9 +1,6 @@
 from datetime import date, time
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.db.base import Base
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
@@ -20,6 +17,8 @@ from app.services.schedule_service import (
     replace_all_shifts,
     update_schedule,
 )
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture

@@ -1,3 +1,8 @@
+import logging
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -5,20 +10,20 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.rate_limit import limiter
-
 from app.api.v1.router import api_router
+from app.config import settings
 from app.core.logging import configure_logging
+from app.core.rate_limit import limiter
 from app.db.base import Base
 from app.db.database import SessionLocal, engine
-from app.config import settings
+from app.db.models.user import User
+from app.middleware.cache_control import CacheControlMiddleware
+from app.middleware.csrf import CsrfMiddleware
 from app.middleware.error_handler import (
     http_error_handler,
     validation_exception_handler,
 )
-from app.middleware.csrf import CsrfMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
-from app.middleware.cache_control import CacheControlMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.middleware.security_headers import (
     HttpsRedirectMiddleware,
@@ -26,13 +31,6 @@ from app.middleware.security_headers import (
 )
 from app.schemas.user import UserCreate
 from app.services.user_service import create_user
-from alembic.config import Config
-from alembic import command
-
-from app.db.models.user import User
-import logging
-
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +101,7 @@ def run_database_setup() -> None:
         alembic_cfg = Config("alembic.ini")
         command.upgrade(alembic_cfg, "head")
         logger.info("Alembic migrations applied successfully")
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning("Alembic migration failed, falling back to create_all")
         Base.metadata.create_all(bind=engine)
 

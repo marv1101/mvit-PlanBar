@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -20,7 +19,7 @@ class ProcessingRestrictionResponse(BaseModel):
 class ObjectionResponse(BaseModel):
     message: str
     objection_filed: bool
-    objection_date: Optional[datetime] = None
+    objection_date: datetime | None = None
 
 
 class AutomatedDecisionInfo(BaseModel):

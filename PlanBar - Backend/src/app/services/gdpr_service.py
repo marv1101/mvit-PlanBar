@@ -1,7 +1,10 @@
 """DSGVO Art. 17 (Right to Erasure) and Art. 20 (Data Portability) service.
 
-Provides functions to export all user-related data and to anonymize/delete
-user data in compliance with GDPR requirements.
+The data-export side is split into per-category collectors in
+``gdpr_collectors`` to keep each function small and testable. The orchestrator
+``export_user_data`` here just calls the collectors in sequence and assembles
+the final payload — the output format is byte-identical to the pre-refactor
+implementation, so the public API and CSV shape do not change.
 """
 
 import csv
@@ -17,215 +20,42 @@ from app.db.models.pinboard import PinboardMessage, PinboardThread
 from app.db.models.revoked_token import RevokedToken
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
-
-
-def _serialize_datetime(dt):
-    """Convert a datetime to ISO format string for JSON serialization."""
-    if dt is None:
-        return None
-    return dt.isoformat()
-
-
-def _serialize_date(d):
-    """Convert a date to ISO format string for JSON serialization."""
-    if d is None:
-        return None
-    return d.isoformat()
+from app.services.gdpr_collectors import (
+    collect_audit_logs,
+    collect_employees,
+    collect_pinboard,
+    collect_user,
+    serialize_datetime,
+)
 
 
 def export_user_data(db: Session, user_id: int) -> dict:
     """Export all personal data associated with a user (DSGVO Art. 20).
 
-    Returns a JSON-serializable dict containing:
-    - User profile
-    - Linked employee data (if any)
-    - Contracts, timecards, shift wishes
-    - Shiftplans referencing the employee
-    - Pinboard threads and messages authored by user
-    - Audit log entries related to the user
+    Pipeline:
+        1. ``collect_user``  — user profile
+        2. ``collect_employees`` — linked employees + nested sub-collections
+        3. ``collect_pinboard``  — pinboard threads and messages
+        4. ``collect_audit_logs`` — actor + resource audit entries (deduped)
+
+    Returns a JSON-serializable dict.
     """
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
+    user_block = collect_user(db, user_id)
+    if user_block is None:
         raise ValueError(f"User {user_id} not found")
 
-    # --- User profile ---
-    user_data = {
-        "id": user.id,
-        "username": user.username,
-        "email": user.email,
-        "role": user.role,
-        "must_change_password": user.must_change_password,
-        "created_at": _serialize_datetime(user.created_at),
-        "updated_at": _serialize_datetime(user.updated_at),
-        "last_login": _serialize_datetime(user.last_login),
-    }
-
-    # --- Linked employees (may be multiple) ---
-    employees_list = db.query(Employee).filter(Employee.user_id == user_id).all()
-    if user.employee_id is not None:
-        extra = db.query(Employee).filter(Employee.id == user.employee_id).first()
-        if extra is not None and extra not in employees_list:
-            employees_list.append(extra)
-
-    employees_data = []
-    from app.db.models.schedule import Shiftplan as ShiftplanModel
-
-    for employee in employees_list:
-        contracts = [
-            {
-                "id": c.id,
-                "weekly_working_hours": c.weekly_working_hours,
-                "break_time": c.break_time,
-                "hired_role": c.hired_role,
-                "created_at": _serialize_datetime(c.created_at),
-                "updated_at": _serialize_datetime(c.updated_at),
-            }
-            for c in employee.contracts
-        ]
-
-        timecards = [
-            {
-                "id": t.id,
-                "week": t.week,
-                "year": t.year,
-                "balance": t.balance,
-                "scheduled_hours": t.scheduled_hours,
-                "actual_hours": t.actual_hours,
-                "contract_hours": t.contract_hours,
-                "manual_adjustment_hours": t.manual_adjustment_hours,
-                "adjustment_reason": t.adjustment_reason,
-                "created_at": _serialize_datetime(t.created_at),
-                "updated_at": _serialize_datetime(t.updated_at),
-            }
-            for t in employee.timecards
-        ]
-
-        shift_wishes = [
-            {
-                "id": sw.id,
-                "date": _serialize_date(sw.date),
-                "week": sw.week,
-                "type": sw.type,
-                "note": sw.note,
-                "status": sw.status,
-                "reviewed_by": sw.reviewed_by,
-                "reviewed_at": _serialize_datetime(sw.reviewed_at),
-                "rejection_reason": sw.rejection_reason,
-                "created_at": _serialize_datetime(sw.created_at),
-                "updated_at": _serialize_datetime(sw.updated_at),
-            }
-            for sw in employee.shift_wishes
-        ]
-
-        shiftplan_rows = db.query(ShiftplanModel).filter(ShiftplanModel.employee_id == employee.id).all()
-        shiftplans_data = [
-            {
-                "id": sp.id,
-                "schedule_id": sp.schedule_id,
-                "date": _serialize_date(sp.date),
-                "shift_id": sp.shift_id,
-                "start_time": sp.start_time.isoformat() if sp.start_time else None,
-                "end_time": sp.end_time.isoformat() if sp.end_time else None,
-                "label": sp.label,
-                "notes": sp.notes,
-                "created_at": _serialize_datetime(sp.created_at),
-            }
-            for sp in shiftplan_rows
-        ]
-
-        employees_data.append(
-            {
-                "id": employee.id,
-                "first_name": employee.first_name,
-                "last_name": employee.last_name,
-                "email": employee.email,
-                "color": employee.color,
-                "working_hours_json": employee.working_hours_json,
-                "break_start": employee.break_start,
-                "break_end": employee.break_end,
-                "max_work_hours": employee.max_work_hours,
-                "created_at": _serialize_datetime(employee.created_at),
-                "updated_at": _serialize_datetime(employee.updated_at),
-                "contracts": contracts,
-                "timecards": timecards,
-                "shift_wishes": shift_wishes,
-                "shiftplans": shiftplans_data,
-            }
-        )
-
-    # Backward compat: return first employee as "employee" if only one
+    # We need the User ORM object for the linked-employees lookup; the user
+    # block already proved it exists, so a fresh query is safe and short.
+    user = db.query(User).filter(User.id == user_id).first()
+    employees_data = collect_employees(db, user)
     employee_data = employees_data[0] if employees_data else None
 
-    # --- Pinboard ---
-    threads = db.query(PinboardThread).filter(PinboardThread.author_id == user_id).all()
-    threads_data = [
-        {
-            "id": t.id,
-            "title": t.title,
-            "is_pinned": t.is_pinned,
-            "created_at": _serialize_datetime(t.created_at),
-        }
-        for t in threads
-    ]
-
-    messages = db.query(PinboardMessage).filter(PinboardMessage.author_id == user_id).all()
-    messages_data = [
-        {
-            "id": m.id,
-            "thread_id": m.thread_id,
-            "content": m.content,
-            "created_at": _serialize_datetime(m.created_at),
-        }
-        for m in messages
-    ]
-
-    # --- Audit logs ---
-    audit_logs = db.query(AuditLog).filter(AuditLog.user_id == user_id).all()
-    audit_data = [
-        {
-            "id": a.id,
-            "action": a.action,
-            "resource_type": a.resource_type,
-            "resource_id": a.resource_id,
-            "details": a.details,
-            "ip_address": a.ip_address,
-            "created_at": _serialize_datetime(a.created_at),
-        }
-        for a in audit_logs
-    ]
-
-    # --- Also include audit logs where this user was the resource ---
-    resource_audit_logs = (
-        db.query(AuditLog).filter(AuditLog.resource_type == "user", AuditLog.resource_id == str(user_id)).all()
-    )
-    resource_audit_data = [
-        {
-            "id": a.id,
-            "action": a.action,
-            "resource_type": a.resource_type,
-            "resource_id": a.resource_id,
-            "details": a.details,
-            "ip_address": a.ip_address,
-            "created_at": _serialize_datetime(a.created_at),
-        }
-        for a in resource_audit_logs
-    ]
-
-    # Merge audit logs (deduplicate by id)
-    all_audit = {a["id"]: a for a in audit_data}
-    for a in resource_audit_data:
-        if a["id"] not in all_audit:
-            all_audit[a["id"]] = a
-
     return {
-        "export_date": _serialize_datetime(datetime.now(timezone.utc)),
-        "user": user_data,
+        "export_date": serialize_datetime(datetime.now(timezone.utc)),
+        "user": user_block,
         "employee": employee_data,
-        "pinboard": {
-            "threads": threads_data,
-            "messages": messages_data,
-        },
-        "audit_logs": sorted(all_audit.values(), key=lambda x: x["created_at"] or ""),
+        "pinboard": collect_pinboard(db, user_id),
+        "audit_logs": collect_audit_logs(db, user_id),
     }
 
 

@@ -1,7 +1,4 @@
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.db.base import Base
 from app.db.models.role import Role
 from app.schemas.employee import (
@@ -27,6 +24,8 @@ from app.services.employee_service import (
     update_employee,
     update_timecard,
 )
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture
@@ -190,7 +189,9 @@ def test_create_timecard_with_extended_fields(db_session):
 def test_timecard_unique_employee_week_year(db_session):
     emp = create_employee(db_session, EmployeeCreate(first_name="TCUniq", last_name="Test"))
     create_timecard(db_session, TimecardCreate(employee_id=emp.id, week=25, year=2026, balance=0))
-    with pytest.raises(Exception):
+    from sqlalchemy.exc import IntegrityError
+
+    with pytest.raises(IntegrityError):
         create_timecard(
             db_session,
             TimecardCreate(employee_id=emp.id, week=25, year=2026, balance=5.0),

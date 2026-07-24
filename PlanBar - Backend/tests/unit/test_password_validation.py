@@ -1,8 +1,8 @@
 """Unit tests for password complexity validation."""
 
 import pytest
+from app.schemas.user import ChangePasswordRequest, UserCreate, UserLogin
 from pydantic import ValidationError
-from app.schemas.user import UserCreate, UserLogin, ChangePasswordRequest
 
 
 class TestPasswordComplexity:

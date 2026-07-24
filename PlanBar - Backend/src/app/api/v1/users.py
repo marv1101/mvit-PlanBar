@@ -6,7 +6,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.dependencies import get_current_user, get_db, require_admin
 from app.core.auth import (
     create_access_token,
     create_refresh_token,
@@ -14,14 +13,16 @@ from app.core.auth import (
     revoke_token,
     verify_token,
 )
-from app.core.rate_limit import limiter
 from app.core.exceptions import (
     ConflictException,
     NotFoundException,
     UnauthorizedException,
 )
+from app.core.rate_limit import limiter
 from app.db.models.employee import Employee
 from app.db.models.user import User
+from app.dependencies import get_current_user, get_db, require_admin
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.schemas.user import (
     AdminUserCreate,
     AdminUserCreateResponse,
@@ -34,7 +35,6 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
-from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services import audit_service
 from app.services.lockout_service import lockout_service
 from app.services.user_service import (
@@ -270,7 +270,6 @@ def delete_user_endpoint(
         raise NotFoundException(detail="User not found")
 
     delete_user(db, user, actor_id=admin.id)
-    return None
 
 
 @router.post(

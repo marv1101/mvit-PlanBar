@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import BaseModel
 
 
@@ -10,10 +8,10 @@ class MyShiftResponse(BaseModel):
     date: str
     start_time: str
     end_time: str
-    week: Optional[str] = None
-    break_start: Optional[str] = None
-    break_end: Optional[str] = None
-    label: Optional[str] = None
+    week: str | None = None
+    break_start: str | None = None
+    break_end: str | None = None
+    label: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -22,5 +20,5 @@ class MyOvertimeResponse(BaseModel):
     current_balance: float = 0.0
     scheduled_hours: float = 0.0
     contract_hours: float = 0.0
-    week: Optional[int] = None
-    year: Optional[int] = None
+    week: int | None = None
+    year: int | None = None
