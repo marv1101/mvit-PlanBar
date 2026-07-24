@@ -1,14 +1,12 @@
 from datetime import date
 
 import pytest
-
 from app.services.holiday_service import (
     _FIXED_NATIONWIDE,
     _HAS_HOLIDAYS,
     _get_fixed_holidays,
     get_german_holidays,
 )
-
 
 # ---------------------------------------------------------------------------
 # Core nationwide / movable holidays

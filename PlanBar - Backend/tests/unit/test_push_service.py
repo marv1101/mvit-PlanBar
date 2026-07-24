@@ -16,12 +16,10 @@ import uuid
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pywebpush import WebPushException
-
 from app.db.models.push_subscription import PushSubscription
 from app.db.models.user import User
 from app.services import push_service
-
+from pywebpush import WebPushException
 
 # ---------------------------------------------------------------------------
 # Helpers / Fixtures
@@ -361,16 +359,15 @@ def _make_sub(endpoint: str = "https://push.example.com/x") -> PushSubscription:
 def test_send_push_notification_success_with_url_and_tag():
     """Successful send returns True and payload includes url + tag."""
     sub = _make_sub()
-    with patch("app.services.push_service.webpush") as mock_webpush:
-        with patch("app.services.push_service._get_vapid_claims") as mock_claims:
-            mock_claims.return_value = {
-                "sub": "mailto:admin@example.com",
-                "private_key": "private_key_value",
-                "aud": "https://fcm.googleapis.com",
-            }
-            result = push_service.send_push_notification(
-                sub, "Title", "Body", url="https://example.com", tag="t1"
-            )
+    with patch("app.services.push_service.webpush") as mock_webpush, patch("app.services.push_service._get_vapid_claims") as mock_claims:
+        mock_claims.return_value = {
+            "sub": "mailto:admin@example.com",
+            "private_key": "private_key_value",
+            "aud": "https://fcm.googleapis.com",
+        }
+        result = push_service.send_push_notification(
+            sub, "Title", "Body", url="https://example.com", tag="t1"
+        )
     assert result is True
     mock_webpush.assert_called_once()
     kwargs = mock_webpush.call_args.kwargs
@@ -387,13 +384,12 @@ def test_send_push_notification_success_with_url_and_tag():
 def test_send_push_notification_success_minimal_payload():
     """Successful send without url/tag omits those keys from payload."""
     sub = _make_sub()
-    with patch("app.services.push_service.webpush") as mock_webpush:
-        with patch("app.services.push_service._get_vapid_claims") as mock_claims:
-            mock_claims.return_value = {
-                "sub": "mailto:a@b",
-                "private_key": "k",
-            }
-            result = push_service.send_push_notification(sub, "T", "B")
+    with patch("app.services.push_service.webpush") as mock_webpush, patch("app.services.push_service._get_vapid_claims") as mock_claims:
+        mock_claims.return_value = {
+            "sub": "mailto:a@b",
+            "private_key": "k",
+        }
+        result = push_service.send_push_notification(sub, "T", "B")
     assert result is True
     payload = json.loads(mock_webpush.call_args.kwargs["data"])
     assert payload == {"title": "T", "body": "B"}
@@ -404,13 +400,11 @@ def test_send_push_notification_success_minimal_payload():
 def test_send_push_notification_returns_false_on_404():
     """WebPushException with 404 returns False and logs info."""
     sub = _make_sub("https://push.example.com/404")
-    with patch("app.services.push_service.webpush") as mock_webpush:
-        with patch("app.services.push_service._get_vapid_claims"):
-            response = MagicMock()
-            response.status_code = 404
-            mock_webpush.side_effect = WebPushException("gone", response=response)
-            with patch("app.services.push_service.logger") as mock_logger:
-                result = push_service.send_push_notification(sub, "T", "B")
+    with patch("app.services.push_service.webpush") as mock_webpush, patch("app.services.push_service._get_vapid_claims"), patch("app.services.push_service.logger") as mock_logger:
+        response = MagicMock()
+        response.status_code = 404
+        mock_webpush.side_effect = WebPushException("gone", response=response)
+        result = push_service.send_push_notification(sub, "T", "B")
     assert result is False
     # 404 is treated as expired/gone — info level
     assert mock_logger.info.called
@@ -421,13 +415,11 @@ def test_send_push_notification_returns_false_on_404():
 def test_send_push_notification_returns_false_on_410():
     """WebPushException with 410 returns False and logs info."""
     sub = _make_sub("https://push.example.com/410")
-    with patch("app.services.push_service.webpush") as mock_webpush:
-        with patch("app.services.push_service._get_vapid_claims"):
-            response = MagicMock()
-            response.status_code = 410
-            mock_webpush.side_effect = WebPushException("gone", response=response)
-            with patch("app.services.push_service.logger") as mock_logger:
-                result = push_service.send_push_notification(sub, "T", "B")
+    with patch("app.services.push_service.webpush") as mock_webpush, patch("app.services.push_service._get_vapid_claims"), patch("app.services.push_service.logger") as mock_logger:
+        response = MagicMock()
+        response.status_code = 410
+        mock_webpush.side_effect = WebPushException("gone", response=response)
+        result = push_service.send_push_notification(sub, "T", "B")
     assert result is False
     assert mock_logger.info.called
     info_msg = mock_logger.info.call_args.args[0]
@@ -437,13 +429,11 @@ def test_send_push_notification_returns_false_on_410():
 def test_send_push_notification_returns_false_on_other_webpush_error():
     """WebPushException without 404/410 returns False and logs warning."""
     sub = _make_sub("https://push.example.com/err")
-    with patch("app.services.push_service.webpush") as mock_webpush:
-        with patch("app.services.push_service._get_vapid_claims"):
-            response = MagicMock()
-            response.status_code = 500
-            mock_webpush.side_effect = WebPushException("server err", response=response)
-            with patch("app.services.push_service.logger") as mock_logger:
-                result = push_service.send_push_notification(sub, "T", "B")
+    with patch("app.services.push_service.webpush") as mock_webpush, patch("app.services.push_service._get_vapid_claims"), patch("app.services.push_service.logger") as mock_logger:
+        response = MagicMock()
+        response.status_code = 500
+        mock_webpush.side_effect = WebPushException("server err", response=response)
+        result = push_service.send_push_notification(sub, "T", "B")
     assert result is False
     assert mock_logger.warning.called
     warn_msg = mock_logger.warning.call_args.args[0]
@@ -453,11 +443,9 @@ def test_send_push_notification_returns_false_on_other_webpush_error():
 def test_send_push_notification_returns_false_on_no_response():
     """WebPushException without a response object returns False."""
     sub = _make_sub("https://push.example.com/noresp")
-    with patch("app.services.push_service.webpush") as mock_webpush:
-        with patch("app.services.push_service._get_vapid_claims"):
-            mock_webpush.side_effect = WebPushException("no resp")
-            with patch("app.services.push_service.logger") as mock_logger:
-                result = push_service.send_push_notification(sub, "T", "B")
+    with patch("app.services.push_service.webpush") as mock_webpush, patch("app.services.push_service._get_vapid_claims"), patch("app.services.push_service.logger") as mock_logger:
+        mock_webpush.side_effect = WebPushException("no resp")
+        result = push_service.send_push_notification(sub, "T", "B")
     assert result is False
     # Either warning (e.response is None) or info (depending on guard)
     assert mock_logger.warning.called or mock_logger.info.called
@@ -555,14 +543,13 @@ def test_send_push_notification_to_user_commits_when_subs_exist(
     )
     with patch(
         "app.services.push_service.send_push_notification", return_value=True
-    ):
-        with patch.object(db_session, "commit") as mock_commit:
-            push_service.send_push_notification_to_user(
-                db=db_session,
-                user_id=test_user.id,
-                title="t",
-                body="b",
-            )
+    ), patch.object(db_session, "commit") as mock_commit:
+        push_service.send_push_notification_to_user(
+            db=db_session,
+            user_id=test_user.id,
+            title="t",
+            body="b",
+        )
     assert mock_commit.called
 
 
@@ -572,12 +559,11 @@ def test_send_push_notification_to_user_no_commit_when_no_subs(
     """When the user has no subscriptions, db.commit() is NOT called."""
     with patch(
         "app.services.push_service.send_push_notification", return_value=True
-    ):
-        with patch.object(db_session, "commit") as mock_commit:
-            push_service.send_push_notification_to_user(
-                db=db_session,
-                user_id=test_user.id,
-                title="t",
-                body="b",
-            )
+    ), patch.object(db_session, "commit") as mock_commit:
+        push_service.send_push_notification_to_user(
+            db=db_session,
+            user_id=test_user.id,
+            title="t",
+            body="b",
+        )
     assert not mock_commit.called
