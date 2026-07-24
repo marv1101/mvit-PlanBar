@@ -57,7 +57,7 @@
     "react-hook-form": "7.55.0",
     "react-popper": "2.3.0",
     "react-resizable-panels": "2.1.7",
-    "react-router": "7.17.0",
+    "react-router": "7.18.1",
     "recharts": "2.15.2",
     "sonner": "2.0.3",
     "tailwind-merge": "3.2.0",
@@ -100,7 +100,7 @@
   },
   "overrides": {
     "form-data": "4.0.6",
-    "tar": "7.5.16",
+    "tar": "7.5.21",
     "undici": "7.28.0"
   },
   "pnpm": {
