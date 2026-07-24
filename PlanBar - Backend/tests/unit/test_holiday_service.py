@@ -50,9 +50,7 @@ def test_get_german_holidays_epiphany_with_subdivision():
     """Baden-Württemberg includes Epiphany (Jan 6)."""
     if not _HAS_HOLIDAYS:
         pytest.skip("python-holidays not installed")
-    result = get_german_holidays(
-        date(2024, 1, 1), date(2024, 1, 10), subdivision="BW"
-    )
+    result = get_german_holidays(date(2024, 1, 1), date(2024, 1, 10), subdivision="BW")
     assert "2024-01-01" in result
     assert "2024-01-06" in result
 
@@ -69,9 +67,7 @@ def test_get_german_holidays_nrw_includes_all_saints():
     """NRW (Nordrhein-Westfalen) includes Allerheiligen (Nov 1)."""
     if not _HAS_HOLIDAYS:
         pytest.skip("python-holidays not installed")
-    result = get_german_holidays(
-        date(2024, 10, 25), date(2024, 11, 5), subdivision="NW"
-    )
+    result = get_german_holidays(date(2024, 10, 25), date(2024, 11, 5), subdivision="NW")
     # Reformation Day is NOT in NRW; Allerheiligen IS in NRW
     assert "2024-11-01" in result
     assert "2024-10-31" not in result
@@ -81,9 +77,7 @@ def test_get_german_holidays_by_includes_epiphany():
     """Bayern (BY) includes Epiphany (Jan 6) — state-specific."""
     if not _HAS_HOLIDAYS:
         pytest.skip("python-holidays not installed")
-    result = get_german_holidays(
-        date(2024, 1, 1), date(2024, 1, 10), subdivision="BY"
-    )
+    result = get_german_holidays(date(2024, 1, 1), date(2024, 1, 10), subdivision="BY")
     assert "2024-01-06" in result
 
 
@@ -91,9 +85,7 @@ def test_get_german_holidays_be_includes_womens_day():
     """Berlin (BE) includes International Women's Day (Mar 8) — state-specific."""
     if not _HAS_HOLIDAYS:
         pytest.skip("python-holidays not installed")
-    result = get_german_holidays(
-        date(2024, 3, 1), date(2024, 3, 15), subdivision="BE"
-    )
+    result = get_german_holidays(date(2024, 3, 1), date(2024, 3, 15), subdivision="BE")
     assert "2024-03-08" in result
 
 

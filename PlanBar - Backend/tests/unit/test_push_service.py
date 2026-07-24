@@ -98,17 +98,13 @@ def test_load_vapid_keys_generate_new_when_no_source(reset_vapid_module_state):
                 mock_vapid.private_pem.return_value = b"generated_private"
                 mock_vapid.public_pem.return_value = b"generated_public"
                 mock_vapid_cls.return_value = mock_vapid
-                with patch.object(
-                    push_service, "VAPID_KEY_FILE", mock_file
-                ):
+                with patch.object(push_service, "VAPID_KEY_FILE", mock_file):
                     private, public = push_service._load_or_generate_vapid_keys()
     assert private == "generated_private"
     assert public == "generated_public"
 
 
-def test_load_vapid_keys_generate_new_persists_to_file(
-    reset_vapid_module_state, tmp_path, monkeypatch
-):
+def test_load_vapid_keys_generate_new_persists_to_file(reset_vapid_module_state, tmp_path, monkeypatch):
     """Generated keys are written to VAPID_KEY_FILE when writable."""
     import app.services.push_service as ps_mod
 
@@ -140,9 +136,7 @@ def test_load_vapid_keys_generate_new_persists_to_file(
 
 def test_get_vapid_public_key_returns_only_public_part():
     """Returns the public component of the key pair."""
-    with patch(
-        "app.services.push_service._load_or_generate_vapid_keys"
-    ) as mock_load:
+    with patch("app.services.push_service._load_or_generate_vapid_keys") as mock_load:
         mock_load.return_value = ("private_xyz", "public_abc")
         result = push_service.get_vapid_public_key()
     assert result == "public_abc"
@@ -155,9 +149,7 @@ def test_get_vapid_public_key_returns_only_public_part():
 
 def test_get_vapid_claims_includes_aud_and_sub():
     """Claims dict must include 'sub' (email), 'aud' (FCM), and 'private_key'."""
-    with patch(
-        "app.services.push_service._load_or_generate_vapid_keys"
-    ) as mock_load:
+    with patch("app.services.push_service._load_or_generate_vapid_keys") as mock_load:
         mock_load.return_value = ("priv_key", "pub_key")
         with patch("app.services.push_service.settings") as mock_settings:
             mock_settings.vapid_claim_email = "mailto:admin@example.com"
@@ -216,11 +208,7 @@ def test_save_subscription_updates_existing_record(db_session, test_user):
     assert sub2.device_type == "mobile"
 
     # Only one row exists for this (user, endpoint)
-    count = (
-        db_session.query(PushSubscription)
-        .filter_by(user_id=test_user.id)
-        .count()
-    )
+    count = db_session.query(PushSubscription).filter_by(user_id=test_user.id).count()
     assert count == 1
 
 
@@ -257,11 +245,7 @@ def test_remove_subscription_returns_true_when_deleted(db_session, test_user):
         endpoint="https://push.example.com/remove",
     )
     assert result is True
-    remaining = (
-        db_session.query(PushSubscription)
-        .filter_by(endpoint="https://push.example.com/remove")
-        .first()
-    )
+    remaining = db_session.query(PushSubscription).filter_by(endpoint="https://push.example.com/remove").first()
     assert remaining is None
 
 
@@ -290,20 +274,14 @@ def test_get_user_subscriptions_returns_all_for_user(db_session, test_user):
             p256dh_key=f"p{i}",
             auth_key=f"a{i}",
         )
-    subs = push_service.get_user_subscriptions(
-        db=db_session, user_id=test_user.id
-    )
+    subs = push_service.get_user_subscriptions(db=db_session, user_id=test_user.id)
     assert len(subs) == 3
-    assert {s.endpoint for s in subs} == {
-        f"https://push.example.com/{i}" for i in range(3)
-    }
+    assert {s.endpoint for s in subs} == {f"https://push.example.com/{i}" for i in range(3)}
 
 
 def test_get_user_subscriptions_empty_list_when_no_subs(db_session, test_user):
     """Returns an empty list when the user has no subscriptions."""
-    subs = push_service.get_user_subscriptions(
-        db=db_session, user_id=test_user.id
-    )
+    subs = push_service.get_user_subscriptions(db=db_session, user_id=test_user.id)
     assert subs == []
 
 
@@ -359,15 +337,16 @@ def _make_sub(endpoint: str = "https://push.example.com/x") -> PushSubscription:
 def test_send_push_notification_success_with_url_and_tag():
     """Successful send returns True and payload includes url + tag."""
     sub = _make_sub()
-    with patch("app.services.push_service.webpush") as mock_webpush, patch("app.services.push_service._get_vapid_claims") as mock_claims:
+    with (
+        patch("app.services.push_service.webpush") as mock_webpush,
+        patch("app.services.push_service._get_vapid_claims") as mock_claims,
+    ):
         mock_claims.return_value = {
             "sub": "mailto:admin@example.com",
             "private_key": "private_key_value",
             "aud": "https://fcm.googleapis.com",
         }
-        result = push_service.send_push_notification(
-            sub, "Title", "Body", url="https://example.com", tag="t1"
-        )
+        result = push_service.send_push_notification(sub, "Title", "Body", url="https://example.com", tag="t1")
     assert result is True
     mock_webpush.assert_called_once()
     kwargs = mock_webpush.call_args.kwargs
@@ -384,7 +363,10 @@ def test_send_push_notification_success_with_url_and_tag():
 def test_send_push_notification_success_minimal_payload():
     """Successful send without url/tag omits those keys from payload."""
     sub = _make_sub()
-    with patch("app.services.push_service.webpush") as mock_webpush, patch("app.services.push_service._get_vapid_claims") as mock_claims:
+    with (
+        patch("app.services.push_service.webpush") as mock_webpush,
+        patch("app.services.push_service._get_vapid_claims") as mock_claims,
+    ):
         mock_claims.return_value = {
             "sub": "mailto:a@b",
             "private_key": "k",
@@ -400,7 +382,11 @@ def test_send_push_notification_success_minimal_payload():
 def test_send_push_notification_returns_false_on_404():
     """WebPushException with 404 returns False and logs info."""
     sub = _make_sub("https://push.example.com/404")
-    with patch("app.services.push_service.webpush") as mock_webpush, patch("app.services.push_service._get_vapid_claims"), patch("app.services.push_service.logger") as mock_logger:
+    with (
+        patch("app.services.push_service.webpush") as mock_webpush,
+        patch("app.services.push_service._get_vapid_claims"),
+        patch("app.services.push_service.logger") as mock_logger,
+    ):
         response = MagicMock()
         response.status_code = 404
         mock_webpush.side_effect = WebPushException("gone", response=response)
@@ -415,7 +401,11 @@ def test_send_push_notification_returns_false_on_404():
 def test_send_push_notification_returns_false_on_410():
     """WebPushException with 410 returns False and logs info."""
     sub = _make_sub("https://push.example.com/410")
-    with patch("app.services.push_service.webpush") as mock_webpush, patch("app.services.push_service._get_vapid_claims"), patch("app.services.push_service.logger") as mock_logger:
+    with (
+        patch("app.services.push_service.webpush") as mock_webpush,
+        patch("app.services.push_service._get_vapid_claims"),
+        patch("app.services.push_service.logger") as mock_logger,
+    ):
         response = MagicMock()
         response.status_code = 410
         mock_webpush.side_effect = WebPushException("gone", response=response)
@@ -429,7 +419,11 @@ def test_send_push_notification_returns_false_on_410():
 def test_send_push_notification_returns_false_on_other_webpush_error():
     """WebPushException without 404/410 returns False and logs warning."""
     sub = _make_sub("https://push.example.com/err")
-    with patch("app.services.push_service.webpush") as mock_webpush, patch("app.services.push_service._get_vapid_claims"), patch("app.services.push_service.logger") as mock_logger:
+    with (
+        patch("app.services.push_service.webpush") as mock_webpush,
+        patch("app.services.push_service._get_vapid_claims"),
+        patch("app.services.push_service.logger") as mock_logger,
+    ):
         response = MagicMock()
         response.status_code = 500
         mock_webpush.side_effect = WebPushException("server err", response=response)
@@ -443,7 +437,11 @@ def test_send_push_notification_returns_false_on_other_webpush_error():
 def test_send_push_notification_returns_false_on_no_response():
     """WebPushException without a response object returns False."""
     sub = _make_sub("https://push.example.com/noresp")
-    with patch("app.services.push_service.webpush") as mock_webpush, patch("app.services.push_service._get_vapid_claims"), patch("app.services.push_service.logger") as mock_logger:
+    with (
+        patch("app.services.push_service.webpush") as mock_webpush,
+        patch("app.services.push_service._get_vapid_claims"),
+        patch("app.services.push_service.logger") as mock_logger,
+    ):
         mock_webpush.side_effect = WebPushException("no resp")
         result = push_service.send_push_notification(sub, "T", "B")
     assert result is False
@@ -466,9 +464,7 @@ def test_send_push_notification_to_user_returns_count(db_session, test_user):
             p256dh_key=f"p{i}",
             auth_key=f"a{i}",
         )
-    with patch(
-        "app.services.push_service.send_push_notification", return_value=True
-    ) as mock_send:
+    with patch("app.services.push_service.send_push_notification", return_value=True) as mock_send:
         count = push_service.send_push_notification_to_user(
             db=db_session,
             user_id=test_user.id,
@@ -479,9 +475,7 @@ def test_send_push_notification_to_user_returns_count(db_session, test_user):
     assert mock_send.call_count == 3
 
 
-def test_send_push_notification_to_user_deletes_failed_subs(
-    db_session, test_user
-):
+def test_send_push_notification_to_user_deletes_failed_subs(db_session, test_user):
     """Subscriptions that fail to send are removed from the DB."""
     push_service.save_subscription(
         db=db_session,
@@ -508,11 +502,7 @@ def test_send_push_notification_to_user_deletes_failed_subs(
             body="b",
         )
     assert count == 1
-    remaining = (
-        db_session.query(PushSubscription)
-        .filter_by(user_id=test_user.id)
-        .all()
-    )
+    remaining = db_session.query(PushSubscription).filter_by(user_id=test_user.id).all()
     assert len(remaining) == 1
     assert remaining[0].endpoint == "https://push.example.com/ok"
 
@@ -530,9 +520,7 @@ def test_send_push_notification_to_user_no_subscriptions(db_session, test_user):
     mock_send.assert_not_called()
 
 
-def test_send_push_notification_to_user_commits_when_subs_exist(
-    db_session, test_user
-):
+def test_send_push_notification_to_user_commits_when_subs_exist(db_session, test_user):
     """When there are subscriptions, db.commit() is called after the loop."""
     push_service.save_subscription(
         db=db_session,
@@ -541,9 +529,10 @@ def test_send_push_notification_to_user_commits_when_subs_exist(
         p256dh_key="p",
         auth_key="a",
     )
-    with patch(
-        "app.services.push_service.send_push_notification", return_value=True
-    ), patch.object(db_session, "commit") as mock_commit:
+    with (
+        patch("app.services.push_service.send_push_notification", return_value=True),
+        patch.object(db_session, "commit") as mock_commit,
+    ):
         push_service.send_push_notification_to_user(
             db=db_session,
             user_id=test_user.id,
@@ -553,13 +542,12 @@ def test_send_push_notification_to_user_commits_when_subs_exist(
     assert mock_commit.called
 
 
-def test_send_push_notification_to_user_no_commit_when_no_subs(
-    db_session, test_user
-):
+def test_send_push_notification_to_user_no_commit_when_no_subs(db_session, test_user):
     """When the user has no subscriptions, db.commit() is NOT called."""
-    with patch(
-        "app.services.push_service.send_push_notification", return_value=True
-    ), patch.object(db_session, "commit") as mock_commit:
+    with (
+        patch("app.services.push_service.send_push_notification", return_value=True),
+        patch.object(db_session, "commit") as mock_commit,
+    ):
         push_service.send_push_notification_to_user(
             db=db_session,
             user_id=test_user.id,
