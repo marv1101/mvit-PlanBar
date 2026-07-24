@@ -7,7 +7,6 @@ of the GDPR compliance implementation.
 from app.db.models.employee import Employee
 from app.db.models.user import User
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

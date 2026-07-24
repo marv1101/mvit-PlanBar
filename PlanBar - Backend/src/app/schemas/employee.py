@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -7,35 +6,35 @@ from pydantic import BaseModel, Field
 class EmployeeBase(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=64)
     last_name: str = Field(..., min_length=1, max_length=64)
-    email: Optional[str] = None
-    color: Optional[str] = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
-    working_hours_json: Optional[str] = None
-    break_start: Optional[str] = None
-    break_end: Optional[str] = None
-    max_work_hours: Optional[float] = None
+    email: str | None = None
+    color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
+    working_hours_json: str | None = None
+    break_start: str | None = None
+    break_end: str | None = None
+    max_work_hours: float | None = None
     role_ids: list[int] = []
 
 
 class EmployeeCreate(EmployeeBase):
-    user_id: Optional[int] = None
+    user_id: int | None = None
 
 
 class EmployeeUpdate(BaseModel):
-    first_name: Optional[str] = Field(None, min_length=1, max_length=64)
-    last_name: Optional[str] = Field(None, min_length=1, max_length=64)
-    email: Optional[str] = None
-    color: Optional[str] = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
-    working_hours_json: Optional[str] = None
-    break_start: Optional[str] = None
-    break_end: Optional[str] = None
-    max_work_hours: Optional[float] = None
-    user_id: Optional[int] = None
-    role_ids: Optional[list[int]] = None
+    first_name: str | None = Field(None, min_length=1, max_length=64)
+    last_name: str | None = Field(None, min_length=1, max_length=64)
+    email: str | None = None
+    color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
+    working_hours_json: str | None = None
+    break_start: str | None = None
+    break_end: str | None = None
+    max_work_hours: float | None = None
+    user_id: int | None = None
+    role_ids: list[int] | None = None
 
 
 class EmployeeResponse(EmployeeBase):
     id: int
-    user_id: Optional[int] = None
+    user_id: int | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -45,7 +44,7 @@ class EmployeeResponse(EmployeeBase):
 class ContractBase(BaseModel):
     weekly_working_hours: float = Field(..., gt=0, le=168)
     break_time: int = Field(30, ge=0)
-    hired_role: Optional[str] = None
+    hired_role: str | None = None
 
 
 class ContractCreate(ContractBase):
@@ -53,9 +52,9 @@ class ContractCreate(ContractBase):
 
 
 class ContractUpdate(BaseModel):
-    weekly_working_hours: Optional[float] = Field(None, gt=0, le=168)
-    break_time: Optional[int] = Field(None, ge=0)
-    hired_role: Optional[str] = None
+    weekly_working_hours: float | None = Field(None, gt=0, le=168)
+    break_time: int | None = Field(None, ge=0)
+    hired_role: str | None = None
 
 
 class ContractResponse(ContractBase):
@@ -75,7 +74,7 @@ class TimecardBase(BaseModel):
     actual_hours: float = 0.0
     contract_hours: float = 0.0
     manual_adjustment_hours: float = 0.0
-    adjustment_reason: Optional[str] = None
+    adjustment_reason: str | None = None
 
 
 class TimecardCreate(TimecardBase):
@@ -83,14 +82,14 @@ class TimecardCreate(TimecardBase):
 
 
 class TimecardUpdate(BaseModel):
-    week: Optional[int] = Field(None, ge=1, le=53)
-    year: Optional[int] = Field(None, ge=2020, le=2100)
-    balance: Optional[float] = None
-    scheduled_hours: Optional[float] = None
-    actual_hours: Optional[float] = None
-    contract_hours: Optional[float] = None
-    manual_adjustment_hours: Optional[float] = None
-    adjustment_reason: Optional[str] = None
+    week: int | None = Field(None, ge=1, le=53)
+    year: int | None = Field(None, ge=2020, le=2100)
+    balance: float | None = None
+    scheduled_hours: float | None = None
+    actual_hours: float | None = None
+    contract_hours: float | None = None
+    manual_adjustment_hours: float | None = None
+    adjustment_reason: str | None = None
 
 
 class TimecardResponse(TimecardBase):
@@ -110,7 +109,7 @@ class TimeAccountEntry(BaseModel):
     delta: float
     balance: float
     manual_adjustment: float = 0.0
-    adjustment_reason: Optional[str] = None
+    adjustment_reason: str | None = None
     total_change: float = 0.0
 
 
@@ -129,4 +128,4 @@ class TimeAccountResponse(BaseModel):
 
 class TimeAccountAdjust(BaseModel):
     delta_hours: float
-    reason: Optional[str] = None
+    reason: str | None = None

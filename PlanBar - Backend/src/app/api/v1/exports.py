@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db
 from app.db.models.user import User
+from app.dependencies import get_current_user, get_db
 from app.services.export_service import export_schedule_ical, export_schedule_pdf
 
 router = APIRouter()

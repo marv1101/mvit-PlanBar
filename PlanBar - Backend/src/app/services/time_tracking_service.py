@@ -1,7 +1,6 @@
 """Time-tracking service (Issue #29 - Digitale Zeiterfassung)."""
 
 from datetime import date, datetime, timezone
-from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -21,7 +20,7 @@ def _get_employee(db: Session, employee_id: int) -> Employee:
 get_employee_by_id = _get_employee
 
 
-def _get_open_entry(db: Session, employee_id: int) -> Optional[TimeEntry]:
+def _get_open_entry(db: Session, employee_id: int) -> TimeEntry | None:
     stmt = (
         select(TimeEntry)
         .where(TimeEntry.employee_id == employee_id)
@@ -31,7 +30,7 @@ def _get_open_entry(db: Session, employee_id: int) -> Optional[TimeEntry]:
     return db.execute(stmt).scalars().first()
 
 
-def clock_in(db: Session, employee_id: int, notes: Optional[str] = None) -> TimeEntry:
+def clock_in(db: Session, employee_id: int, notes: str | None = None) -> TimeEntry:
     _get_employee(db, employee_id)
     if _get_open_entry(db, employee_id) is not None:
         raise ValueError(f"Employee {employee_id} is already clocked in")
@@ -58,13 +57,13 @@ def clock_out(db: Session, employee_id: int) -> TimeEntry:
     if clock_in_ts.tzinfo is None:
         clock_in_ts = clock_in_ts.replace(tzinfo=timezone.utc)
     delta = (now - clock_in_ts).total_seconds() / 60.0
-    entry.duration_minutes = int(round(delta))
+    entry.duration_minutes = round(delta)
     db.commit()
     db.refresh(entry)
     return entry
 
 
-def get_daily_entries(db: Session, employee_id: int, target_date: date) -> List[TimeEntry]:
+def get_daily_entries(db: Session, employee_id: int, target_date: date) -> list[TimeEntry]:
     _get_employee(db, employee_id)
     # Match by the calendar date of clock_in (UTC). This is the natural
     # definition of "entries for day X" — any shift whose start date

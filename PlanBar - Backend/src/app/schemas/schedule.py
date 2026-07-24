@@ -1,5 +1,5 @@
 from datetime import date, datetime, time
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -12,11 +12,11 @@ class ShiftplanBase(BaseModel):
     shift_id: str = Field(..., max_length=50)
     start_time: time
     end_time: time
-    week: Optional[str] = Field(None, pattern=r"^[AB]$")
-    break_start: Optional[str] = None
-    break_end: Optional[str] = None
-    label: Optional[str] = Field(None, max_length=100)
-    notes: Optional[str] = None
+    week: str | None = Field(None, pattern=r"^[AB]$")
+    break_start: str | None = None
+    break_end: str | None = None
+    label: str | None = Field(None, max_length=100)
+    notes: str | None = None
 
 
 class ShiftplanCreate(ShiftplanBase):
@@ -24,16 +24,16 @@ class ShiftplanCreate(ShiftplanBase):
 
 
 class ShiftplanUpdate(BaseModel):
-    employee_id: Optional[int] = None
-    date: Optional[date] = None
-    shift_id: Optional[str] = Field(None, max_length=50)
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    week: Optional[str] = Field(None, pattern=r"^[AB]$")
-    break_start: Optional[str] = None
-    break_end: Optional[str] = None
-    label: Optional[str] = Field(None, max_length=100)
-    notes: Optional[str] = None
+    employee_id: int | None = None
+    date: date | None = None
+    shift_id: str | None = Field(None, max_length=50)
+    start_time: time | None = None
+    end_time: time | None = None
+    week: str | None = Field(None, pattern=r"^[AB]$")
+    break_start: str | None = None
+    break_end: str | None = None
+    label: str | None = Field(None, max_length=100)
+    notes: str | None = None
 
 
 class ShiftplanBatchReplace(BaseModel):
@@ -43,9 +43,9 @@ class ShiftplanBatchReplace(BaseModel):
 class ShiftplanResponse(ShiftplanBase):
     id: int
     schedule_id: int
-    metadata_json: Optional[Any] = None
-    metrics_json: Optional[Any] = None
-    diagnostics_json: Optional[Any] = None
+    metadata_json: Any | None = None
+    metrics_json: Any | None = None
+    diagnostics_json: Any | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -54,35 +54,35 @@ class ShiftplanResponse(ShiftplanBase):
 
 class ScheduleBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
-    week_type: Optional[str] = Field(None, pattern=r"^[AB]$")
+    week_type: str | None = Field(None, pattern=r"^[AB]$")
 
 
 class ScheduleCreate(ScheduleBase):
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    role_requirements: Optional[Any] = None
-    shift_templates: Optional[Any] = None
+    start_date: date | None = None
+    end_date: date | None = None
+    role_requirements: Any | None = None
+    shift_templates: Any | None = None
     shiftplans: list[ShiftplanCreate] = []
 
 
 class ScheduleUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=128)
-    week_type: Optional[str] = Field(None, pattern=r"^[AB]$")
-    status: Optional[ScheduleStatus] = None
-    shift_templates: Optional[Any] = None
+    name: str | None = Field(None, min_length=1, max_length=128)
+    week_type: str | None = Field(None, pattern=r"^[AB]$")
+    status: ScheduleStatus | None = None
+    shift_templates: Any | None = None
 
 
 class ScheduleResponse(ScheduleBase):
     id: int
     status: str
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    role_requirements: Optional[Any] = None
-    shift_templates: Optional[Any] = None
-    tito_job_id: Optional[int] = None
-    metadata_json: Optional[Any] = None
-    metrics_json: Optional[Any] = None
-    diagnostics_json: Optional[Any] = None
+    start_date: date | None = None
+    end_date: date | None = None
+    role_requirements: Any | None = None
+    shift_templates: Any | None = None
+    tito_job_id: int | None = None
+    metadata_json: Any | None = None
+    metrics_json: Any | None = None
+    diagnostics_json: Any | None = None
     shiftplans: list[ShiftplanResponse] = []
     created_at: datetime
     updated_at: datetime
@@ -96,7 +96,7 @@ class ScheduleSummary(BaseModel):
     status: str
     total_shifts: int
     total_employees: int
-    date_range: Optional[tuple[date, date]] = None
+    date_range: tuple[date, date] | None = None
 
 
 # ── ArbZG compliance response schemas ──────────────────────────────────────
@@ -104,8 +104,8 @@ class ArbZgViolationResponse(BaseModel):
     rule: str
     message: str
     employee_id: int
-    shift_date: Optional[date] = None
-    details: Optional[dict[str, Any]] = None
+    shift_date: date | None = None
+    details: dict[str, Any] | None = None
 
 
 class ArbZgCheckResponse(BaseModel):

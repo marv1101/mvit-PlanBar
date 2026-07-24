@@ -1,10 +1,9 @@
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.db.base import Base
 from app.db.models.schedule import Schedule
 from app.services.metrics_service import get_aggregated_metrics, get_robustness_metrics
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture

@@ -1,6 +1,5 @@
 import os
 
-from typing import Union
 import httpx
 
 # Must be set before any app imports so the engine uses SQLite
@@ -10,15 +9,14 @@ os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
 os.environ["ENVIRONMENT"] = "test"
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.db.base import Base
 from app.dependencies import get_db
 from app.main import create_app
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 settings.database_url = TEST_DATABASE_URL
 settings.tito_api_key = None
@@ -40,7 +38,7 @@ class CsrfTestClient(TestClient):
     _CSRF_HEADER = "X-CSRF-Token"
     _MUTATING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
-    def request(self, method: str, url: Union[httpx.URL, str], **kwargs):  # noqa: D401
+    def request(self, method: str, url: httpx.URL | str, **kwargs):
         # Ensure we have a CSRF token cookie
         if self._CSRF_COOKIE not in self.cookies:
             super().request("GET", "/api/v1/health/ping")

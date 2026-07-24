@@ -246,7 +246,7 @@ def replace_all_shifts(
 
 def get_schedule_summary(db: Session, schedule: Schedule) -> dict[str, Any]:
     shiftplans = db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).all()
-    employee_ids = set(sp.employee_id for sp in shiftplans)
+    employee_ids = {sp.employee_id for sp in shiftplans}
     dates = [sp.date for sp in shiftplans]
 
     return {

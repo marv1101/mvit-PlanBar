@@ -1,8 +1,7 @@
 import pytest
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.orm import DeclarativeMeta, declarative_base, sessionmaker
-
 from app.utils.pagination import paginate
+from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy.orm import DeclarativeMeta, declarative_base, sessionmaker
 
 Base: DeclarativeMeta = declarative_base()
 

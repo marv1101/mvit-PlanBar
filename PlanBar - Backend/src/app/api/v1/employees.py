@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
-from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.user import User
+from app.dependencies import get_current_user, get_db, require_admin
 from app.schemas.employee import (
     ContractCreate,
     ContractResponse,

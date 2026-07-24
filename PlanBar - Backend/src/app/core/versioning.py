@@ -1,6 +1,6 @@
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import Response
@@ -39,7 +39,7 @@ def check_if_modified_since(if_modified_since: str | None, last_modified: dateti
     if not if_modified_since:
         return False
     try:
-        since = datetime.strptime(if_modified_since, "%a, %d %b %Y %H:%M:%S GMT")
+        since = datetime.strptime(if_modified_since, "%a, %d %b %Y %H:%M:%S GMT").replace(tzinfo=timezone.utc)
         return last_modified <= since
     except (ValueError, TypeError):
         return False
@@ -67,7 +67,7 @@ def detect_conflict(
         return False
 
     if stored_updated_at:
-        age = (datetime.utcnow() - stored_updated_at).total_seconds()
+        age = (datetime.now(timezone.utc) - stored_updated_at).total_seconds()
         if age > tolerance_seconds:
             raise ConflictError("Resource may have been modified. Please refresh and try again.")
 

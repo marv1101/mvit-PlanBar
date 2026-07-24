@@ -21,7 +21,6 @@ from app.db.models.employee import Employee
 from app.db.models.pinboard import PinboardMessage, PinboardThread
 from app.db.models.user import User
 
-
 # ---------------------------------------------------------------------------
 # Serialization helpers (shared by all collectors)
 # ---------------------------------------------------------------------------
@@ -235,14 +234,14 @@ def collect_audit_logs(db: Session, user_id: int) -> list[dict[str, Any]]:
 
 
 __all__ = [
-    "serialize_datetime",
-    "serialize_date",
-    "collect_user",
-    "collect_employees",
+    "collect_audit_logs",
     "collect_employee_contracts",
-    "collect_employee_timecards",
     "collect_employee_shift_wishes",
     "collect_employee_shiftplans",
+    "collect_employee_timecards",
+    "collect_employees",
     "collect_pinboard",
-    "collect_audit_logs",
+    "collect_user",
+    "serialize_date",
+    "serialize_datetime",
 ]

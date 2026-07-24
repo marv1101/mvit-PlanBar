@@ -20,7 +20,6 @@ from app.db.models.pinboard import PinboardMessage, PinboardThread
 from app.db.models.revoked_token import RevokedToken
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
-
 from app.services.gdpr_collectors import (
     collect_audit_logs,
     collect_employees,

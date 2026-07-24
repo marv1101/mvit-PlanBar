@@ -224,7 +224,7 @@ def _aggregate_violations(schedule: Schedule, payload: TiTOCallbackPayload) -> l
 
     messages = []
     for skill, data in sorted(by_skill.items()):
-        hours = int(round(data["hours"]))
+        hours = round(data["hours"])
         if hours > 0:
             msg = (
                 f"{hours} {skill}-Stunden konnten nicht besetzt werden "

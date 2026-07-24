@@ -71,7 +71,7 @@ def test_create_shift_swap(client, auth_headers, employee_auth_headers):
 
 
 def test_create_shift_swap_wrong_shift(client, employee_auth_headers):
-    emp_headers, emp_id = employee_auth_headers
+    emp_headers, _emp_id = employee_auth_headers
 
     response = client.post(
         "/api/v1/shift-swaps",
@@ -86,7 +86,7 @@ def test_create_shift_swap_wrong_shift(client, employee_auth_headers):
 
 
 def test_get_my_shift_swaps(client, employee_auth_headers):
-    emp_headers, emp_id = employee_auth_headers
+    emp_headers, _emp_id = employee_auth_headers
 
     response = client.get("/api/v1/shift-swaps/me", headers=emp_headers)
     assert response.status_code == 200
@@ -163,14 +163,14 @@ def test_reject_shift_swap(client, auth_headers, employee_auth_headers):
 
 
 def test_non_admin_cannot_approve_swap(client, employee_auth_headers):
-    emp_headers, emp_id = employee_auth_headers
+    emp_headers, _emp_id = employee_auth_headers
 
     response = client.put("/api/v1/shift-swaps/1/approve", headers=emp_headers)
     assert response.status_code == 403
 
 
 def test_non_admin_cannot_reject_swap(client, employee_auth_headers):
-    emp_headers, emp_id = employee_auth_headers
+    emp_headers, _emp_id = employee_auth_headers
 
     response = client.put(
         "/api/v1/shift-swaps/1/reject",
