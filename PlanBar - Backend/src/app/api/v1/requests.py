@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+from typing import Union
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -26,7 +27,7 @@ class ShiftWishCreate(BaseModel):
 
 class ShiftWishUpdate(BaseModel):
     employee_id: int | None = None
-    date: date | None = None
+    date: Union[date, None] = None
     week: int | None = None
     type: str | None = Field(None, pattern=r"^(preferred|unavailable|vacation)$")
     note: str | None = None

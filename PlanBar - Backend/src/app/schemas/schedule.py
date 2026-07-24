@@ -1,5 +1,5 @@
 from datetime import date, datetime, time
-from typing import Any
+from typing import Any, Union
 
 from pydantic import BaseModel, Field
 
@@ -25,7 +25,7 @@ class ShiftplanCreate(ShiftplanBase):
 
 class ShiftplanUpdate(BaseModel):
     employee_id: int | None = None
-    date: date | None = None
+    date: Union[date, None] = None
     shift_id: str | None = Field(None, max_length=50)
     start_time: time | None = None
     end_time: time | None = None

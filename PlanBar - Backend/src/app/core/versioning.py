@@ -67,7 +67,7 @@ def detect_conflict(
         return False
 
     if stored_updated_at:
-        age = (datetime.now(timezone.utc) - stored_updated_at).total_seconds()
+        age = (datetime.now(timezone.utc) - stored_updated_at.replace(tzinfo=timezone.utc)).total_seconds()
         if age > tolerance_seconds:
             raise ConflictError("Resource may have been modified. Please refresh and try again.")
 
