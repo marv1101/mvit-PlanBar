@@ -439,7 +439,7 @@ class TestNotificationService:
     def test_mark_all_read_service(self, db_session):
         _clean_notifications(db_session)
         from app.db.models.user import User
-        from app.services.notification_service import create_notification, mark_all_read, get_unread_count
+        from app.services.notification_service import create_notification, get_unread_count, mark_all_read
 
         user = db_session.query(User).first()
         for _ in range(4):

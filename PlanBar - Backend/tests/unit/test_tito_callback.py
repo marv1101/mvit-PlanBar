@@ -1,25 +1,24 @@
 from datetime import date, time
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.db.base import Base
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.schemas.tito import (
-    TiTOMetadata,
     TiTOCallbackPayload,
-    TiTOSolution,
-    TiTOMetrics,
     TiTODiagnostics,
+    TiTOMetadata,
+    TiTOMetrics,
+    TiTOSolution,
 )
 from app.services.schedule_service import _get_week_type
 from app.services.tito_callback import (
+    _aggregate_violations,
     process_tito_callback,
     update_timecards_from_schedule,
-    _aggregate_violations,
 )
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture
@@ -195,12 +194,12 @@ def test_update_timecards_from_schedule_no_contract_defaults(db_session):
 def test_process_tito_callback_week_per_date(db_session):
     """process_tito_callback muss week pro assignment_date berechnen (nicht schedule.week_type)."""
     from app.schemas.tito import (
-        TiTOCallbackPayload,
         TiTOAssignment,
-        TiTOMetadata,
-        TiTOSolution,
-        TiTOMetrics,
+        TiTOCallbackPayload,
         TiTODiagnostics,
+        TiTOMetadata,
+        TiTOMetrics,
+        TiTOSolution,
     )
 
     emp = Employee(first_name="Test", last_name="User")
@@ -418,11 +417,11 @@ def test_aggregate_violations_fallback_duration_without_templates(db_session):
 
 def test_aggregate_violations_stored_in_process_callback(db_session):
     from app.schemas.tito import (
-        TiTOMetadata,
         TiTOCallbackPayload,
-        TiTOSolution,
-        TiTOMetrics,
         TiTODiagnostics,
+        TiTOMetadata,
+        TiTOMetrics,
+        TiTOSolution,
     )
 
     schedule = Schedule(

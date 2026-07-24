@@ -1,6 +1,5 @@
 import re
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -57,14 +56,14 @@ class TokenRefreshRequest(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    username: Optional[str] = Field(None, min_length=3, max_length=64)
-    email: Optional[EmailStr] = None
-    password: Optional[str] = Field(None, min_length=8)
-    role: Optional[str] = Field(None, pattern=r"^(admin|user)$")
+    username: str | None = Field(None, min_length=3, max_length=64)
+    email: EmailStr | None = None
+    password: str | None = Field(None, min_length=8)
+    role: str | None = Field(None, pattern=r"^(admin|user)$")
 
     @field_validator("password")
     @classmethod
-    def validate_password(cls, v: Optional[str]) -> Optional[str]:
+    def validate_password(cls, v: str | None) -> str | None:
         if v is not None:
             return validate_password_complexity(v)
         return v
@@ -76,13 +75,13 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: str
     must_change_password: bool = True
-    employee_id: Optional[int] = None
+    employee_id: int | None = None
     processing_restricted: bool = False
     objection_filed: bool = False
-    objection_date: Optional[datetime] = None
+    objection_date: datetime | None = None
     created_at: datetime
     updated_at: datetime
-    last_login: Optional[datetime] = None
+    last_login: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -111,7 +110,7 @@ class AdminUserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=64)
     email: EmailStr
     role: str = Field(default="user", pattern="^(admin|user)$")
-    employee_id: Optional[int] = None
+    employee_id: int | None = None
 
 
 class AdminUserCreateResponse(UserResponse):

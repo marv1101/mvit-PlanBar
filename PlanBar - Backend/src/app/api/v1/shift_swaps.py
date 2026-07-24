@@ -1,15 +1,15 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.enums import NotificationType, ShiftSwapStatus
 from app.core.exceptions import NotFoundException
-from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.employee import Employee
 from app.db.models.schedule import Shiftplan
 from app.db.models.shift_swap import ShiftSwapRequest
 from app.db.models.user import User
+from app.dependencies import get_current_user, get_db, require_admin
 from app.schemas.shift_swap import (
     ShiftSwapCreate,
     ShiftSwapReject,
@@ -120,7 +120,7 @@ def approve_shift_swap(
 
     swap.status = ShiftSwapStatus.APPROVED.value
     swap.approved_by = admin.id
-    swap.reviewed_at = datetime.now()
+    swap.reviewed_at = datetime.now(timezone.utc)
     db.add(swap)
     db.commit()
     db.refresh(swap)
@@ -167,7 +167,7 @@ def reject_shift_swap(
 
     swap.status = ShiftSwapStatus.REJECTED.value
     swap.approved_by = admin.id
-    swap.reviewed_at = datetime.now()
+    swap.reviewed_at = datetime.now(timezone.utc)
     swap.rejection_reason = body.rejection_reason
     db.add(swap)
     db.commit()

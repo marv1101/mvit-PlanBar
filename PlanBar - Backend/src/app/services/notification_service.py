@@ -1,8 +1,11 @@
+import logging
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.db.models.notification import Notification
+
+logger = logging.getLogger(__name__)
 
 
 def create_notification(
@@ -52,7 +55,7 @@ def create_notification_and_push(
             tag=push_tag or notification_type,
         )
     except Exception:
-        pass
+        logger.exception("Push notification failed")
     return notification
 
 
@@ -66,7 +69,7 @@ def get_user_notifications(
     """Get notifications for a user, optionally filtered to unread only."""
     query = db.query(Notification).filter(Notification.user_id == user_id)
     if unread_only:
-        query = query.filter(Notification.read == False)  # noqa: E712
+        query = query.filter(Notification.read == False)
     query = query.order_by(Notification.created_at.desc())
     if limit is not None:
         query = query.offset(offset).limit(limit)
@@ -89,7 +92,7 @@ def mark_all_read(db: Session, user_id: int) -> int:
     """Mark all unread notifications for a user as read. Returns count updated."""
     count = (
         db.query(Notification)
-        .filter(Notification.user_id == user_id, Notification.read == False)  # noqa: E712
+        .filter(Notification.user_id == user_id, Notification.read == False)
         .update({Notification.read: True})
     )
     db.commit()
@@ -98,8 +101,4 @@ def mark_all_read(db: Session, user_id: int) -> int:
 
 def get_unread_count(db: Session, user_id: int) -> int:
     """Get the count of unread notifications for a user."""
-    return (
-        db.query(Notification)
-        .filter(Notification.user_id == user_id, Notification.read == False)  # noqa: E712
-        .count()
-    )
+    return db.query(Notification).filter(Notification.user_id == user_id, Notification.read == False).count()

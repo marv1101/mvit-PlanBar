@@ -4,11 +4,12 @@ from sqlalchemy.orm import Session
 from app.api.v1.requests import ShiftWishResponse
 from app.core.exceptions import NotFoundException
 from app.core.versioning import ConflictError, compute_etag, detect_conflict
-from app.dependencies import get_current_user, get_db, require_admin
 from app.db.models.employee import Employee
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
+from app.dependencies import get_current_user, get_db, require_admin
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.schemas.schedule import (
     ArbZgViolationResponse,
     ScheduleCreate,
@@ -20,7 +21,7 @@ from app.schemas.schedule import (
     ShiftplanResponse,
     ShiftplanUpdate,
 )
-from app.schemas.pagination import PaginatedResponse, PaginationParams
+from app.services.arbzg_validator import validate_schedule
 from app.services.notification_service import create_notification_and_push
 from app.services.schedule_service import (
     create_schedule,
@@ -33,8 +34,6 @@ from app.services.schedule_service import (
     submit_schedule_to_tito,
     update_schedule,
 )
-
-from app.services.arbzg_validator import validate_schedule
 
 router = APIRouter()
 

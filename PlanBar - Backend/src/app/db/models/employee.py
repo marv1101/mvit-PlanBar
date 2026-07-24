@@ -16,7 +16,6 @@ from sqlalchemy.orm import relationship
 
 from app.db.base import Base
 
-
 employee_roles = Table(
     "employee_roles",
     Base.metadata,

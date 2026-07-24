@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
-from app.dependencies import get_current_user, get_db
 from app.db.models.availability import Availability
 from app.db.models.employee import Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.user import User
+from app.dependencies import get_current_user, get_db
 from app.schemas.availability import AvailabilityResponse, AvailabilityUpdate
 from app.schemas.self_service import MyOvertimeResponse, MyShiftResponse
 
