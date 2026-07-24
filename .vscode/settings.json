@@ -3,8 +3,12 @@
         "pytest": true
     },
     "python.testing.pytestArgs": [
-        "PlanBar - Backend"
+        "PlanBar - Backend",
+        "TiTO"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "vitest.enable": true,
+    "vitest.commandLine": "npx vitest",
+    "vitest.workspaceConfig": "PlanBar - Frontend/vitest.config.ts"
 }

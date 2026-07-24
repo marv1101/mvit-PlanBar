@@ -389,6 +389,7 @@ PlanBar - Backend/
   from sqlalchemy.sql import func
   from src.app.db.base import Base
 
+
   class User(Base):
       __tablename__ = "users"
       id = Column(Integer, primary_key=True)
@@ -408,18 +409,20 @@ PlanBar - Backend/
   ```python
   from pydantic import BaseModel, EmailStr, Field
 
+
   class UserCreate(BaseModel):
       username: str = Field(..., min_length=3, max_length=64)
       email: EmailStr
       password: str = Field(..., min_length=8)
-      
+
+
   class UserResponse(BaseModel):
       id: int
       username: str
       email: str
       role: str
       created_at: datetime
-      
+
       model_config = ConfigDict(from_attributes=True)
   ```
 
@@ -430,12 +433,14 @@ from sqlalchemy.orm import Session
 from src.app.db.database import SessionLocal
 from src.app.core.auth import verify_token
 
+
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     claims = verify_token(token)
@@ -452,9 +457,11 @@ class BaseException(Exception):
         self.status_code = status_code
         self.detail = detail
 
+
 class NotFoundError(BaseException):
     def __init__(self, resource: str):
         super().__init__(404, f"{resource} not found")
+
 
 class ValidationError(BaseException):
     def __init__(self, message: str):
@@ -467,16 +474,17 @@ class ValidationError(BaseException):
 - Example:
   ```python
   from fastapi import APIRouter, Depends, HTTPException, status
+
   router = APIRouter(prefix="/users", tags=["users"])
-  
+
+
   @router.post("/", response_model=UserResponse, status_code=201)
   def create_user(user: UserCreate, db: Session = Depends(get_db)):
       # Check existing
       if db.query(User).filter(User.email == user.email).first():
           raise HTTPException(status_code=409, detail="Email already registered")
       # Create & return
-      new_user = User(**user.model_dump(exclude={"password"}), 
-                      password_hash=hash_password(user.password))
+      new_user = User(**user.model_dump(exclude={"password"}), password_hash=hash_password(user.password))
       db.add(new_user)
       db.commit()
       db.refresh(new_user)
@@ -488,11 +496,12 @@ class ValidationError(BaseException):
 import httpx
 from typing import Dict, Any
 
+
 class TiTOProxy:
     def __init__(self, api_url: str, api_key: str):
         self.api_url = api_url
         self.client = httpx.AsyncClient(headers={"Authorization": f"Bearer {api_key}"})
-    
+
     async def submit_job(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         try:
             response = await self.client.post(f"{self.api_url}/jobs", json=payload)
@@ -501,7 +510,7 @@ class TiTOProxy:
         except httpx.HTTPError as e:
             # Retry logic or raise
             raise
-    
+
     async def get_job_status(self, job_id: int) -> Dict[str, Any]:
         response = await self.client.get(f"{self.api_url}/jobs/{job_id}")
         response.raise_for_status()
@@ -517,13 +526,12 @@ class TiTOProxy:
   def test_client(test_db):
       app.dependency_overrides[get_db] = lambda: test_db
       return TestClient(app)
-  
+
+
   def test_create_user(test_client):
-      response = test_client.post("/api/v1/users", json={
-          "username": "john",
-          "email": "john@example.com",
-          "password": "secure123"
-      })
+      response = test_client.post(
+          "/api/v1/users", json={"username": "john", "email": "john@example.com", "password": "secure123"}
+      )
       assert response.status_code == 201
       assert response.json()["username"] == "john"
   ```
