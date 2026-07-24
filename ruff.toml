@@ -1,8 +1,10 @@
 # Ruff configuration for PlanBar
 line-length = 120
+exclude = ["docs"]
 
 [lint]
-# Ignore E402 in test files and TiTO/main.py (module imports not at top - needed for env/path setup)
+# B008: FastAPI standard pattern: Depends(), Query(), Header() in default arguments
+ignore = ["B008"]
 per-file-ignores."**/tests/conftest.py" = ["E402"]
 per-file-ignores."**/tests/*" = ["E402"]
 per-file-ignores."TiTO/main.py" = ["E402"]

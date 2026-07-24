@@ -5,8 +5,8 @@ Revises: 0008_add_employee_id_to_users
 Create Date: 2026-06-18
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0009"
 down_revision = "0008_add_employee_id_to_users"

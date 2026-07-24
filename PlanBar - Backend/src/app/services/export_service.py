@@ -2,7 +2,6 @@
 
 import io
 from datetime import datetime, timezone
-from typing import Optional
 
 from icalendar import Calendar, Event
 from sqlalchemy.orm import Session
@@ -11,7 +10,7 @@ from app.db.models.employee import Employee
 from app.db.models.schedule import Schedule, Shiftplan
 
 
-def _get_schedule_with_shifts(db: Session, schedule_id: int) -> tuple[Optional[Schedule], list[Shiftplan]]:
+def _get_schedule_with_shifts(db: Session, schedule_id: int) -> tuple[Schedule | None, list[Shiftplan]]:
     """Load a schedule and its shifts, returning (schedule, shifts) or (None, [])."""
     schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
     if not schedule:
@@ -57,7 +56,7 @@ def _safe_text(text: str) -> str:
     return text.encode("latin-1", errors="replace").decode("latin-1")
 
 
-def export_schedule_ical(db: Session, schedule_id: int) -> Optional[bytes]:
+def export_schedule_ical(db: Session, schedule_id: int) -> bytes | None:
     """Generate an iCal file for the given schedule.
 
     Returns iCal bytes or None if schedule not found.
@@ -98,7 +97,7 @@ def export_schedule_ical(db: Session, schedule_id: int) -> Optional[bytes]:
     return cal.to_ical()
 
 
-def export_schedule_pdf(db: Session, schedule_id: int) -> Optional[bytes]:
+def export_schedule_pdf(db: Session, schedule_id: int) -> bytes | None:
     """Generate a PDF file for the given schedule.
 
     Returns PDF bytes or None if schedule not found.
@@ -130,7 +129,7 @@ def export_schedule_pdf(db: Session, schedule_id: int) -> Optional[bytes]:
     pdf.set_font("Helvetica", "", 11)
     pdf.cell(0, 7, f"Status: {schedule.status}", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 7, f"Anzahl Schichten: {len(shifts)}", new_x="LMARGIN", new_y="NEXT")
-    employee_ids = set(s.employee_id for s in shifts)
+    employee_ids = {s.employee_id for s in shifts}
     pdf.cell(0, 7, f"Mitarbeiter: {len(employee_ids)}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(5)
 
@@ -172,7 +171,12 @@ def export_schedule_pdf(db: Session, schedule_id: int) -> Optional[bytes]:
     pdf.ln(5)
     pdf.set_font("Helvetica", "I", 8)
     pdf.cell(
-        0, 5, f"Exportiert am {datetime.now().strftime('%d.%m.%Y %H:%M')}", new_x="LMARGIN", new_y="NEXT", align="C"
+        0,
+        5,
+        f"Exportiert am {datetime.now(timezone.utc).strftime('%d.%m.%Y %H:%M')}",
+        new_x="LMARGIN",
+        new_y="NEXT",
+        align="C",
     )
 
     # Write to bytes buffer

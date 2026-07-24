@@ -2,12 +2,11 @@
 
 from datetime import date, time, timedelta
 
-
 from app.services.arbzg_validator import (
+    validate_breaks,
     validate_consecutive_days,
     validate_max_daily_hours,
     validate_rest_time,
-    validate_breaks,
     validate_schedule,
 )
 

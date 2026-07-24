@@ -1,6 +1,6 @@
 import json
-from datetime import datetime
-from typing import Any, Optional
+from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel
@@ -13,12 +13,12 @@ from app.core.versioning import (
     check_if_none_match,
     compute_etag,
 )
-from app.dependencies import get_current_user, get_db
 from app.db.models.employee import Employee
 from app.db.models.role import Role
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
+from app.dependencies import get_current_user, get_db
 
 router = APIRouter()
 
@@ -121,7 +121,7 @@ def _serialize_wish(wish: ShiftWish) -> dict[str, Any]:
     }
 
 
-def _get_last_updated(items: list[Any]) -> datetime:
+def _get_last_updated(items: list[Any]) -> datetime | None:
     """Get the latest updated_at from a list of items."""
     candidates = []
     for item in items:
@@ -151,7 +151,7 @@ def initial_sync(
         schedules=[_serialize_schedule(s) for s in schedules],
         shifts=[_serialize_shift(s) for s in shifts],
         requests=[_serialize_wish(w) for w in wishes],
-        synced_at=datetime.utcnow().isoformat(),
+        synced_at=datetime.now(timezone.utc).isoformat(),
     )
 
     all_items = employees + roles + schedules + shifts + wishes
@@ -181,8 +181,8 @@ def delta_sync(
     resource_type: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    if_none_match: Optional[str] = Header(None),
-    if_modified_since: Optional[str] = Header(None),
+    if_none_match: str | None = Header(None),
+    if_modified_since: str | None = Header(None),
 ):
     """Delta sync for individual resource types."""
     resource_type = resource_type.lower()
@@ -215,7 +215,7 @@ def delta_sync(
         "data": serialized,
         "etag": etag,
         "last_modified": last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT") if last_modified else None,
-        "synced_at": datetime.utcnow().isoformat(),
+        "synced_at": datetime.now(timezone.utc).isoformat(),
     }
 
     response = Response(content=json.dumps(result), media_type="application/json")
@@ -256,7 +256,7 @@ def sync_actions(
             )
         except HTTPException:
             raise
-        except Exception as e:
+        except (ValueError, OSError) as e:
             errors.append(
                 {
                     "resource": action.resource,
