@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date as Date, datetime, time
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -8,7 +8,7 @@ from app.core.enums import ScheduleStatus
 
 class ShiftplanBase(BaseModel):
     employee_id: int
-    date: date
+    date: Date
     shift_id: str = Field(..., max_length=50)
     start_time: time
     end_time: time
@@ -25,7 +25,7 @@ class ShiftplanCreate(ShiftplanBase):
 
 class ShiftplanUpdate(BaseModel):
     employee_id: int | None = None
-    date: date | None = None
+    date: Date | None = None
     shift_id: str | None = Field(None, max_length=50)
     start_time: time | None = None
     end_time: time | None = None
@@ -58,8 +58,8 @@ class ScheduleBase(BaseModel):
 
 
 class ScheduleCreate(ScheduleBase):
-    start_date: date | None = None
-    end_date: date | None = None
+    start_date: Date | None = None
+    end_date: Date | None = None
     role_requirements: Any | None = None
     shift_templates: Any | None = None
     shiftplans: list[ShiftplanCreate] = []
@@ -75,8 +75,8 @@ class ScheduleUpdate(BaseModel):
 class ScheduleResponse(ScheduleBase):
     id: int
     status: str
-    start_date: date | None = None
-    end_date: date | None = None
+    start_date: Date | None = None
+    end_date: Date | None = None
     role_requirements: Any | None = None
     shift_templates: Any | None = None
     tito_job_id: int | None = None
@@ -96,7 +96,7 @@ class ScheduleSummary(BaseModel):
     status: str
     total_shifts: int
     total_employees: int
-    date_range: tuple[date, date] | None = None
+    date_range: tuple[Date, Date] | None = None
 
 
 # ── ArbZG compliance response schemas ──────────────────────────────────────
@@ -104,7 +104,7 @@ class ArbZgViolationResponse(BaseModel):
     rule: str
     message: str
     employee_id: int
-    shift_date: date | None = None
+    shift_date: Date | None = None
     details: dict[str, Any] | None = None
 
 

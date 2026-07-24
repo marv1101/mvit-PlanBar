@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date as Date
 from typing import Any
 
 from pydantic import BaseModel
@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 class TiTOAssignment(BaseModel):
     employeeId: str
-    date: date
+    date: Date
     shiftId: str
     startTime: str
     endTime: str

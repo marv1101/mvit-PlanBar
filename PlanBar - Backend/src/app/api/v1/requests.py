@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date as Date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -18,7 +18,7 @@ router = APIRouter()
 
 class ShiftWishCreate(BaseModel):
     employee_id: int
-    date: date
+    date: Date
     week: int | None = None
     type: str = Field("preferred", pattern=r"^(preferred|unavailable|vacation)$")
     note: str | None = None
@@ -26,7 +26,7 @@ class ShiftWishCreate(BaseModel):
 
 class ShiftWishUpdate(BaseModel):
     employee_id: int | None = None
-    date: date | None = None
+    date: Date | None = None
     week: int | None = None
     type: str | None = Field(None, pattern=r"^(preferred|unavailable|vacation)$")
     note: str | None = None
@@ -36,7 +36,7 @@ class ShiftWishUpdate(BaseModel):
 class ShiftWishResponse(BaseModel):
     id: int
     employee_id: int
-    date: date
+    date: Date
     week: int | None = None
     type: str
     note: str | None = None
