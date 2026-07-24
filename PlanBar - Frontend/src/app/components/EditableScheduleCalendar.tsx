@@ -28,7 +28,7 @@ import type { DragItem, EmployeeDragItem, BreakDragItem } from './schedule/share
 import { EmployeeCard, BreakStartHandle, BreakEndHandle } from './schedule/shared/CalendarComponents';
 import { WishOverlay } from './WishOverlay';
 import { useApprovedWishes } from '../hooks/useShiftWishes';
-const HOUR_HEIGHT = 52;
+import { assignLanes, getShiftStyle, getBreakStyle, HOUR_HEIGHT } from './schedule/calendarLayout';
 
 export type ShiftHoverInfo = {
   type: 'shift' | 'inDayShift';
@@ -52,61 +52,6 @@ interface EditableScheduleCalendarProps {
   currentWeek: WeekType;
   onUpdateSchedule: (schedule: Schedule) => void;
   onSaveShifts?: (shifts: Shift[]) => Promise<void>;
-}
-function assignLanes(shifts: Shift[]): { shift: Shift; lane: number; totalLanes: number }[] {
-  const sorted = [...shifts].sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
-  const lanes: number[] = [];
-  const result: { shift: Shift; lane: number }[] = [];
-
-  for (const shift of sorted) {
-    const start = toMinutes(shift.startTime);
-    const end = toMinutes(shift.endTime);
-    let assigned = false;
-
-    for (let i = 0; i < lanes.length; i++) {
-      if (lanes[i] <= start) {
-        lanes[i] = end;
-        result.push({ shift, lane: i });
-        assigned = true;
-        break;
-      }
-    }
-
-    if (!assigned) {
-      lanes.push(end);
-      result.push({ shift, lane: lanes.length - 1 });
-    }
-  }
-
-  return result.map(r => ({ ...r, totalLanes: lanes.length }));
-}
-
-function getShiftStyle(shift: Shift, lane: number, totalLanes: number) {
-  const startMin = toMinutes(shift.startTime);
-  const endMin = toMinutes(shift.endTime);
-  const rangeStart = START_HOUR * 60;
-  const top = ((startMin - rangeStart) / 60) * HOUR_HEIGHT;
-  const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 24);
-  const width = 100 / totalLanes;
-  const left = lane * width;
-
-  return {
-    top: `${top}px`,
-    height: `${height}px`,
-    left: `${left}%`,
-    width: `${width}%`,
-  };
-}
-
-function getBreakStyle(shift: Shift) {
-  if (!shift.breakStart || !shift.breakEnd) return null;
-  const shiftStart = toMinutes(shift.startTime);
-  const breakStart = toMinutes(shift.breakStart);
-  const breakEnd = toMinutes(shift.breakEnd);
-  if (breakStart <= shiftStart || breakEnd <= breakStart || breakEnd > toMinutes(shift.endTime)) return null;
-  const top = ((breakStart - shiftStart) / 60) * HOUR_HEIGHT;
-  const height = Math.max(((breakEnd - breakStart) / 60) * HOUR_HEIGHT, 16);
-  return { top, height };
 }
 
 interface ShiftBarProps {
