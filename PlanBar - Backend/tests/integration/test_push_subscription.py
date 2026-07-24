@@ -158,7 +158,7 @@ class TestPushService:
 
     def test_save_and_remove_subscription(self, db_session):
         from app.db.models.user import User
-        from app.services.push_service import save_subscription, remove_subscription, get_user_subscriptions
+        from app.services.push_service import get_user_subscriptions, remove_subscription, save_subscription
 
         user = db_session.query(User).first()
 

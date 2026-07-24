@@ -1,6 +1,5 @@
 import re
 
-
 EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 HEX_COLOR_REGEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 

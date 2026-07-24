@@ -1,9 +1,6 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.db.base import Base
 from app.db.models.employee import Employee
 from app.db.models.time_tracking import TimeEntry
@@ -12,6 +9,8 @@ from app.services.time_tracking_service import (
     clock_out,
     get_daily_entries,
 )
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture

@@ -4,7 +4,6 @@ from app.db.models.employee import Employee
 from app.db.models.pinboard import PinboardMessage, PinboardThread
 from app.db.models.user import User
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, require_admin
 from app.db.models.user import User
+from app.dependencies import get_db, require_admin
 from app.services.tito_proxy import tito_proxy
 
 router = APIRouter()
@@ -24,7 +24,7 @@ def db_health(db: Session = Depends(get_db), admin: User = Depends(require_admin
     try:
         db.execute(text("SELECT 1"))
         return {"status": "ok", "database": "connected"}
-    except Exception:
+    except Exception:  # noqa: BLE001
         return {"status": "error", "detail": "Database connection failed"}
 
 

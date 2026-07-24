@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -8,12 +7,12 @@ class ShiftSwapCreate(BaseModel):
     requester_shift_id: int
     target_employee_id: int
     target_shift_id: int
-    note: Optional[str] = None
+    note: str | None = None
 
 
 class ShiftSwapUpdate(BaseModel):
-    status: Optional[str] = Field(None, pattern=r"^(pending|approved|rejected)$")
-    rejection_reason: Optional[str] = None
+    status: str | None = Field(None, pattern=r"^(pending|approved|rejected)$")
+    rejection_reason: str | None = None
 
 
 class ShiftSwapResponse(BaseModel):
@@ -23,10 +22,10 @@ class ShiftSwapResponse(BaseModel):
     target_employee_id: int
     target_shift_id: int
     status: str = "pending"
-    note: Optional[str] = None
-    approved_by: Optional[int] = None
-    reviewed_at: Optional[datetime] = None
-    rejection_reason: Optional[str] = None
+    note: str | None = None
+    approved_by: int | None = None
+    reviewed_at: datetime | None = None
+    rejection_reason: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -34,4 +33,4 @@ class ShiftSwapResponse(BaseModel):
 
 
 class ShiftSwapReject(BaseModel):
-    rejection_reason: Optional[str] = None
+    rejection_reason: str | None = None

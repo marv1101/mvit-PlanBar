@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db
 from app.db.models.user import User
+from app.dependencies import get_current_user, get_db
 from app.services.push_service import (
-    get_vapid_public_key,
     get_user_subscriptions,
+    get_vapid_public_key,
     remove_subscription,
     save_subscription,
 )

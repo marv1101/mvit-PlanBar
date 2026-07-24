@@ -47,7 +47,7 @@ def test_get_my_overtime_no_employee(client, auth_headers):
 
 
 def test_get_my_overtime(client, employee_auth_headers):
-    emp_headers, emp_id = employee_auth_headers
+    emp_headers, _emp_id = employee_auth_headers
 
     response = client.get("/api/v1/my/overtime", headers=emp_headers)
     assert response.status_code == 200
@@ -56,7 +56,7 @@ def test_get_my_overtime(client, employee_auth_headers):
 
 
 def test_update_my_availability(client, employee_auth_headers):
-    emp_headers, emp_id = employee_auth_headers
+    emp_headers, _emp_id = employee_auth_headers
 
     response = client.put(
         "/api/v1/my/availability",
@@ -81,7 +81,7 @@ def test_update_my_availability(client, employee_auth_headers):
 
 
 def test_update_availability_updates_existing(client, employee_auth_headers):
-    emp_headers, emp_id = employee_auth_headers
+    emp_headers, _emp_id = employee_auth_headers
 
     client.put(
         "/api/v1/my/availability",

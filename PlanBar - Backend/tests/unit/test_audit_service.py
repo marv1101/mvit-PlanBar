@@ -1,12 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.db.base import Base
 from app.db.models.user import User
 from app.services import audit_service
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture
@@ -97,7 +96,7 @@ class TestQuery:
     def test_query_with_user_filter(self, db_session):
         audit_service.log(db_session, user_id=1, action="TEST", resource_type="test")
         audit_service.log(db_session, user_id=2, action="TEST", resource_type="test")
-        items, pagination = audit_service.query(db_session, user_id=1)
+        items, _pagination = audit_service.query(db_session, user_id=1)
         assert len(items) == 1
         assert items[0].user_id == 1
 

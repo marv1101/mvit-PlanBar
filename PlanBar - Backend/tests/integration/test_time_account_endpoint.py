@@ -1,6 +1,6 @@
-import pytest
 from datetime import date, time
 
+import pytest
 from app.db.models.employee import Contract, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 
@@ -35,17 +35,17 @@ def _entry(
 ):
     if total_change is None:
         total_change = delta + manual_adjustment
-    return dict(
-        week=week,
-        year=year,
-        scheduled_hours=scheduled_hours,
-        contract_hours=contract_hours,
-        delta=delta,
-        balance=balance,
-        manual_adjustment=manual_adjustment,
-        adjustment_reason=adjustment_reason,
-        total_change=total_change,
-    )
+    return {
+        "week": week,
+        "year": year,
+        "scheduled_hours": scheduled_hours,
+        "contract_hours": contract_hours,
+        "delta": delta,
+        "balance": balance,
+        "manual_adjustment": manual_adjustment,
+        "adjustment_reason": adjustment_reason,
+        "total_change": total_change,
+    }
 
 
 def test_get_time_account_with_history(client, auth_headers, db_session):

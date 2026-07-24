@@ -4,12 +4,11 @@ from datetime import date
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy.orm import Session
-
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.services.schedule_service import submit_schedule_to_tito
+from sqlalchemy.orm import Session
 
 
 @pytest.fixture
