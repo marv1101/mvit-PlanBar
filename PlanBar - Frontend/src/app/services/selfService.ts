@@ -1,9 +1,11 @@
 import api from '../lib/api';
+import type { EmployeeResponseDTO } from './employeeService';
 
 export interface MyShiftDTO {
   id: number;
   schedule_id: number;
   schedule_name: string;
+  employee_id: number;
   date: string;
   start_time: string;
   end_time: string;
@@ -88,5 +90,15 @@ export async function updateMyAvailability(dto: AvailabilityUpdateDTO): Promise<
 
 export async function getMyAvailability(): Promise<AvailabilityResponseDTO[]> {
   const { data } = await api.get('/my/availability');
+  return data;
+}
+
+export async function getMyTeamSchedule(scheduleId: number): Promise<MyShiftDTO[]> {
+  const { data } = await api.get('/my/team-schedule', { params: { schedule_id: scheduleId } });
+  return data;
+}
+
+export async function getMyTeamEmployees(): Promise<EmployeeResponseDTO[]> {
+  const { data } = await api.get('/my/team-employees');
   return data;
 }

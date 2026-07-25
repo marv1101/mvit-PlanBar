@@ -129,7 +129,7 @@ export function Users() {
                   <CardTitle className="flex items-center gap-2">
                     {user.username}
                     <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                      {user.role === 'admin' ? 'Administrator' : 'Mitarbeiter'}
+                      {user.role === 'admin' ? 'Administrator' : user.role === 'planer' ? 'Planer' : 'Mitarbeiter'}
                     </Badge>
                   </CardTitle>
                   <p className="text-sm text-gray-600 mt-1">{user.email}</p>
@@ -306,6 +306,7 @@ function UserCreateForm({ onSuccess }: UserCreateFormProps) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="user">Mitarbeiter</SelectItem>
+            <SelectItem value="planer">Planer</SelectItem>
             <SelectItem value="admin">Administrator</SelectItem>
           </SelectContent>
         </Select>

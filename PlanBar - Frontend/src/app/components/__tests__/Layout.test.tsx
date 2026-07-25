@@ -1,15 +1,16 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import { AuthContext } from '../../context/AuthContext'
+import { TeamContext } from '../../context/TeamContext'
 import { Layout } from '../Layout'
-import { mockAdminUser, mockEmployeeUser } from '../../../test/test-utils'
+import { mockAdminUser, mockEmployeeUser, mockPlanerUser } from '../../../test/test-utils'
 import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 
-function renderLayout(user = mockAdminUser) {
+function renderLayout(user: typeof mockAdminUser | typeof mockEmployeeUser | typeof mockPlanerUser = mockAdminUser) {
   const authValue = {
     user,
     login: vi.fn(),
@@ -18,14 +19,23 @@ function renderLayout(user = mockAdminUser) {
     mustChangePassword: false,
     changePassword: vi.fn(),
   }
+  const teamValue = {
+    teams: [],
+    selectedTeamId: null,
+    setSelectedTeamId: vi.fn(),
+    loading: false,
+    refresh: vi.fn(),
+  }
   return render(
     <MemoryRouter initialEntries={['/']}>
       <AuthContext.Provider value={authValue as any}>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<div data-testid="outlet-content" />} />
-          </Route>
-        </Routes>
+        <TeamContext.Provider value={teamValue as any}>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<div data-testid="outlet-content" />} />
+            </Route>
+          </Routes>
+        </TeamContext.Provider>
       </AuthContext.Provider>
     </MemoryRouter>,
   )
@@ -53,6 +63,7 @@ describe('Layout', () => {
     renderLayout(mockAdminUser)
     expect(screen.getByText('Dashboard')).toBeInTheDocument()
     expect(screen.getByText('Rollen')).toBeInTheDocument()
+    expect(screen.getByText('Teams')).toBeInTheDocument()
     expect(screen.getByText('Mitarbeiter')).toBeInTheDocument()
     expect(screen.getByText('Benutzer')).toBeInTheDocument()
     expect(screen.getByText('Wünsche')).toBeInTheDocument()
@@ -69,9 +80,23 @@ describe('Layout', () => {
     expect(screen.getByText('Pinnwand')).toBeInTheDocument()
     expect(screen.queryByText('Dashboard')).not.toBeInTheDocument()
     expect(screen.queryByText('Rollen')).not.toBeInTheDocument()
+    expect(screen.queryByText('Teams')).not.toBeInTheDocument()
     expect(screen.queryByText('Mitarbeiter')).not.toBeInTheDocument()
     expect(screen.queryByText('Benutzer')).not.toBeInTheDocument()
     expect(screen.queryByText('Schichtplan')).not.toBeInTheDocument()
+    expect(screen.queryByText('Zeitkonten')).not.toBeInTheDocument()
+  })
+
+  it('zeigt Planer-Navigationspunkte an', () => {
+    renderLayout(mockPlanerUser)
+    expect(screen.getByText('Mitarbeiter')).toBeInTheDocument()
+    expect(screen.getByText('Wünsche')).toBeInTheDocument()
+    expect(screen.getByText('Schichtplan')).toBeInTheDocument()
+    expect(screen.getByText('Mitarbeiteransicht')).toBeInTheDocument()
+    expect(screen.getByText('(Planer)')).toBeInTheDocument()
+    expect(screen.queryByText('Dashboard')).not.toBeInTheDocument()
+    expect(screen.queryByText('Teams')).not.toBeInTheDocument()
+    expect(screen.queryByText('Benutzer')).not.toBeInTheDocument()
     expect(screen.queryByText('Zeitkonten')).not.toBeInTheDocument()
   })
 

@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import { AuthContext } from '../../context/AuthContext'
 import { ProtectedRoute } from '../ProtectedRoute'
-import { mockAdminUser, mockEmployeeUser } from '../../../test/test-utils'
+import { mockAdminUser, mockEmployeeUser, mockPlanerUser } from '../../../test/test-utils'
 import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('sonner', () => ({
@@ -11,7 +11,7 @@ vi.mock('sonner', () => ({
 
 function renderProtectedRoute(
   ui: React.ReactElement,
-  { user = null }: { user?: typeof mockAdminUser | null } = {},
+  { user = null }: { user?: typeof mockAdminUser | typeof mockEmployeeUser | typeof mockPlanerUser | null } = {},
 ) {
   const authValue = {
     user,
@@ -28,6 +28,7 @@ function renderProtectedRoute(
           <Route path="/protected" element={ui} />
           <Route path="/" element={<div data-testid="home-page" />} />
           <Route path="/employee-view" element={<div data-testid="employee-view-page" />} />
+          <Route path="/schedule" element={<div data-testid="schedule-page" />} />
         </Routes>
       </AuthContext.Provider>
     </MemoryRouter>,
@@ -68,5 +69,28 @@ describe('ProtectedRoute', () => {
 
     expect(screen.getByTestId('employee-view-page')).toBeInTheDocument()
     expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
+  })
+
+  it('leitet Planer zum Schichtplan weiter wenn Admin-Route aufgerufen wird', () => {
+    renderProtectedRoute(
+      <ProtectedRoute allowedRoles={['admin']}>
+        <div data-testid="protected-content" />
+      </ProtectedRoute>,
+      { user: mockPlanerUser },
+    )
+
+    expect(screen.getByTestId('schedule-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
+  })
+
+  it('erlaubt Planer den Zugriff auf den Schichtplan', () => {
+    renderProtectedRoute(
+      <ProtectedRoute allowedRoles={['admin', 'planer']}>
+        <div data-testid="protected-content" />
+      </ProtectedRoute>,
+      { user: mockPlanerUser },
+    )
+
+    expect(screen.getByTestId('protected-content')).toBeInTheDocument()
   })
 })

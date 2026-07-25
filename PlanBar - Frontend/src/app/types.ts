@@ -130,11 +130,20 @@ export interface TiTOMetrics {
   employeeFairness?: Record<string, EmployeeFairnessEntry>;
 }
 
+export interface Team {
+  id: string;
+  name: string;
+  color?: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AppUser {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'employee';
+  role: 'admin' | 'planer' | 'employee';
   mustChangePassword: boolean;
   lastLogin: string | null;
 }

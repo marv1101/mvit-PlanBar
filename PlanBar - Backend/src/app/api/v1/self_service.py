@@ -9,6 +9,7 @@ from app.db.models.team import employee_teams
 from app.db.models.user import User
 from app.dependencies import get_current_user, get_db
 from app.schemas.availability import AvailabilityResponse, AvailabilityUpdate
+from app.schemas.employee import EmployeeResponse
 from app.schemas.self_service import MyOvertimeResponse, MyShiftResponse
 from app.schemas.team import TeamResponse
 from app.services import team_service
@@ -109,6 +110,26 @@ def get_my_team_schedule(
             )
         )
     return result
+
+
+@router.get("/team-employees", response_model=list[EmployeeResponse])
+def get_my_team_employees(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return employees that belong to the same team(s) as the current user."""
+    team_ids = team_service.get_team_ids_for_user(db, current_user)
+    if not team_ids:
+        return []
+    employees = (
+        db.query(Employee)
+        .join(employee_teams, employee_teams.c.employee_id == Employee.id)
+        .filter(employee_teams.c.team_id.in_(team_ids))
+        .distinct()
+        .order_by(Employee.last_name, Employee.first_name)
+        .all()
+    )
+    return employees
 
 
 @router.get("/overtime", response_model=MyOvertimeResponse)

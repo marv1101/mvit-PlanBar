@@ -49,7 +49,7 @@ export function Requests() {
     setEndDate(end.toISOString().split('T')[0]);
   }, []);
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'planer';
   const currentEmployeeId = user?.employeeId;
 
   const handleEdit = (request: Request) => {

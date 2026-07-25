@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
@@ -9,12 +10,42 @@ import { WeekType, Shift } from '../types';
 import { toast } from 'sonner';
 import { TIMEZONE } from '../lib/timezone';
 import { TimeAccountCard } from '../components/TimeAccountCard';
+import { getMyTeamEmployees } from '../services/selfService';
+import { employeeFromResponse } from '../lib/mappers';
 
 export function EmployeeView() {
-  const { employees, schedules, roles, loading, error, refresh } = useApp();
+  const { employees: appEmployees, schedules, roles, loading, error, refresh } = useApp();
+  const { user } = useAuth();
+  const [teamEmployees, setTeamEmployees] = useState<typeof appEmployees>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>('');
   const [currentWeek, setCurrentWeek] = useState<WeekType>('A');
+
+  const isEmployee = user?.role === 'employee';
+  const isPlaner = user?.role === 'planer';
+  const isTeamScoped = isEmployee || isPlaner;
+
+  useEffect(() => {
+    if (!isTeamScoped) {
+      setTeamEmployees([]);
+      return;
+    }
+    getMyTeamEmployees()
+      .then((dtos) => setTeamEmployees(dtos.map(employeeFromResponse)))
+      .catch(() => {
+        toast.error('Fehler beim Laden der Team-Mitglieder');
+      });
+  }, [isTeamScoped]);
+
+  useEffect(() => {
+    if (isEmployee && user?.employeeId) {
+      setSelectedEmployeeId(user.employeeId);
+    }
+  }, [isEmployee, user?.employeeId]);
+
+  const employees = useMemo(() => {
+    return isTeamScoped ? teamEmployees : appEmployees;
+  }, [isTeamScoped, teamEmployees, appEmployees]);
 
   const selectedEmployee = useMemo(() => 
     employees.find(e => e.id === selectedEmployeeId),

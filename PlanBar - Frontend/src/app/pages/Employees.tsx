@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Plus, Edit, Trash2, Loader2, RotateCcw, AlertTriangle } from 'lucide-react';
@@ -10,7 +11,9 @@ import { Employee } from '../types';
 import { Badge } from '../components/ui/badge';
 
 export function Employees() {
+  const { user } = useAuth();
   const { employees, deleteEmployee, roles, loading, error, refresh } = useApp();
+  const isAdmin = user?.role === 'admin';
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -88,6 +91,7 @@ export function Employees() {
           <h2 className="font-semibold text-2xl mb-2">Mitarbeiter</h2>
           <p className="text-gray-600">Verwalten Sie Ihre Mitarbeiter und deren Arbeitszeiten</p>
         </div>
+        {isAdmin && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -107,6 +111,7 @@ export function Employees() {
             <EmployeeForm employee={editingEmployee} onClose={handleCloseDialog} />
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4">
@@ -126,6 +131,7 @@ export function Employees() {
                     <p className="text-sm text-gray-600">{employee.email}</p>
                   </div>
                 </div>
+                {isAdmin && (
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -144,6 +150,7 @@ export function Employees() {
                     <Trash2 className="h-4 w-4 text-red-600" />
                   </Button>
                 </div>
+                )}
               </div>
             </CardHeader>
             <CardContent>

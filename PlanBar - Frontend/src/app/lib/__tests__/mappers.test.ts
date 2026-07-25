@@ -710,6 +710,12 @@ describe('userFromResponse', () => {
     expect(result.role).toBe('admin');
   });
 
+  it('erkennt planer-Rolle', () => {
+    const dto = { ...baseDto, role: 'planer' };
+    const result = userFromResponse(dto);
+    expect(result.role).toBe('planer');
+  });
+
   it('behandelt mustChangePassword=true', () => {
     const dto = { ...baseDto, must_change_password: true };
     const result = userFromResponse(dto);
