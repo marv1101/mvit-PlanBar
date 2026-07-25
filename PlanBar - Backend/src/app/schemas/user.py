@@ -61,6 +61,7 @@ class UserUpdate(BaseModel):
     password: str | None = Field(None, min_length=8)
     role: str | None = Field(None, pattern=r"^(admin|user|planer)$")
     employee_id: int | None = None
+    team_ids: list[int] | None = None
 
     @field_validator("password")
     @classmethod

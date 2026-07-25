@@ -15,6 +15,7 @@ export interface UserUpdateDTO {
   password?: string;
   role?: string;
   employee_id?: number | null;
+  team_ids?: number[] | null;
 }
 
 export interface UserResponseDTO {

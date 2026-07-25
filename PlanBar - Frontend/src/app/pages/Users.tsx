@@ -9,14 +9,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Plus, Loader2, Trash2, Copy, Check, RotateCcw, AlertTriangle, Edit, Building2 } from 'lucide-react';
-import { AppUser, Team } from '../types';
+import { AppUser, Employee, Team } from '../types';
 import { userFromResponse } from '../lib/mappers';
 import * as userService from '../services/userService';
 import * as teamService from '../services/teamService';
 import { TIMEZONE } from '../lib/timezone';
 import { toast } from 'sonner';
+import { useApp } from '../context/AppContext';
 
 export function Users() {
+  const { employees: appEmployees } = useApp();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,7 +132,7 @@ export function Users() {
                 Legen Sie einen neuen Benutzer an. Das initiale Passwort wird automatisch generiert.
               </DialogDescription>
             </DialogHeader>
-            <UserCreateForm onSuccess={() => { setDialogOpen(false); loadUsers(); }} />
+            <UserCreateForm onSuccess={() => { setDialogOpen(false); loadUsers(); }} allEmployees={appEmployees} />
           </DialogContent>
         </Dialog>
       </div>
@@ -232,6 +234,7 @@ export function Users() {
             <UserEditForm
               user={editingUser}
               allTeams={allTeams}
+              allEmployees={appEmployees}
               onSuccess={() => { setEditDialogOpen(false); loadUsers(); }}
             />
           )}
@@ -244,22 +247,18 @@ export function Users() {
 interface UserEditFormProps {
   user: AppUser;
   allTeams: Team[];
+  allEmployees: Employee[];
   onSuccess: () => void;
 }
 
-function UserEditForm({ user, allTeams, onSuccess }: UserEditFormProps) {
+function UserEditForm({ user, allTeams, allEmployees, onSuccess }: UserEditFormProps) {
   const [username, setUsername] = useState(user.username);
   const [email, setEmail] = useState(user.email);
   const [role, setRole] = useState(user.role === 'admin' ? 'admin' : user.role === 'planer' ? 'planer' : 'user');
-  const [employeeId, setEmployeeId] = useState<string>(user.employeeId ?? 'none');
-  const [allEmployees, setAllEmployees] = useState<Array<{ id: number; first_name: string; last_name: string; email: string | null; user_id: number | null }>>([]);
+  const [employeeId, setEmployeeId] = useState<string>(user.employeeId ? String(user.employeeId) : 'none');
   const [teamIds, setTeamIds] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    userService.getAllEmployees().then(setAllEmployees).catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (employeeId && employeeId !== 'none') {
@@ -290,13 +289,8 @@ function UserEditForm({ user, allTeams, onSuccess }: UserEditFormProps) {
         email,
         role,
         employee_id: employeeId !== 'none' ? Number(employeeId) : null,
+        team_ids: role === 'planer' && employeeId !== 'none' ? teamIds : null,
       });
-      if (employeeId !== 'none') {
-        const empId = Number(employeeId);
-        await import('../services/employeeService').then(svc =>
-          svc.updateEmployee(empId, { team_ids: teamIds })
-        );
-      }
       toast.success('Benutzer aktualisiert');
       onSuccess();
     } catch (err: any) {
@@ -354,7 +348,7 @@ function UserEditForm({ user, allTeams, onSuccess }: UserEditFormProps) {
             <SelectItem value="none">Kein Mitarbeiter</SelectItem>
             {allEmployees.map((emp) => (
               <SelectItem key={emp.id} value={String(emp.id)}>
-                {emp.first_name} {emp.last_name}{emp.email ? ` (${emp.email})` : ''}
+                {emp.name}{emp.email ? ` (${emp.email})` : ''}
               </SelectItem>
             ))}
           </SelectContent>
@@ -419,14 +413,14 @@ function UserEditForm({ user, allTeams, onSuccess }: UserEditFormProps) {
 
 interface UserCreateFormProps {
   onSuccess: () => void;
+  allEmployees: Employee[];
 }
 
-function UserCreateForm({ onSuccess }: UserCreateFormProps) {
+function UserCreateForm({ onSuccess, allEmployees }: UserCreateFormProps) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('user');
   const [employeeId, setEmployeeId] = useState<string>('none');
-  const [unlinkedEmployees, setUnlinkedEmployees] = useState<userService.UnlinkedEmployeeDTO[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [teamIds, setTeamIds] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -435,7 +429,6 @@ function UserCreateForm({ onSuccess }: UserCreateFormProps) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    userService.getUnlinkedEmployees().then(setUnlinkedEmployees).catch(() => {});
     teamService.getTeams().then(res => setAllTeams(res.items)).catch(() => {});
   }, []);
 
@@ -564,15 +557,15 @@ function UserCreateForm({ onSuccess }: UserCreateFormProps) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">Kein Mitarbeiter</SelectItem>
-            {unlinkedEmployees.map((emp) => (
+            {allEmployees.map((emp) => (
               <SelectItem key={emp.id} value={String(emp.id)}>
-                {emp.first_name} {emp.last_name}{emp.email ? ` (${emp.email})` : ''}
+                {emp.name}{emp.email ? ` (${emp.email})` : ''}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        {unlinkedEmployees.length === 0 && (
-          <p className="text-xs text-gray-500">Alle Mitarbeiter sind bereits verknüpft.</p>
+        {allEmployees.length === 0 && (
+          <p className="text-xs text-gray-500">Keine Mitarbeiter vorhanden. Bitte erstellen Sie zuerst Mitarbeiter.</p>
         )}
       </div>
 

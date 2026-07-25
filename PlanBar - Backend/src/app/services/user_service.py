@@ -5,6 +5,7 @@ from app.db.models.employee import Employee
 from app.db.models.user import User
 from app.schemas.user import AdminUserCreate, UserCreate, UserUpdate
 from app.services import audit_service
+from app.services.employee_service import _set_employee_teams
 
 
 def create_user(db: Session, user_in: UserCreate, role: str = "user") -> User:
@@ -69,6 +70,13 @@ def update_user(db: Session, user: User, user_update: UserUpdate, actor_id: int 
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    if user_update.team_ids is not None and user.employee_id:
+        employee = db.query(Employee).filter(Employee.id == user.employee_id).first()
+        if employee:
+            _set_employee_teams(db, employee, user_update.team_ids)
+            db.commit()
+
     audit_service.log_update(db, user_id=actor_id, resource_type="user", resource_id=str(user.id))
     return user
 
@@ -110,16 +118,9 @@ def admin_create_user(db: Session, admin_user: AdminUserCreate, actor_id: int | 
             db.add(employee)
             db.commit()
 
-            if admin_user.team_ids:
-                from app.db.models.team import Team
-
-                current_ids = {t.id for t in employee.teams}
-                target_ids = set(admin_user.team_ids)
-                to_add = target_ids - current_ids
-                if to_add:
-                    teams_to_add = db.query(Team).filter(Team.id.in_(to_add)).all()
-                    employee.teams.extend(teams_to_add)
-                    db.commit()
+            if admin_user.team_ids is not None:
+                _set_employee_teams(db, employee, admin_user.team_ids)
+                db.commit()
 
     audit_service.log_create(
         db,
