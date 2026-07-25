@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
+import { useTeams } from '../context/TeamContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Sparkles, CalendarDays } from 'lucide-react';
+import { Sparkles, CalendarDays, Building2 } from 'lucide-react';
 import { Schedule as ScheduleType } from '../types';
 import { WishReviewDialog } from '../components/WishReviewDialog';
 import { ScheduleCreateForm } from '../components/schedule/ScheduleCreateForm';
@@ -23,6 +25,10 @@ export function Schedule() {
     loading,
     refresh,
   } = useApp();
+
+  const { user } = useAuth();
+  const { teams, selectedTeamId } = useTeams();
+  const activeTeam = teams.find(t => t.id === selectedTeamId);
 
   const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
   const [wishReviewScheduleId, setWishReviewScheduleId] = useState<number | null>(null);
@@ -103,6 +109,12 @@ export function Schedule() {
       <div>
         <h2 className="font-semibold text-2xl mb-2">Schichtplanung</h2>
         <p className="text-gray-600">Erstellen und verwalten Sie Ihre Schichtpläne</p>
+        {activeTeam && (
+          <div className="flex items-center gap-2 mt-2">
+            <Building2 className="h-4 w-4 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">Team: {activeTeam.name}</span>
+          </div>
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'create' | 'manage')}>

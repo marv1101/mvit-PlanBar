@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { useTeams } from '../context/TeamContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { User, Calendar, Clock, Coffee, Download, Loader2, RotateCcw, AlertTriangle } from 'lucide-react';
+import { User, Calendar, Clock, Coffee, Download, Loader2, RotateCcw, AlertTriangle, Building2 } from 'lucide-react';
 import { WeekType, Shift } from '../types';
 import { toast } from 'sonner';
 import { TIMEZONE } from '../lib/timezone';
@@ -16,6 +17,8 @@ import { employeeFromResponse } from '../lib/mappers';
 export function EmployeeView() {
   const { employees: appEmployees, schedules, roles, loading, error, refresh } = useApp();
   const { user } = useAuth();
+  const { teams, selectedTeamId } = useTeams();
+  const activeTeam = teams.find(t => t.id === selectedTeamId);
   const [teamEmployees, setTeamEmployees] = useState<typeof appEmployees>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>('');
@@ -268,6 +271,12 @@ export function EmployeeView() {
       <div>
         <h2 className="font-semibold text-2xl mb-2">Mitarbeiteransicht</h2>
         <p className="text-gray-600">Persönliche Schichtübersicht für Mitarbeiter</p>
+        {activeTeam && (
+          <div className="flex items-center gap-2 mt-2">
+            <Building2 className="h-4 w-4 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">Team: {activeTeam.name}</span>
+          </div>
+        )}
       </div>
 
       {/* Selection */}
