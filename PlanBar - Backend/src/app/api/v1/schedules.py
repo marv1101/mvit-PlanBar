@@ -7,6 +7,7 @@ from app.core.versioning import ConflictError, compute_etag, detect_conflict
 from app.db.models.employee import Employee
 from app.db.models.schedule import Shiftplan
 from app.db.models.shift_wish import ShiftWish
+from app.db.models.team import employee_teams
 from app.db.models.user import User
 from app.dependencies import get_current_user, get_db, require_admin_or_planer
 from app.schemas.pagination import PaginatedResponse, PaginationParams
@@ -419,15 +420,14 @@ def get_pending_wishes(
         .order_by(ShiftWish.date)
     )
     if user.role == "planer":
-        # Restrict to wishes from employees in the planner's teams
         from app.services import team_service
 
         team_ids = team_service.get_team_ids_for_user(db, user)
         if team_ids:
             query = query.join(
-                team_service.employee_teams,
-                team_service.employee_teams.c.employee_id == ShiftWish.employee_id,
-            ).filter(team_service.employee_teams.c.team_id.in_(team_ids))
+                employee_teams,
+                employee_teams.c.employee_id == ShiftWish.employee_id,
+            ).filter(employee_teams.c.team_id.in_(team_ids))
         else:
             query = query.filter(ShiftWish.employee_id == -1)
     total = query.count()
@@ -470,9 +470,9 @@ def get_wishes_by_status(
         team_ids = team_service.get_team_ids_for_user(db, user)
         if team_ids:
             query = query.join(
-                team_service.employee_teams,
-                team_service.employee_teams.c.employee_id == ShiftWish.employee_id,
-            ).filter(team_service.employee_teams.c.team_id.in_(team_ids))
+                employee_teams,
+                employee_teams.c.employee_id == ShiftWish.employee_id,
+            ).filter(employee_teams.c.team_id.in_(team_ids))
         else:
             query = query.filter(ShiftWish.employee_id == -1)
     total = query.count()
