@@ -8,19 +8,24 @@ import { Alert, AlertDescription } from '../components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, Loader2, Trash2, Copy, Check, RotateCcw, AlertTriangle } from 'lucide-react';
-import { AppUser } from '../types';
+import { Plus, Loader2, Trash2, Copy, Check, RotateCcw, AlertTriangle, Edit, Building2 } from 'lucide-react';
+import { AppUser, Team } from '../types';
 import { userFromResponse } from '../lib/mappers';
 import * as userService from '../services/userService';
+import * as teamService from '../services/teamService';
 import { TIMEZONE } from '../lib/timezone';
+import { toast } from 'sonner';
 
 export function Users() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -37,11 +42,17 @@ export function Users() {
 
   useEffect(() => {
     loadUsers();
+    teamService.getTeams().then(res => setAllTeams(res.items)).catch(() => {});
   }, []);
 
   const handleDeleteClick = (user: AppUser) => {
     setUserToDelete(user);
     setDeleteDialogOpen(true);
+  };
+
+  const handleEditClick = (user: AppUser) => {
+    setEditingUser(user);
+    setEditDialogOpen(true);
   };
 
   const confirmDelete = async () => {
@@ -54,6 +65,10 @@ export function Users() {
     }
     setUserToDelete(null);
     setDeleteDialogOpen(false);
+  };
+
+  const getTeamById = (teamId: number) => {
+    return allTeams.find(t => Number(t.id) === teamId);
   };
 
   if (loading) {
@@ -134,30 +149,42 @@ export function Users() {
                   </CardTitle>
                   <p className="text-sm text-gray-600 mt-1">{user.email}</p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDeleteClick(user)}
-                  aria-label="Benutzer löschen"
-                >
-                  <Trash2 className="h-4 w-4 text-red-600" />
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEditClick(user)}
+                    aria-label="Benutzer bearbeiten"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDeleteClick(user)}
+                    aria-label="Benutzer löschen"
+                  >
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-500">Letzte Anmeldung:</span>{' '}
-                  {user.lastLogin
-                    ? new Date(user.lastLogin).toLocaleDateString('de-DE', {
-                        timeZone: TIMEZONE,
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
-                    : 'Noch nicht angemeldet'}
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Letzte Anmeldung:</span>{' '}
+                    {user.lastLogin
+                      ? new Date(user.lastLogin).toLocaleDateString('de-DE', {
+                          timeZone: TIMEZONE,
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'Noch nicht angemeldet'}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -192,7 +219,201 @@ export function Users() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Benutzer bearbeiten</DialogTitle>
+            <DialogDescription>
+              Bearbeiten Sie die Benutzerdaten und Team-Zuordnung.
+            </DialogDescription>
+          </DialogHeader>
+          {editingUser && (
+            <UserEditForm
+              user={editingUser}
+              allTeams={allTeams}
+              onSuccess={() => { setEditDialogOpen(false); loadUsers(); }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+interface UserEditFormProps {
+  user: AppUser;
+  allTeams: Team[];
+  onSuccess: () => void;
+}
+
+function UserEditForm({ user, allTeams, onSuccess }: UserEditFormProps) {
+  const [username, setUsername] = useState(user.username);
+  const [email, setEmail] = useState(user.email);
+  const [role, setRole] = useState(user.role === 'admin' ? 'admin' : user.role === 'planer' ? 'planer' : 'user');
+  const [employeeId, setEmployeeId] = useState<string>(user.employeeId ?? 'none');
+  const [allEmployees, setAllEmployees] = useState<Array<{ id: number; first_name: string; last_name: string; email: string | null; user_id: number | null }>>([]);
+  const [teamIds, setTeamIds] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    userService.getAllEmployees().then(setAllEmployees).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (employeeId && employeeId !== 'none') {
+      const empId = Number(employeeId);
+      import('../services/employeeService').then(svc =>
+        svc.getEmployee(empId)
+      ).then(emp => {
+        setTeamIds(emp.team_ids ?? []);
+      }).catch(() => {});
+    } else {
+      setTeamIds([]);
+    }
+  }, [employeeId]);
+
+  const handleTeamToggle = (teamId: number) => {
+    setTeamIds(prev =>
+      prev.includes(teamId) ? prev.filter(id => id !== teamId) : [...prev, teamId]
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+    try {
+      await userService.updateUser(Number(user.id), {
+        username,
+        email,
+        role,
+        employee_id: employeeId !== 'none' ? Number(employeeId) : null,
+      });
+      if (employeeId !== 'none') {
+        const empId = Number(employeeId);
+        await import('../services/employeeService').then(svc =>
+          svc.updateEmployee(empId, { team_ids: teamIds })
+        );
+      }
+      toast.success('Benutzer aktualisiert');
+      onSuccess();
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+      setError(Array.isArray(detail) ? detail.map((d: { msg: string }) => d.msg).join('; ') : detail || 'Ein Fehler ist aufgetreten');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="edit-username">Benutzername</Label>
+        <Input
+          id="edit-username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="edit-email">E-Mail</Label>
+        <Input
+          id="edit-email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="edit-role">Rolle</Label>
+        <Select value={role} onValueChange={setRole}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="user">Mitarbeiter</SelectItem>
+            <SelectItem value="planer">Planer</SelectItem>
+            <SelectItem value="admin">Administrator</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="edit-employee">Mitarbeiter verknüpfen</Label>
+        <Select value={employeeId} onValueChange={setEmployeeId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Kein Mitarbeiter" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Kein Mitarbeiter</SelectItem>
+            {allEmployees.map((emp) => (
+              <SelectItem key={emp.id} value={String(emp.id)}>
+                {emp.first_name} {emp.last_name}{emp.email ? ` (${emp.email})` : ''}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {role === 'planer' && employeeId !== 'none' && (
+        <div className="space-y-2">
+          <Label className="mb-2 block flex items-center gap-1">
+            <Building2 className="h-3.5 w-3.5" />
+            Teams zuordnen
+          </Label>
+          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+            {allTeams.map((team) => (
+              <label
+                key={team.id}
+                className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={teamIds.includes(team.id)}
+                  onChange={() => handleTeamToggle(team.id)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: team.color || '#9ca3af' }}
+                  />
+                  {team.name}
+                </span>
+              </label>
+            ))}
+            {allTeams.length === 0 && (
+              <p className="text-xs text-gray-500">Keine Teams vorhanden.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="flex justify-end gap-2">
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Speichern...
+            </>
+          ) : (
+            'Speichern'
+          )}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -206,6 +427,8 @@ function UserCreateForm({ onSuccess }: UserCreateFormProps) {
   const [role, setRole] = useState('user');
   const [employeeId, setEmployeeId] = useState<string>('none');
   const [unlinkedEmployees, setUnlinkedEmployees] = useState<userService.UnlinkedEmployeeDTO[]>([]);
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
+  const [teamIds, setTeamIds] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<userService.AdminUserCreateResponseDTO | null>(null);
@@ -213,7 +436,27 @@ function UserCreateForm({ onSuccess }: UserCreateFormProps) {
 
   useEffect(() => {
     userService.getUnlinkedEmployees().then(setUnlinkedEmployees).catch(() => {});
+    teamService.getTeams().then(res => setAllTeams(res.items)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (employeeId && employeeId !== 'none') {
+      const empId = Number(employeeId);
+      import('../services/employeeService').then(svc =>
+        svc.getEmployee(empId)
+      ).then(emp => {
+        setTeamIds(emp.team_ids ?? []);
+      }).catch(() => {});
+    } else {
+      setTeamIds([]);
+    }
+  }, [employeeId]);
+
+  const handleTeamToggle = (teamId: number) => {
+    setTeamIds(prev =>
+      prev.includes(teamId) ? prev.filter(id => id !== teamId) : [...prev, teamId]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,6 +469,7 @@ function UserCreateForm({ onSuccess }: UserCreateFormProps) {
         email,
         role,
         employee_id: employeeId !== 'none' ? Number(employeeId) : undefined,
+        team_ids: role === 'planer' && employeeId !== 'none' ? teamIds : undefined,
       });
       setResult(res);
     } catch (err: any) {
@@ -331,6 +575,40 @@ function UserCreateForm({ onSuccess }: UserCreateFormProps) {
           <p className="text-xs text-gray-500">Alle Mitarbeiter sind bereits verknüpft.</p>
         )}
       </div>
+
+      {role === 'planer' && employeeId !== 'none' && (
+        <div className="space-y-2">
+          <Label className="mb-2 block flex items-center gap-1">
+            <Building2 className="h-3.5 w-3.5" />
+            Teams zuordnen
+          </Label>
+          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+            {allTeams.map((team) => (
+              <label
+                key={team.id}
+                className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={teamIds.includes(team.id)}
+                  onChange={() => handleTeamToggle(team.id)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: team.color || '#9ca3af' }}
+                  />
+                  {team.name}
+                </span>
+              </label>
+            ))}
+            {allTeams.length === 0 && (
+              <p className="text-xs text-gray-500">Keine Teams vorhanden.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {error && (
         <Alert variant="destructive">

@@ -59,6 +59,7 @@ export interface Employee {
   breakTime: BreakTime;
   color: string; // for calendar display
   maxWorkHours?: number; // maximum work hours per week
+  teamIds?: number[];
 }
 
 export type RequestType = 'urlaubswunsch' | 'bevorzugt' | 'nicht-verfügbar';
@@ -146,6 +147,7 @@ export interface AppUser {
   role: 'admin' | 'planer' | 'employee';
   mustChangePassword: boolean;
   lastLogin: string | null;
+  employeeId?: number | null;
 }
 
 export interface ShiftTemplateEntry {

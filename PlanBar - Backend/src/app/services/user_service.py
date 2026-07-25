@@ -51,6 +51,21 @@ def update_user(db: Session, user: User, user_update: UserUpdate, actor_id: int 
         user.password_hash = hash_password(user_update.password)
     if user_update.role is not None:
         user.role = user_update.role
+
+    if user_update.employee_id is not None:
+        if user_update.employee_id == 0:
+            if user.employee_id:
+                old_emp = db.query(Employee).filter(Employee.id == user.employee_id).first()
+                if old_emp and old_emp.user_id == user.id:
+                    old_emp.user_id = None
+                    db.add(old_emp)
+            user.employee_id = None
+        else:
+            employee = db.query(Employee).filter(Employee.id == user_update.employee_id).first()
+            if employee:
+                employee.user_id = user.id
+                db.add(employee)
+
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -94,6 +109,17 @@ def admin_create_user(db: Session, admin_user: AdminUserCreate, actor_id: int | 
             employee.user_id = user.id
             db.add(employee)
             db.commit()
+
+            if admin_user.team_ids:
+                from app.db.models.team import Team
+
+                current_ids = {t.id for t in employee.teams}
+                target_ids = set(admin_user.team_ids)
+                to_add = target_ids - current_ids
+                if to_add:
+                    teams_to_add = db.query(Team).filter(Team.id.in_(to_add)).all()
+                    employee.teams.extend(teams_to_add)
+                    db.commit()
 
     audit_service.log_create(
         db,

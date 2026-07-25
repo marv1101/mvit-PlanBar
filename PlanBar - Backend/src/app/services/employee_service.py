@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.role import Role
 from app.db.models.shift_wish import ShiftWish
+from app.db.models.team import Team
 from app.schemas.employee import (
     ContractCreate,
     ContractUpdate,
@@ -12,6 +13,22 @@ from app.schemas.employee import (
     TimecardUpdate,
 )
 from app.services import audit_service
+
+
+def _set_employee_teams(db: Session, employee: Employee, team_ids: list[int]) -> None:
+    """Replace the employee's team memberships with the given set of team ids."""
+    current_ids = {t.id for t in employee.teams}
+    target_ids = set(team_ids)
+
+    to_add = target_ids - current_ids
+    to_remove = current_ids - target_ids
+
+    if to_add:
+        teams_to_add = db.query(Team).filter(Team.id.in_(to_add)).all()
+        employee.teams.extend(teams_to_add)
+
+    if to_remove:
+        employee.teams = [t for t in employee.teams if t.id not in to_remove]
 
 
 def create_employee(db: Session, data: EmployeeCreate, actor_id: int | None = None) -> Employee:
@@ -30,6 +47,9 @@ def create_employee(db: Session, data: EmployeeCreate, actor_id: int | None = No
         roles = db.query(Role).filter(Role.id.in_(data.role_ids)).all()
         employee.roles = roles
     db.add(employee)
+    db.flush()
+    if data.team_ids:
+        _set_employee_teams(db, employee, data.team_ids)
     db.commit()
     db.refresh(employee)
     audit_service.log_create(db, user_id=actor_id, resource_type="employee", resource_id=str(employee.id))
@@ -69,6 +89,8 @@ def update_employee(db: Session, employee: Employee, data: EmployeeUpdate, actor
     if data.role_ids is not None:
         roles = db.query(Role).filter(Role.id.in_(data.role_ids)).all()
         employee.roles = roles
+    if data.team_ids is not None:
+        _set_employee_teams(db, employee, data.team_ids)
     db.add(employee)
     db.commit()
     db.refresh(employee)
