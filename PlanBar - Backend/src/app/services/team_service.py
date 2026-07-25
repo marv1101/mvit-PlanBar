@@ -71,9 +71,16 @@ def delete_team(db: Session, team_id: int, actor_id: int | None = None) -> None:
 
 
 def assign_employees(db: Session, team_id: int, employee_ids: list[int], actor_id: int | None = None) -> Team:
+    """Add employees to a team (additive; existing members are kept).
+
+    Use ``remove_employees`` to drop members.
+    """
     team = get_team(db, team_id)
-    employees = db.query(Employee).filter(Employee.id.in_(employee_ids)).all() if employee_ids else []
-    team.employees = employees
+    existing_ids = {e.id for e in team.employees}
+    new_ids = {i for i in employee_ids if i not in existing_ids}
+    if new_ids:
+        new_emps = db.query(Employee).filter(Employee.id.in_(new_ids)).all()
+        team.employees.extend(new_emps)
     db.add(team)
     db.commit()
     db.refresh(team)
@@ -82,7 +89,24 @@ def assign_employees(db: Session, team_id: int, employee_ids: list[int], actor_i
         user_id=actor_id,
         resource_type="team",
         resource_id=str(team.id),
-        details=f"assign_employees ids={sorted(employee_ids)}",
+        details=f"add_employees ids={sorted(employee_ids)}",
+    )
+    return team
+
+
+def remove_employees(db: Session, team_id: int, employee_ids: list[int], actor_id: int | None = None) -> Team:
+    team = get_team(db, team_id)
+    keep = [e for e in team.employees if e.id not in set(employee_ids)]
+    team.employees = keep
+    db.add(team)
+    db.commit()
+    db.refresh(team)
+    audit_service.log_update(
+        db,
+        user_id=actor_id,
+        resource_type="team",
+        resource_id=str(team.id),
+        details=f"remove_employees ids={sorted(employee_ids)}",
     )
     return team
 
