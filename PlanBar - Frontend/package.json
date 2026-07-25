@@ -57,7 +57,7 @@
     "react-hook-form": "7.55.0",
     "react-popper": "2.3.0",
     "react-resizable-panels": "2.1.7",
-    "react-router": "7.18.1",
+    "react-router": "8.3.0",
     "recharts": "2.15.2",
     "sonner": "2.0.3",
     "tailwind-merge": "3.2.0",
@@ -75,8 +75,8 @@
     "@vitejs/plugin-react": "4.7.0",
     "jsdom": "^29.1.1",
     "msw": "^2.14.6",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
     "tailwindcss": "4.1.12",
     "typescript": "^6.0.3",
     "vite": "^6.4.2",
@@ -87,8 +87,8 @@
     "workbox-strategies": "^7.4.1"
   },
   "peerDependencies": {
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -97,17 +97,5 @@
     "react-dom": {
       "optional": true
     }
-  },
-  "overrides": {
-    "form-data": "4.0.6",
-    "tar": "7.5.21",
-    "undici": "7.28.0",
-    "brace-expansion": "5.0.7",
-    "fast-uri": "3.1.4"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "msw"
-    ]
   }
 }

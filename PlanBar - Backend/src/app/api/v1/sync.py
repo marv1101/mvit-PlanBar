@@ -12,7 +12,6 @@ from app.core.versioning import (
     check_if_modified_since,
     check_if_none_match,
     compute_etag,
-    detect_conflict,
 )
 from app.db.models.employee import Employee
 from app.db.models.role import Role
@@ -124,7 +123,7 @@ def _serialize_wish(wish: ShiftWish) -> dict[str, Any]:
 
 def _get_last_updated(items: list[Any]) -> datetime | None:
     """Get the latest updated_at from a list of items."""
-    candidates: list[datetime] = []
+    candidates = []
     for item in items:
         if hasattr(item, "updated_at") and item.updated_at:
             candidates.append(item.updated_at)
@@ -155,7 +154,7 @@ def initial_sync(
         synced_at=datetime.now(timezone.utc).isoformat(),
     )
 
-    all_items: list[Any] = employees + roles + schedules + shifts + wishes
+    all_items = employees + roles + schedules + shifts + wishes
     last_modified = _get_last_updated(all_items)
     etag = compute_etag(response_data.model_dump())
 
@@ -230,13 +229,20 @@ def sync_actions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Apply a batch of offline actions with conflict detection."""
+    """Apply a batch of offline actions with conflict detection.
+
+    Each action is dispatched to a `SyncAction` handler via
+    `SyncActionRegistry.dispatch()`. Auth checks are owned by the handler's
+    `role` attribute — there is exactly one auth choke-point per dispatch.
+    """
+    from app.services.sync_actions import SyncActionRegistry
+
     results: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
 
     for action in batch.actions:
         try:
-            result = _apply_action(action, db, current_user)
+            result = SyncActionRegistry.dispatch(action, db, current_user)
             results.append({"resource": action.resource, "action": action.action, "success": True, "data": result})
         except ConflictError as e:
             errors.append(
@@ -267,119 +273,3 @@ def sync_actions(
         "synced": len(results),
         "failed": len(errors),
     }
-
-
-def _apply_action(action: ActionPayload, db: Session, current_user: User) -> dict[str, Any]:
-    """Apply a single offline action."""
-    resource = action.resource
-    act = action.action
-    data = action.data
-
-    if resource == "requests":
-        from app.db.models.shift_wish import ShiftWish
-
-        if act == "create":
-            wish = ShiftWish(
-                employee_id=data.get("employee_id", current_user.employee_id),
-                date=data["date"],
-                week=data.get("week"),
-                type=data.get("type", "preferred"),
-                note=data.get("note"),
-                status="pending",
-            )
-            db.add(wish)
-            db.commit()
-            db.refresh(wish)
-            return _serialize_wish(wish)
-
-        elif act == "update":
-            wish_id = data.get("id")
-            wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
-            if not wish:
-                raise HTTPException(status_code=404, detail="Shift wish not found")
-
-            if current_user.employee_id != wish.employee_id and current_user.role != "admin":
-                raise HTTPException(status_code=403, detail="Not authorized")
-
-            if "employee_id" in data:
-                wish.employee_id = data["employee_id"]
-            if "date" in data:
-                wish.date = data["date"]
-            if "type" in data:
-                wish.type = data["type"]
-            if "note" in data:
-                wish.note = data["note"]
-            db.commit()
-            db.refresh(wish)
-            return _serialize_wish(wish)
-
-        elif act == "delete":
-            wish_id = data.get("id")
-            wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
-            if not wish:
-                raise HTTPException(status_code=404, detail="Shift wish not found")
-            db.delete(wish)
-            db.commit()
-            return {"id": wish_id, "deleted": True}
-
-    elif resource == "schedules":
-        if current_user.role != "admin":
-            raise HTTPException(status_code=403, detail="Admin access required")
-
-        if act == "update":
-            from app.db.models.schedule import Schedule
-
-            schedule_id = data.get("id")
-            schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
-            if not schedule:
-                raise HTTPException(status_code=404, detail="Schedule not found")
-
-            schedule_etag = data.get("_etag")
-            stored_etag = compute_etag(_serialize_schedule(schedule))
-            try:
-                detect_conflict(
-                    schedule.updated_at if hasattr(schedule, "updated_at") else None,
-                    schedule_etag,
-                    stored_etag,
-                )
-            except ConflictError as e:
-                raise HTTPException(status_code=409, detail=str(e))
-
-            if "name" in data:
-                schedule.name = data["name"]
-            if "status" in data:
-                schedule.status = data["status"]
-            if "week_type" in data:
-                schedule.week_type = data["week_type"]
-            db.commit()
-            db.refresh(schedule)
-            return _serialize_schedule(schedule)
-
-    elif resource == "shifts":
-        if act == "update":
-            from app.db.models.schedule import Shiftplan
-
-            shift_id = data.get("id")
-            shift = db.query(Shiftplan).filter(Shiftplan.id == shift_id).first()
-            if not shift:
-                raise HTTPException(status_code=404, detail="Shift not found")
-
-            for field in [
-                "employee_id",
-                "date",
-                "shift_id",
-                "start_time",
-                "end_time",
-                "week",
-                "break_start",
-                "break_end",
-                "label",
-                "notes",
-            ]:
-                if field in data:
-                    setattr(shift, field, data[field])
-            db.commit()
-            db.refresh(shift)
-            return _serialize_shift(shift)
-
-    raise HTTPException(status_code=400, detail=f"Unsupported action: {resource}/{act}")
