@@ -235,7 +235,7 @@ def sync_actions(
     `SyncActionRegistry.dispatch()`. Auth checks are owned by the handler's
     `role` attribute — there is exactly one auth choke-point per dispatch.
     """
-    from app.services.sync_actions import SyncActionRegistry  # noqa: PLC0415
+    from app.services.sync_actions import SyncActionRegistry
 
     results: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []

@@ -10,9 +10,9 @@ for _a in (CreateShiftWish, UpdateShiftWish, DeleteShiftWish, UpdateSchedule, Up
 
 __all__ = [
     "CreateShiftWish",
-    "UpdateShiftWish",
     "DeleteShiftWish",
+    "SyncActionRegistry",
     "UpdateSchedule",
     "UpdateShift",
-    "SyncActionRegistry",
+    "UpdateShiftWish",
 ]

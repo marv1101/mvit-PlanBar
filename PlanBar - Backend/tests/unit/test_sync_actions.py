@@ -1,25 +1,24 @@
 """Unit tests for SyncAction strategy pattern (Issue #148)."""
 
 import uuid
+from datetime import date as _date
+from datetime import time as _time
+from unittest.mock import Mock
 
 import pytest
-from datetime import date as _date, time as _time
-from unittest.mock import Mock
-from fastapi import HTTPException
-
-from app.db.models.user import User
 from app.db.models.employee import Employee
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
-
+from app.db.models.user import User
 from app.services.sync_actions import (
     CreateShiftWish,
-    UpdateShiftWish,
     DeleteShiftWish,
+    SyncActionRegistry,
     UpdateSchedule,
     UpdateShift,
-    SyncActionRegistry,
+    UpdateShiftWish,
 )
+from fastapi import HTTPException
 
 
 def _u(prefix):

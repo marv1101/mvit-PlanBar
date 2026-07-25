@@ -1,10 +1,12 @@
 from typing import Any
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from app.services.sync_actions.serializers import serialize_wish as _serialize_wish
+
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
 from app.services.sync_actions.base import RoleRequired
+from app.services.sync_actions.serializers import serialize_wish as _serialize_wish
 
 
 class UpdateShiftWish(RoleRequired):

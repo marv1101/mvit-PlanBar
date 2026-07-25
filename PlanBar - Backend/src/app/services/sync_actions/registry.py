@@ -1,11 +1,13 @@
-from typing import Any
+from typing import Any, ClassVar
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+
 from app.db.models.user import User
 
 
 class SyncActionRegistry:
-    _by_key: dict[tuple[str, str], Any] = {}
+    _by_key: ClassVar[dict[tuple[str, str], Any]] = {}
 
     @classmethod
     def register(cls, action: Any) -> None:

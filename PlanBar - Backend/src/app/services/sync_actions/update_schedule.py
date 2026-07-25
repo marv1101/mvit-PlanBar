@@ -1,11 +1,13 @@
 from typing import Any
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from app.services.sync_actions.serializers import serialize_schedule as _serialize_schedule
+
 from app.core.versioning import ConflictError, compute_etag, detect_conflict
 from app.db.models.schedule import Schedule
 from app.db.models.user import User
 from app.services.sync_actions.base import RoleRequired
+from app.services.sync_actions.serializers import serialize_schedule as _serialize_schedule
 
 
 class AdminRoleCheck(RoleRequired):

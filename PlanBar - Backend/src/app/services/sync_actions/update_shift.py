@@ -1,10 +1,12 @@
 from typing import Any
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from app.services.sync_actions.serializers import serialize_shift as _serialize_shift
+
 from app.db.models.schedule import Shiftplan
 from app.db.models.user import User
 from app.services.sync_actions.base import RoleRequired
+from app.services.sync_actions.serializers import serialize_shift as _serialize_shift
 
 
 class UpdateShift(RoleRequired):
@@ -26,7 +28,8 @@ class UpdateShift(RoleRequired):
 
     @staticmethod
     def execute(db: Session, data: dict[str, Any], user: User) -> dict[str, Any]:
-        from datetime import date as _date, time as _time
+        from datetime import date as _date
+        from datetime import time as _time
 
         shift_id = data.get("id")
         shift = db.query(Shiftplan).filter(Shiftplan.id == shift_id).first()

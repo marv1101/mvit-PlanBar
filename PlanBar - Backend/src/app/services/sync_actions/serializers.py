@@ -1,6 +1,7 @@
 """Serializers for sync actions, extracted to break circular import."""
 
 from typing import Any
+
 from app.db.models.employee import Employee
 from app.db.models.role import Role
 from app.db.models.schedule import Schedule, Shiftplan
