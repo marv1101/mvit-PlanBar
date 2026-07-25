@@ -24,6 +24,7 @@ from app.api.v1.schedules import router as schedules_router
 from app.api.v1.self_service import router as self_service_router
 from app.api.v1.shift_swaps import router as shift_swaps_router
 from app.api.v1.sync import router as sync_router
+from app.api.v1.teams import router as teams_router
 from app.api.v1.time_tracking import router as time_tracking_router
 from app.api.v1.users import router as users_router
 
@@ -49,4 +50,5 @@ api_router.include_router(gdpr_router, prefix="/gdpr", tags=["gdpr"])
 api_router.include_router(gdpr_admin_router, prefix="/admin", tags=["admin"])
 api_router.include_router(shift_swaps_router, prefix="/shift-swaps", tags=["shift-swaps"])
 api_router.include_router(self_service_router, prefix="/my", tags=["self-service"])
+api_router.include_router(teams_router, prefix="/teams", tags=["teams"])
 api_router.include_router(time_tracking_router, prefix="/time-tracking", tags=["time-tracking"])

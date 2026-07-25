@@ -154,3 +154,67 @@ def employee_auth_headers(client, db_session, auth_headers):
     token = login_response.json()["access_token"]
     client.cookies.clear()
     return ({"Authorization": f"Bearer {token}"}, emp_id)
+
+
+@pytest.fixture
+def planer_auth_headers(client, db_session, auth_headers, planner_team):
+    """Auth headers for a 'planer' role user linked to an employee in planner_team."""
+    from app.db.models.user import User
+
+    register_data = {
+        "username": "testplaner",
+        "email": "planer@test.com",
+        "password": "TestPass@123",
+    }
+    client.post("/api/v1/users", json=register_data)
+
+    emp_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Plan", "last_name": "Er"},
+        headers=auth_headers,
+    )
+    emp_id = emp_resp.json()["id"]
+
+    user = db_session.query(User).filter(User.email == "planer@test.com").first()
+    user.role = "planer"
+    user.employee_id = emp_id
+    db_session.add(user)
+    db_session.commit()
+
+    # Link employee to planner_team
+    from app.db.models.employee import Employee
+    from app.db.models.team import Team
+
+    emp = db_session.query(Employee).filter(Employee.id == emp_id).first()
+    team = db_session.query(Team).filter(Team.id == planner_team).first()
+    emp.teams.append(team)
+    db_session.commit()
+
+    login_response = client.post(
+        "/api/v1/users/login",
+        json={"email": "planer@test.com", "password": "TestPass@123"},
+    )
+    token = login_response.json()["access_token"]
+    client.cookies.clear()
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def planner_team(client, auth_headers, db_session):
+    """Create (or reuse) a team that the planer user is assigned to. Returns the team id."""
+    name = "PlanerTeam"
+    # Try to find existing team first to be idempotent across multiple test invocations
+    listing = client.get("/api/v1/teams", headers=auth_headers).json()
+    existing = next((t["id"] for t in listing["items"] if t["name"] == name), None)
+    if existing is not None:
+        return existing
+    response = client.post(
+        "/api/v1/teams",
+        json={"name": name},
+        headers=auth_headers,
+    )
+    if response.status_code == 201:
+        return response.json()["id"]
+    # Fall back to list lookup in case of conflict
+    listing = client.get("/api/v1/teams", headers=auth_headers).json()
+    return next(t["id"] for t in listing["items"] if t["name"] == name)
