@@ -15,6 +15,7 @@ from app.core.auth import (
 )
 from app.core.exceptions import (
     ConflictException,
+    ForbiddenException,
     NotFoundException,
     UnauthorizedException,
 )
@@ -79,6 +80,12 @@ def _clear_auth_cookies(response: JSONResponse) -> None:
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("30/minute")
 def register_user(user_in: UserCreate, request: Request, db: Session = Depends(get_db)):
+    # Security gate (Issue #163): public self-registration is disabled by default.
+    # Admins create users via POST /api/v1/users/admin-create instead.
+    if not settings.enable_self_registration:
+        raise ForbiddenException(
+            detail="Public self-registration is disabled. Ask an administrator to create your account."
+        )
     try:
         user = create_user(db, user_in)
     except IntegrityError:

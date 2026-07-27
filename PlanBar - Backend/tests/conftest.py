@@ -7,6 +7,9 @@ TEST_DATABASE_URL = "sqlite:///./test_planbar.db"
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
 os.environ["ENVIRONMENT"] = "test"
+# Tests rely on the public self-registration endpoint (test_users.py etc.).
+# Issue #163 flips the default to False in production; tests opt in here.
+os.environ["ENABLE_SELF_REGISTRATION"] = "true"
 
 import pytest
 from app.config import settings

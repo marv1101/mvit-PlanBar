@@ -30,5 +30,11 @@ class Settings(BaseSettings):
     vapid_public_key: str | None = Field(None)
     vapid_claim_email: str = Field("mailto:admin@mphion.de")
 
+    # Security: Public self-registration is disabled by default.
+    # When True, POST /api/v1/users creates a new public user (legacy/invite-only
+    # onboarding flows). When False (production default), the endpoint returns 403
+    # and admins must use POST /api/v1/users/admin-create instead.
+    enable_self_registration: bool = Field(False)
+
 
 settings = Settings()
