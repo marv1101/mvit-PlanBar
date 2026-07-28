@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import os
 import time
@@ -21,8 +20,12 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.api.v1.pinboard_ws import (
+    authenticate_websocket,
+    handle_websocket_message,
+)
 from app.config import settings
-from app.core.auth import create_access_token, verify_token
+from app.core.auth import create_access_token
 from app.core.exceptions import NotFoundException
 from app.db.database import SessionLocal
 from app.db.models.pinboard import PinboardDocument, PinboardMessage, PinboardThread
@@ -586,38 +589,30 @@ async def websocket_endpoint(
     thread_id: int,
     token: str = Query(""),
 ):
+    """Thin orchestrator: authenticate, connect, then loop over messages.
+
+    Heavy lifting lives in :mod:`app.api.v1.pinboard_ws`:
+    * :func:`authenticate_websocket` — thread + token + user validation
+    * :func:`handle_websocket_message` — per-frame dispatch (ping/pong/message)
+    """
     db = SessionLocal()
     try:
-        thread_exists = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
-        if not thread_exists:
-            logger.warning(f"WebSocket connection attempted to non-existent thread {thread_id}")
-            await websocket.close(code=4004, reason="Thread not found")
-            return
-
-        token_str = token
-        if not token_str:
-            token_str = websocket.cookies.get("access_token", "")
-        if not token_str:
-            logger.warning("WebSocket auth failed: no token provided")
-            await websocket.close(code=4001, reason="Missing token")
-            return
-
-        try:
-            payload = verify_token(token_str)
-            user_id = int(payload.get("sub", 0))
-        except ValueError:
-            logger.warning("WebSocket auth failed: invalid token")
-            await websocket.close(code=4001, reason="Invalid token")
-            return
-
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            logger.warning(f"WebSocket auth failed: user {user_id} not found in database")
-            await websocket.close(code=4001, reason="User not found")
-            return
+        auth = authenticate_websocket(
+            db=db,
+            thread_id=thread_id,
+            query_token=token,
+            cookies=websocket.cookies,
+        )
     finally:
         db.close()
 
+    if auth is None:
+        # We have to accept() before we can close() with a custom code in FastAPI.
+        await websocket.accept()
+        await websocket.close(code=4001, reason="Authentication failed")
+        return
+
+    user, user_id = auth
     logger.info(f"WebSocket authenticated: user={user_id} thread={thread_id}")
 
     connected = await _connect_ws(websocket, thread_id, user_id)
@@ -631,53 +626,15 @@ async def websocket_endpoint(
     try:
         while True:
             data = await websocket.receive_text()
-            conn_id = id(websocket)
-            _ws_last_activity[conn_id] = time.time()
-
-            msg_data = json.loads(data)
-            msg_type = msg_data.get("type", "ping")
-
-            if msg_type == "ping":
-                await websocket.send_json({"type": "pong"})
-            elif msg_type == "pong":
-                pass
-            elif msg_type == "message":
-                content = msg_data.get("content", "").strip()
-                if not content:
-                    await websocket.send_json({"type": "error", "detail": "Content is required"})
-                    continue
-
-                db = SessionLocal()
-                try:
-                    message = PinboardMessage(
-                        thread_id=thread_id,
-                        author_id=user_id,
-                        content=content,
-                    )
-                    db.add(message)
-                    thread = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
-                    if thread:
-                        thread.updated_at = datetime.now(timezone.utc)
-                    db.commit()
-                    db.refresh(message)
-
-                    msg_response = _message_to_response(message)
-                    await _broadcast(
-                        thread_id,
-                        {
-                            "type": "new_message",
-                            "message": msg_response.model_dump(mode="json"),
-                        },
-                    )
-                finally:
-                    db.close()
-            else:
-                await websocket.send_json({"type": "error", "detail": f"Unknown message type: {msg_type}"})
+            _ws_last_activity[id(websocket)] = time.time()
+            await handle_websocket_message(
+                websocket=websocket,
+                thread_id=thread_id,
+                user_id=user_id,
+                raw=data,
+            )
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: user={user_id} thread={thread_id}")
-    except json.JSONDecodeError:
-        logger.warning(f"Invalid JSON from user={user_id}")
-        await websocket.send_json({"type": "error", "detail": "Invalid JSON"})
     except Exception as e:  # noqa: BLE001
         logger.error(f"WebSocket error user={user_id} thread={thread_id}: {e}")
     finally:
