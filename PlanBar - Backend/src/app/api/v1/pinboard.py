@@ -612,7 +612,7 @@ async def websocket_endpoint(
         await websocket.close(code=4001, reason="Authentication failed")
         return
 
-    user, user_id = auth
+    _user, user_id = auth
     logger.info(f"WebSocket authenticated: user={user_id} thread={thread_id}")
 
     connected = await _connect_ws(websocket, thread_id, user_id)
