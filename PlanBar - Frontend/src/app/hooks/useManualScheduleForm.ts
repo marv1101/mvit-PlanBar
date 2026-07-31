@@ -14,6 +14,7 @@ export interface UseManualScheduleFormReturn {
   manualWeekType: string;
   setManualWeekType: (v: string) => void;
   manuallyCreatedSchedule: ScheduleType | null;
+  setManuallyCreatedSchedule: (v: ScheduleType | null) => void;
   loading: boolean;
   submitting: boolean;
   setSubmitting: (v: boolean) => void;
@@ -105,6 +106,7 @@ export function useManualScheduleForm(): UseManualScheduleFormReturn {
     manualWeekType,
     setManualWeekType,
     manuallyCreatedSchedule,
+    setManuallyCreatedSchedule,
     loading,
     submitting,
     setSubmitting,

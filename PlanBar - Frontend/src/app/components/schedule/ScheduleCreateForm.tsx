@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
 import { Calendar, Download, Loader2, Send, Pen, X, RotateCcw } from 'lucide-react';
-import { Schedule as ScheduleType, WeekType, ShiftTemplateEntry, Employee, Role } from '../../types';
+import { Schedule as ScheduleType, WeekType, Employee, Role } from '../../types';
 import { ScheduleCalendar } from '../ScheduleCalendar';
 import { EditableScheduleCalendar } from '../EditableScheduleCalendar';
 import { FairnessMeter } from '../FairnessMeter';
@@ -16,6 +14,10 @@ import { exportShiftsCSV } from '../../lib/csv';
 import { StatusBadge } from './StatusBadge';
 import { ArbZgConfirmDialog } from './ArbZgConfirmDialog';
 import type { ArbZgWarning } from '../../types';
+import { useScheduleForm } from '../../hooks/useScheduleForm';
+import { useManualScheduleForm } from '../../hooks/useManualScheduleForm';
+import { TitoScheduleForm } from './ScheduleCreateForm/TitoScheduleForm';
+import { ManualScheduleForm } from './ScheduleCreateForm/ManualScheduleForm';
 
 interface ScheduleCreateFormProps {
   roles: Role[];
@@ -55,17 +57,10 @@ export function ScheduleCreateForm({
   onWishReview,
 }: ScheduleCreateFormProps) {
   const [creationMode, setCreationMode] = useState<'tito' | 'manual'>('tito');
-  const [scheduleName, setScheduleName] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplateEntry[]>([]);
-  const [titoWeekType, setTitoWeekType] = useState<WeekType | ''>('A');
 
-  const [manualName, setManualName] = useState('');
-  const [manualStartDate, setManualStartDate] = useState('');
-  const [manualEndDate, setManualEndDate] = useState('');
-  const [manualWeekType, setManualWeekType] = useState<WeekType | ''>('A');
-  const [manuallyCreatedSchedule, setManuallyCreatedSchedule] = useState<ScheduleType | null>(null);
+  // Use extracted hooks for form state
+  const titoForm = useScheduleForm();
+  const manualForm = useManualScheduleForm();
 
   const [arbZgDialogOpen, setArbZgDialogOpen] = useState(false);
   const [arbZgWarnings, setArbZgWarnings] = useState<ArbZgWarning[]>([]);
@@ -87,52 +82,19 @@ export function ScheduleCreateForm({
     setCurrentScheduleId(null);
     setCurrentScheduleStatus(null);
     setPollResult(null);
-    setScheduleName('');
-    setStartDate('');
-    setEndDate('');
-    setShiftTemplates([]);
-    setTitoWeekType('A');
-  };
-
-  const addShiftTemplate = () => {
-    const id = `shift_${Date.now()}`;
-    setShiftTemplates(prev => [...prev, {
-      id,
-      name: '',
-      startTime: '06:00',
-      endTime: '14:00',
-      requirements: {},
-    }]);
-  };
-
-  const removeShiftTemplate = (index: number) => {
-    setShiftTemplates(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const updateShiftTemplate = (index: number, field: string, value: string | Record<string, number>) => {
-    setShiftTemplates(prev => prev.map((st, i) =>
-      i === index ? { ...st, [field]: value } : st
-    ));
-  };
-
-  const updateRequirement = (templateIndex: number, roleId: string, count: number) => {
-    setShiftTemplates(prev => prev.map((st, i) =>
-      i === templateIndex
-        ? { ...st, requirements: { ...st.requirements, [roleId]: count } }
-        : st
-    ));
+    titoForm.reset();
   };
 
   const createAndSubmit = async () => {
-    if (!scheduleName || !startDate || !endDate) {
+    if (!titoForm.scheduleName || !titoForm.startDate || !titoForm.endDate) {
       toast.error('Bitte Name, Start- und Enddatum eingeben');
       return;
     }
-    if (startDate > endDate) {
+    if (titoForm.startDate > titoForm.endDate) {
       toast.error('Startdatum darf nicht nach dem Enddatum liegen');
       return;
     }
-    if (shiftTemplates.length === 0 || shiftTemplates.some(st => !st.name || !st.startTime || !st.endTime)) {
+    if (titoForm.shiftTemplates.length === 0 || titoForm.shiftTemplates.some(st => !st.name || !st.startTime || !st.endTime)) {
       toast.error('Bitte mindestens ein vollständiges Schicht-Template definieren');
       return;
     }
@@ -144,11 +106,11 @@ export function ScheduleCreateForm({
 
     try {
       const created = await scheduleService.createSchedule({
-        name: scheduleName,
-        start_date: startDate,
-        end_date: endDate,
-        week_type: titoWeekType || undefined,
-        shift_templates: shiftTemplates.map(st => ({
+        name: titoForm.scheduleName,
+        start_date: titoForm.startDate,
+        end_date: titoForm.endDate,
+        week_type: titoForm.titoWeekType || undefined,
+        shift_templates: titoForm.shiftTemplates.map(st => ({
           ...st,
           requirements: Object.fromEntries(
             Object.entries(st.requirements).filter(([, count]) => count > 0)
@@ -185,25 +147,25 @@ export function ScheduleCreateForm({
   };
 
   const createManual = async () => {
-    if (!manualName || !manualStartDate || !manualEndDate) {
+    if (!manualForm.manualName || !manualForm.manualStartDate || !manualForm.manualEndDate) {
       toast.error('Bitte Name, Start- und Enddatum eingeben');
       return;
     }
-    if (manualStartDate > manualEndDate) {
+    if (manualForm.manualStartDate > manualForm.manualEndDate) {
       toast.error('Startdatum darf nicht nach dem Enddatum liegen');
       return;
     }
     try {
       const created = await scheduleService.createSchedule({
-        name: manualName,
-        start_date: manualStartDate,
-        end_date: manualEndDate,
-        week_type: manualWeekType || undefined,
+        name: manualForm.manualName,
+        start_date: manualForm.manualStartDate,
+        end_date: manualForm.manualEndDate,
+        week_type: manualForm.manualWeekType || undefined,
         shiftplans: [],
       });
       const mapped = scheduleFromResponse(created);
       addSchedule(mapped);
-      setManuallyCreatedSchedule(mapped);
+      manualForm.setManuallyCreatedSchedule(mapped);
       toast.success('Schichtplan erstellt');
     } catch {
       toast.error('Fehler beim Erstellen des Schichtplans');
@@ -211,7 +173,7 @@ export function ScheduleCreateForm({
   };
 
   const handleManualSave = async (shifts: ScheduleType['shifts']): Promise<void> => {
-    if (!manuallyCreatedSchedule) return;
+    if (!manualForm.manuallyCreatedSchedule) return;
     const shiftplans = shifts.map(s => ({
       employee_id: Number(s.employeeId),
       date: s.date,
@@ -224,7 +186,7 @@ export function ScheduleCreateForm({
     }));
 
     try {
-      const result = await scheduleService.replaceAllShifts(Number(manuallyCreatedSchedule.id), shiftplans);
+      const result = await scheduleService.replaceAllShifts(Number(manualForm.manuallyCreatedSchedule.id), shiftplans);
       if (result.arbZgWarnings && result.arbZgWarnings.length > 0) {
         setPendingShiftplans(shiftplans);
         setArbZgWarnings(result.arbZgWarnings);
@@ -239,11 +201,7 @@ export function ScheduleCreateForm({
 
   const finalizeManualSave = async () => {
     await refresh();
-    setManuallyCreatedSchedule(null);
-    setManualName('');
-    setManualStartDate('');
-    setManualEndDate('');
-    setManualWeekType('A');
+    manualForm.reset();
     setCreationMode('tito');
     setArbZgDialogOpen(false);
     setArbZgWarnings([]);
@@ -252,9 +210,9 @@ export function ScheduleCreateForm({
   };
 
   const handleConfirmArbZg = async () => {
-    if (!manuallyCreatedSchedule || pendingShiftplans.length === 0) return;
+    if (!manualForm.manuallyCreatedSchedule || pendingShiftplans.length === 0) return;
     try {
-      await scheduleService.replaceAllShifts(Number(manuallyCreatedSchedule.id), pendingShiftplans);
+      await scheduleService.replaceAllShifts(Number(manualForm.manuallyCreatedSchedule.id), pendingShiftplans);
       finalizeManualSave();
     } catch {
       toast.error('Fehler beim Speichern des Schichtplans');
@@ -263,13 +221,13 @@ export function ScheduleCreateForm({
 
   const handleChangeStatus = async (schedule: ScheduleType, newStatus: string) => {
     const updated = { ...schedule, status: newStatus };
-    setManuallyCreatedSchedule(updated);
+    manualForm.setManuallyCreatedSchedule(updated);
     try {
       await scheduleService.updateSchedule(Number(schedule.id), { status: newStatus });
       toast.success('Status geändert');
     } catch {
       toast.error('Fehler beim Ändern des Status');
-      setManuallyCreatedSchedule(schedule);
+      manualForm.setManuallyCreatedSchedule(schedule);
     }
   };
 
@@ -404,36 +362,36 @@ export function ScheduleCreateForm({
   }
 
   // --- Manually created schedule editor ---
-  if (manuallyCreatedSchedule && !currentScheduleId) {
+  if (manualForm.manuallyCreatedSchedule && !currentScheduleId) {
     return (
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-start gap-3">
             <div className="flex items-center gap-3 flex-wrap">
-              <CardTitle>{manuallyCreatedSchedule.name}</CardTitle>
-              <StatusBadge status={manuallyCreatedSchedule.status} />
-              {manuallyCreatedSchedule.status === 'draft' && (
+              <CardTitle>{manualForm.manuallyCreatedSchedule.name}</CardTitle>
+              <StatusBadge status={manualForm.manuallyCreatedSchedule.status} />
+              {manualForm.manuallyCreatedSchedule.status === 'draft' && (
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => handleChangeStatus(manuallyCreatedSchedule, 'review')}
+                  onClick={() => handleChangeStatus(manualForm.manuallyCreatedSchedule!, 'review')}
                 >
                   In Prüfung geben
                 </Button>
               )}
-              {manuallyCreatedSchedule.status === 'review' && (
+              {manualForm.manuallyCreatedSchedule.status === 'review' && (
                 <>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleChangeStatus(manuallyCreatedSchedule, 'draft')}
+                    onClick={() => handleChangeStatus(manualForm.manuallyCreatedSchedule!, 'draft')}
                   >
                     Bearbeiten
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleChangeStatus(manuallyCreatedSchedule, 'completed')}
+                    onClick={() => handleChangeStatus(manualForm.manuallyCreatedSchedule!, 'completed')}
                   >
                     Abschließen
                   </Button>
@@ -444,11 +402,7 @@ export function ScheduleCreateForm({
               variant="ghost"
               size="sm"
               onClick={() => {
-                setManuallyCreatedSchedule(null);
-                setManualName('');
-                setManualStartDate('');
-                setManualEndDate('');
-                setManualWeekType('A');
+                manualForm.reset();
               }}
             >
               <X className="h-4 w-4 mr-1" />
@@ -457,18 +411,18 @@ export function ScheduleCreateForm({
           </div>
         </CardHeader>
         <CardContent>
-          {manuallyCreatedSchedule.status === 'draft' ? (
+          {manualForm.manuallyCreatedSchedule.status === 'draft' ? (
             <EditableScheduleCalendar
-              schedule={manuallyCreatedSchedule}
+              schedule={manualForm.manuallyCreatedSchedule}
               currentWeek={currentWeek}
-              onUpdateSchedule={(updated) => setManuallyCreatedSchedule(updated)}
+              onUpdateSchedule={(updated) => manualForm.setManuallyCreatedSchedule(updated)}
               onSaveShifts={handleManualSave}
             />
           ) : (
             <ScheduleCalendar
-              shifts={manuallyCreatedSchedule.shifts}
-              startDate={manuallyCreatedSchedule.startDate}
-              endDate={manuallyCreatedSchedule.endDate}
+              shifts={manualForm.manuallyCreatedSchedule.shifts}
+              startDate={manualForm.manuallyCreatedSchedule.startDate}
+              endDate={manualForm.manuallyCreatedSchedule.endDate}
               currentWeek={currentWeek}
             />
           )}
@@ -506,156 +460,30 @@ export function ScheduleCreateForm({
           <CardHeader>
             <CardTitle>Schichtplan-Einstellungen</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="scheduleName">Plan-Name</Label>
-              <Input
-                id="scheduleName"
-                value={scheduleName}
-                onChange={(e) => setScheduleName(e.target.value)}
-                placeholder="z.B. April 2026"
-                disabled={submitting}
-                maxLength={100}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="startDate">Startdatum</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  disabled={submitting}
-                />
-              </div>
-              <div>
-                <Label htmlFor="endDate">Enddatum</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  disabled={submitting}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Schicht-Templates</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addShiftTemplate}
-                  disabled={submitting}
-                >
-                  <Calendar className="h-4 w-4 mr-1" />
-                  Schicht hinzufügen
-                </Button>
-              </div>
-
-              {shiftTemplates.length === 0 && (
-                <p className="text-sm text-gray-500">
-                  Keine Schichten definiert. Klicken Sie auf "Schicht hinzufügen", um eine zu erstellen.
-                </p>
-              )}
-
-              <div className="space-y-3">
-                {shiftTemplates.map((st, index) => (
-                  <div key={st.id} className="border rounded-lg p-4 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                      <div>
-                        <Label className="text-xs">Name</Label>
-                        <Input
-                          value={st.name}
-                          onChange={(e) => updateShiftTemplate(index, 'name', e.target.value)}
-                          placeholder="z.B. Frühschicht"
-                          disabled={submitting}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Startzeit</Label>
-                        <Input
-                          type="time"
-                          value={st.startTime}
-                          onChange={(e) => updateShiftTemplate(index, 'startTime', e.target.value)}
-                          disabled={submitting}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Endzeit</Label>
-                        <Input
-                          type="time"
-                          value={st.endTime}
-                          onChange={(e) => updateShiftTemplate(index, 'endTime', e.target.value)}
-                          disabled={submitting}
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeShiftTemplate(index)}
-                          disabled={submitting}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label className="text-xs">Rollen-Anforderungen pro Tag</Label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
-                        {roles.map(role => (
-                          <div key={role.id} className="flex items-center gap-2">
-                            <div
-                              className="w-2 h-2 rounded-full shrink-0"
-                              style={{ backgroundColor: role.color }}
-                            />
-                            <span className="text-xs truncate">{role.name}</span>
-                            <Input
-                              type="number"
-                              min="0"
-                              max="999"
-                              value={st.requirements[role.id] || 0}
-                              onChange={(e) => updateRequirement(index, role.id, Math.min(999, Math.max(0, parseInt(e.target.value) || 0)))}
-                              className="w-16 h-8 text-xs"
-                              disabled={submitting}
-                            />
-                          </div>
-                        ))}
-                        {roles.length === 0 && (
-                          <p className="text-xs text-gray-500 col-span-full">
-                            Keine Rollen vorhanden. Erstellen Sie zuerst Rollen.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="titoWeekType">Wochen-Typ</Label>
-              <select
-                id="titoWeekType"
-                className="w-full border rounded-md px-3 py-2"
-                value={titoWeekType}
-                onChange={(e) => setTitoWeekType(e.target.value as WeekType | '')}
-                disabled={submitting}
-              >
-                <option value="A">Nur Woche A</option>
-                <option value="B">Nur Woche B</option>
-                <option value="">Beide (A & B)</option>
-              </select>
-            </div>
-
-            <Button onClick={createAndSubmit} disabled={submitting || loading} className="w-full">
+          <CardContent>
+            <TitoScheduleForm
+              roles={roles}
+              shiftTemplates={titoForm.shiftTemplates}
+              titoWeekType={titoForm.titoWeekType}
+              setTitoWeekType={titoForm.setTitoWeekType}
+              addShiftTemplate={titoForm.addShiftTemplate}
+              removeShiftTemplate={titoForm.removeShiftTemplate}
+              updateShiftTemplate={titoForm.updateShiftTemplate}
+              updateRequirement={titoForm.updateRequirement}
+              scheduleName={titoForm.scheduleName}
+              setScheduleName={titoForm.setScheduleName}
+              startDate={titoForm.startDate}
+              setStartDate={titoForm.setStartDate}
+              endDate={titoForm.endDate}
+              setEndDate={titoForm.setEndDate}
+              creating={loading}
+              submitting={submitting}
+            />
+            <Button
+              onClick={createAndSubmit}
+              disabled={submitting || loading}
+              className="w-full mt-4"
+            >
               {submitting ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Wird erstellt...</>
               ) : (
@@ -671,68 +499,33 @@ export function ScheduleCreateForm({
           <CardHeader>
             <CardTitle>Manuelle Schichtplan-Erstellung</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="manualName">Plan-Name</Label>
-              <Input
-                id="manualName"
-                value={manualName}
-                onChange={(e) => setManualName(e.target.value)}
-                placeholder="z.B. April 2026 (manuell)"
-                maxLength={100}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="manualStartDate">Startdatum</Label>
-                <Input
-                  id="manualStartDate"
-                  type="date"
-                  value={manualStartDate}
-                  onChange={(e) => setManualStartDate(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="manualEndDate">Enddatum</Label>
-                <Input
-                  id="manualEndDate"
-                  type="date"
-                  value={manualEndDate}
-                  onChange={(e) => setManualEndDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="manualWeekType">Wochen-Typ</Label>
-              <select
-                id="manualWeekType"
-                className="w-full border rounded-md px-3 py-2"
-                value={manualWeekType}
-                onChange={(e) => setManualWeekType(e.target.value as WeekType | '')}
-              >
-                <option value="A">Nur Woche A</option>
-                <option value="B">Nur Woche B</option>
-                <option value="">Beide (A & B)</option>
-              </select>
-            </div>
-
-            <Button onClick={createManual} className="w-full">
-              <Pen className="h-4 w-4 mr-2" />
-              Schichtplan manuell erstellen
-            </Button>
+          <CardContent>
+            <ManualScheduleForm
+              manualName={manualForm.manualName}
+              setManualName={manualForm.setManualName}
+              manualStartDate={manualForm.manualStartDate}
+              setManualStartDate={manualForm.setManualStartDate}
+              manualEndDate={manualForm.manualEndDate}
+              setManualEndDate={manualForm.setManualEndDate}
+              manualWeekType={manualForm.manualWeekType}
+              setManualWeekType={manualForm.setManualWeekType}
+              manuallyCreatedSchedule={manualForm.manuallyCreatedSchedule}
+              submitting={submitting}
+              creating={loading}
+              onSubmit={createManual}
+              onReset={() => manualForm.reset()}
+            />
           </CardContent>
         </Card>
       )}
 
-      {!currentScheduleId && !submitting && !manuallyCreatedSchedule && creationMode === 'tito' && (
+      {!currentScheduleId && !submitting && !manualForm.manuallyCreatedSchedule && creationMode === 'tito' && (
         <Card>
           <CardContent className="py-12 text-center">
             <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-4" />
             <p className="text-gray-600 mb-2">Noch kein Schichtplan erstellt</p>
             <p className="text-sm text-gray-500">
-              Geben Sie die Einstellungen ein und klicken Sie auf "Schichtplan erstellen & an TiTO senden"
+              Geben Sie die Einstellungen ein und klicken Sie auf &quot;Schichtplan erstellen &amp; an TiTO senden&quot;
             </p>
           </CardContent>
         </Card>
