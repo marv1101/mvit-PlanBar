@@ -200,6 +200,77 @@ def planer_auth_headers(client, db_session, auth_headers, planner_team):
 
 
 @pytest.fixture
+def planer_employee_id(db_session):
+    """Return the employee_id of the planer user."""
+    from app.db.models.user import User
+
+    user = db_session.query(User).filter(User.email == "planer@test.com").first()
+    return user.employee_id if user else None
+
+
+@pytest.fixture
+def planer_auth_headers_legacy_link(client, db_session, auth_headers, planner_team):
+    """Auth headers for a 'planer' user linked to an employee ONLY via the
+    reverse FK (employee.user_id set, user.employee_id left NULL).
+
+    Mirrors legacy/one-sided data (e.g. dev DB 'testuser') that previously
+    broke planer team-scope because team resolution only read user.employee_id.
+    """
+    from app.db.models.employee import Employee
+    from app.db.models.team import Team
+    from app.db.models.user import User
+
+    register_data = {
+        "username": "testplanerlegacy",
+        "email": "planerlegacy@test.com",
+        "password": "TestPass@123",
+    }
+    client.post("/api/v1/users", json=register_data)
+
+    emp_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Legacy", "last_name": "Planer"},
+        headers=auth_headers,
+    )
+    emp_id = emp_resp.json()["id"]
+
+    user = db_session.query(User).filter(User.email == "planerlegacy@test.com").first()
+    user.role = "planer"
+    assert user.employee_id is None
+    db_session.add(user)
+    db_session.commit()
+
+    # Only the reverse link is set: employee.user_id -> user, user.employee_id stays NULL.
+    emp = db_session.query(Employee).filter(Employee.id == emp_id).first()
+    emp.user_id = user.id
+    team = db_session.query(Team).filter(Team.id == planner_team).first()
+    emp.teams.append(team)
+    db_session.add(emp)
+    db_session.commit()
+
+    login_response = client.post(
+        "/api/v1/users/login",
+        json={"email": "planerlegacy@test.com", "password": "TestPass@123"},
+    )
+    token = login_response.json()["access_token"]
+    client.cookies.clear()
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def planer_legacy_employee_id(db_session):
+    """Return the employee_id of the legacy-link planer user."""
+    from app.db.models.employee import Employee
+    from app.db.models.user import User
+
+    user = db_session.query(User).filter(User.email == "planerlegacy@test.com").first()
+    if not user:
+        return None
+    emp = db_session.query(Employee).filter(Employee.user_id == user.id).first()
+    return emp.id if emp else None
+
+
+@pytest.fixture
 def planner_team(client, auth_headers, db_session):
     """Create (or reuse) a team that the planer user is assigned to. Returns the team id."""
     name = "PlanerTeam"

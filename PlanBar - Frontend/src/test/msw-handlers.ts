@@ -36,13 +36,13 @@ const base = '/api/v1'
 let nextId = 100
 
 const mockUsers: UserResponseDTO[] = [
-  { id: 1, username: 'admin', email: 'admin@planbar.test', role: 'admin', must_change_password: false, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-06-01T00:00:00Z', last_login: '2026-06-19T08:00:00Z' },
-  { id: 2, username: 'mmueller', email: 'max@example.com', role: 'user', must_change_password: false, created_at: '2026-01-15T00:00:00Z', updated_at: '2026-05-20T00:00:00Z', last_login: '2026-06-18T07:30:00Z' },
+  { id: 1, username: 'admin', email: 'admin@planbar.test', role: 'admin', must_change_password: false, employee_id: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-06-01T00:00:00Z', last_login: '2026-06-19T08:00:00Z' },
+  { id: 2, username: 'mmueller', email: 'max@example.com', role: 'user', must_change_password: false, employee_id: 1, created_at: '2026-01-15T00:00:00Z', updated_at: '2026-05-20T00:00:00Z', last_login: '2026-06-18T07:30:00Z' },
 ]
 
 const mockEmployees: EmployeeResponseDTO[] = [
-  { id: 1, first_name: 'Max', last_name: 'Müller', email: 'max@example.com', color: '#3b82f6', working_hours_json: null, break_start: '12:00', break_end: '13:00', max_work_hours: 40, user_id: 2, role_ids: [1], created_at: '2026-01-15T00:00:00Z', updated_at: '2026-05-20T00:00:00Z' },
-  { id: 2, first_name: 'Anna', last_name: 'Schmidt', email: 'anna@example.com', color: '#ef4444', working_hours_json: null, break_start: '12:00', break_end: '12:30', max_work_hours: 40, user_id: null, role_ids: [2], created_at: '2026-02-01T00:00:00Z', updated_at: '2026-05-10T00:00:00Z' },
+  { id: 1, first_name: 'Max', last_name: 'Müller', email: 'max@example.com', color: '#3b82f6', working_hours_json: null, break_start: '12:00', break_end: '13:00', max_work_hours: 40, user_id: 2, role_ids: [1], team_ids: [], created_at: '2026-01-15T00:00:00Z', updated_at: '2026-05-20T00:00:00Z' },
+  { id: 2, first_name: 'Anna', last_name: 'Schmidt', email: 'anna@example.com', color: '#ef4444', working_hours_json: null, break_start: '12:00', break_end: '12:30', max_work_hours: 40, user_id: null, role_ids: [2], team_ids: [], created_at: '2026-02-01T00:00:00Z', updated_at: '2026-05-10T00:00:00Z' },
 ]
 
 const mockRoles: RoleResponseDTO[] = [
@@ -164,6 +164,7 @@ export const handlers = [
     const newUser: AdminUserCreateResponseDTO = {
       id, username: body.username, email: body.email, role: body.role,
       must_change_password: true,
+      employee_id: body.employee_id ?? null,
       created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       last_login: null, initial_password: 'geheim123',
     }
@@ -214,6 +215,7 @@ export const handlers = [
       max_work_hours: (body.max_work_hours as number) ?? null,
       user_id: null,
       role_ids: (body.role_ids as number[]) ?? [],
+      team_ids: (body.team_ids as number[]) ?? [],
       created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     }
     mockEmployees.push(emp)

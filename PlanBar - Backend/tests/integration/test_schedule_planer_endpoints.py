@@ -49,12 +49,12 @@ def _login(client, email):
     raise NotImplementedError("Use planer_auth_headers fixture instead.")
 
 
-def test_planer_can_create_schedule_own_team(client, auth_headers, db_session, planner_team, planer_auth_headers):
+def test_planer_can_create_schedule_own_team(client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id):
     emp_id = _create_employee(client, auth_headers, db_session, "Own", "Plan")
     # Link this employee to the planner_team via API endpoint
     client.post(
         f"/api/v1/teams/{planner_team}/employees",
-        json={"employee_ids": [emp_id]},
+        json={"employee_ids": [planer_employee_id, emp_id]},
         headers=auth_headers,
     )
 
@@ -115,11 +115,11 @@ def test_employee_cannot_create_schedule(client, employee_auth_headers):
     assert response.status_code == 403
 
 
-def test_planer_can_update_own_schedule(client, auth_headers, db_session, planner_team, planer_auth_headers):
+def test_planer_can_update_own_schedule(client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id):
     emp_id = _create_employee(client, auth_headers, db_session, "Upd", "Emp")
     client.post(
         f"/api/v1/teams/{planner_team}/employees",
-        json={"employee_ids": [emp_id]},
+        json={"employee_ids": [planer_employee_id, emp_id]},
         headers=auth_headers,
     )
 
@@ -178,11 +178,11 @@ def test_planer_cannot_update_foreign_schedule(client, auth_headers, db_session,
     assert response.status_code == 403
 
 
-def test_planer_can_list_only_own_team_schedules(client, auth_headers, db_session, planner_team, planer_auth_headers):
+def test_planer_can_list_only_own_team_schedules(client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id):
     own_emp_id = _create_employee(client, auth_headers, db_session, "ListOwn", "Emp")
     client.post(
         f"/api/v1/teams/{planner_team}/employees",
-        json={"employee_ids": [own_emp_id]},
+        json={"employee_ids": [planer_employee_id, own_emp_id]},
         headers=auth_headers,
     )
     foreign_emp_id = _create_employee(client, auth_headers, db_session, "ListForeign", "Emp")
@@ -229,11 +229,11 @@ def test_planer_can_list_only_own_team_schedules(client, auth_headers, db_sessio
     assert "HiddenFromPlaner" not in names
 
 
-def test_planer_can_delete_own_schedule(client, auth_headers, db_session, planner_team, planer_auth_headers):
+def test_planer_can_delete_own_schedule(client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id):
     emp_id = _create_employee(client, auth_headers, db_session, "Del", "Emp")
     client.post(
         f"/api/v1/teams/{planner_team}/employees",
-        json={"employee_ids": [emp_id]},
+        json={"employee_ids": [planer_employee_id, emp_id]},
         headers=auth_headers,
     )
     create_resp = client.post(

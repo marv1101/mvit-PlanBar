@@ -71,7 +71,7 @@ def list_my_teams_endpoint(
     return teams
 
 
-@router.get("/{team_id}", response_model=TeamResponse)
+@router.get("/{team_id}", response_model=TeamWithEmployeesResponse)
 def get_team_endpoint(
     team_id: int,
     db: Session = Depends(get_db),
@@ -86,7 +86,7 @@ def get_team_endpoint(
         from fastapi import HTTPException
 
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    return team
+    return _team_with_employees(team)
 
 
 @router.put("/{team_id}", response_model=TeamResponse)

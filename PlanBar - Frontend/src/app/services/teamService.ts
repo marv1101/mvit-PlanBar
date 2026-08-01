@@ -41,12 +41,12 @@ export async function deleteTeam(id: number): Promise<void> {
   await api.delete(`/teams/${id}`);
 }
 
-export async function assignTeamEmployees(id: number, dto: TeamAssignmentDTO): Promise<Team> {
+export async function assignTeamEmployees(id: number, dto: TeamAssignmentDTO): Promise<Team & { employee_ids: number[] }> {
   const { data } = await api.post(`/teams/${id}/employees`, dto);
   return data;
 }
 
-export async function getTeam(id: number): Promise<Team> {
+export async function getTeam(id: number): Promise<Team & { employee_ids: number[] }> {
   const { data } = await api.get(`/teams/${id}`);
   return data;
 }

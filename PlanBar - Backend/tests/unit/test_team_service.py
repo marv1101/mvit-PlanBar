@@ -166,3 +166,78 @@ def test_team_service_employee_team_ids(db_session):
 
     ids = team_service.get_team_ids_for_employee(db_session, emp.id)
     assert ids == [team.id]
+
+
+def test_get_teams_for_user_falls_back_to_employee_user_id(db_session):
+    """Legacy/one-sided links (only employee.user_id set) must resolve the teams.
+
+    Regression: planners whose user.employee_id is NULL but whose Employee
+    row has user_id set were treated as having no teams, breaking planning.
+    """
+    team = team_service.create_team(db_session, TeamCreate(name=_unique_name("LegacyTeam")))
+    user = User(
+        username=_unique_name("legacy_planer"),
+        email=f"{_unique_name('legacy').lower()}@example.com",
+        password_hash="x",
+        role="planer",
+        employee_id=None,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    emp = Employee(first_name="Legacy", last_name="Planer", user_id=user.id)
+    db_session.add(emp)
+    db_session.commit()
+    emp.teams.append(team)
+    db_session.commit()
+
+    assert user.employee_id is None
+    assert [t.id for t in team_service.get_teams_for_user(db_session, user)] == [team.id]
+    assert team_service.get_team_ids_for_user(db_session, user) == [team.id]
+
+
+def test_get_teams_for_user_prefers_canonical_employee_id(db_session):
+    """When both FK directions point at different employees, user.employee_id wins."""
+    canonical = team_service.create_team(db_session, TeamCreate(name=_unique_name("Canonical")))
+    other = team_service.create_team(db_session, TeamCreate(name=_unique_name("ReverseOnly")))
+    canonical_emp = Employee(first_name="Canonical", last_name="Emp")
+    reverse_emp = Employee(first_name="Reverse", last_name="Emp")
+    db_session.add_all([canonical_emp, reverse_emp])
+    db_session.commit()
+    canonical_emp.teams.append(canonical)
+    reverse_emp.teams.append(other)
+    db_session.commit()
+
+    user = User(
+        username=_unique_name("dual_link_user"),
+        email=f"{_unique_name('dual').lower()}@example.com",
+        password_hash="x",
+        role="planer",
+        employee_id=canonical_emp.id,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    reverse_emp.user_id = user.id
+    db_session.commit()
+
+    assert [t.id for t in team_service.get_teams_for_user(db_session, user)] == [canonical.id]
+    assert team_service.get_team_ids_for_user(db_session, user) == [canonical.id]
+
+
+def test_get_teams_for_user_no_employee_returns_empty(db_session):
+    """A planer without any link to an employee still gets no teams (no crash)."""
+    user = User(
+        username=_unique_name("unlinked_planer"),
+        email=f"{_unique_name('unlinked').lower()}@example.com",
+        password_hash="x",
+        role="planer",
+        employee_id=None,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    assert team_service.get_teams_for_user(db_session, user) == []
+    assert team_service.get_team_ids_for_user(db_session, user) == []

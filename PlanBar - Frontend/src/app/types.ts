@@ -136,6 +136,7 @@ export interface Team {
   name: string;
   color?: string;
   description?: string;
+  employee_ids?: number[];
   created_at: string;
   updated_at: string;
 }

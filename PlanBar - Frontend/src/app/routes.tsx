@@ -37,6 +37,14 @@ export const router = createBrowserRouter([
         element: <LazyPage><Home /></LazyPage>,
       },
       {
+        path: 'dashboard',
+        element: (
+          <ProtectedRoute allowedRoles={['admin']}>
+            <LazyPage><Dashboard /></LazyPage>
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: 'roles',
         element: (
           <ProtectedRoute allowedRoles={['admin']}>
@@ -57,14 +65,6 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['admin', 'planer']}>
             <LazyPage><Employees /></LazyPage>
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: 'roles',
-        element: (
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPage><Roles /></LazyPage>
           </ProtectedRoute>
         ),
       },

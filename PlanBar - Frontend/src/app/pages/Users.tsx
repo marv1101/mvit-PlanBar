@@ -288,7 +288,7 @@ function UserEditForm({ user, allTeams, allEmployees, onSuccess }: UserEditFormP
         username,
         email,
         role,
-        employee_id: employeeId !== 'none' ? Number(employeeId) : null,
+        employee_id: employeeId !== 'none' ? Number(employeeId) : 0,
         team_ids: role === 'planer' && employeeId !== 'none' ? teamIds : null,
       });
       toast.success('Benutzer aktualisiert');
@@ -369,8 +369,8 @@ function UserEditForm({ user, allTeams, allEmployees, onSuccess }: UserEditFormP
               >
                 <input
                   type="checkbox"
-                  checked={teamIds.includes(team.id)}
-                  onChange={() => handleTeamToggle(team.id)}
+                  checked={teamIds.includes(Number(team.id))}
+                  onChange={() => handleTeamToggle(Number(team.id))}
                   className="rounded border-gray-300"
                 />
                 <span className="text-sm flex items-center gap-2">
@@ -583,8 +583,8 @@ function UserCreateForm({ onSuccess, allEmployees }: UserCreateFormProps) {
               >
                 <input
                   type="checkbox"
-                  checked={teamIds.includes(team.id)}
-                  onChange={() => handleTeamToggle(team.id)}
+                  checked={teamIds.includes(Number(team.id))}
+                  onChange={() => handleTeamToggle(Number(team.id))}
                   className="rounded border-gray-300"
                 />
                 <span className="text-sm flex items-center gap-2">

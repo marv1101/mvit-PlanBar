@@ -71,16 +71,20 @@ def delete_team(db: Session, team_id: int, actor_id: int | None = None) -> None:
 
 
 def assign_employees(db: Session, team_id: int, employee_ids: list[int], actor_id: int | None = None) -> Team:
-    """Add employees to a team (additive; existing members are kept).
-
-    Use ``remove_employees`` to drop members.
-    """
+    """Replace the employees on a team with the given set of employee ids."""
     team = get_team(db, team_id)
-    existing_ids = {e.id for e in team.employees}
-    new_ids = {i for i in employee_ids if i not in existing_ids}
-    if new_ids:
-        new_emps = db.query(Employee).filter(Employee.id.in_(new_ids)).all()
+    current_ids = {e.id for e in team.employees}
+    target_ids = set(employee_ids)
+
+    to_add = target_ids - current_ids
+    to_remove = current_ids - target_ids
+
+    if to_add:
+        new_emps = db.query(Employee).filter(Employee.id.in_(to_add)).all()
         team.employees.extend(new_emps)
+    if to_remove:
+        team.employees = [e for e in team.employees if e.id not in to_remove]
+
     db.add(team)
     db.commit()
     db.refresh(team)
@@ -89,7 +93,7 @@ def assign_employees(db: Session, team_id: int, employee_ids: list[int], actor_i
         user_id=actor_id,
         resource_type="team",
         resource_id=str(team.id),
-        details=f"add_employees ids={sorted(employee_ids)}",
+        details=f"set_employees ids={sorted(employee_ids)}",
     )
     return team
 
@@ -120,6 +124,20 @@ def get_team_ids_for_employee(db: Session, employee_id: int | None) -> list[int]
     return [t.id for t in emp.teams]
 
 
+def get_employee_for_user(db: Session, user) -> Employee | None:
+    """Resolve the employee linked to a user.
+
+    Prefers the canonical ``user.employee_id`` but falls back to the
+    employee whose ``user_id`` references the user, so one-sided/legacy
+    links (e.g. only ``employee.user_id`` set) still resolve correctly.
+    """
+    if user.employee_id:
+        emp = db.query(Employee).filter(Employee.id == user.employee_id).first()
+        if emp:
+            return emp
+    return db.query(Employee).filter(Employee.user_id == user.id).first()
+
+
 def get_teams_for_user(db: Session, user) -> list[Team]:
     """Return the teams the given user may operate on.
 
@@ -129,10 +147,7 @@ def get_teams_for_user(db: Session, user) -> list[Team]:
     if user.role == "admin":
         return []
 
-    if not user.employee_id:
-        return []
-
-    emp = db.query(Employee).filter(Employee.id == user.employee_id).first()
+    emp = get_employee_for_user(db, user)
     if not emp:
         return []
     return list(emp.teams)
@@ -142,7 +157,10 @@ def get_team_ids_for_user(db: Session, user) -> list[int]:
     """Return team ids the user can operate on, or [] meaning 'no restriction' (admin) or 'no teams'."""
     if user.role == "admin":
         return []  # admin filter operates elsewhere
-    return get_team_ids_for_employee(db, user.employee_id)
+    emp = get_employee_for_user(db, user)
+    if not emp:
+        return []
+    return [t.id for t in emp.teams]
 
 
 def is_team_restricted(user) -> bool:

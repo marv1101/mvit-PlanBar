@@ -32,4 +32,5 @@ class User(Base):
         foreign_keys=[employee_id],
         backref=backref("user_link", uselist=False),
         lazy="selectin",
+        post_update=True,
     )

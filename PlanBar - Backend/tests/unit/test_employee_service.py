@@ -103,6 +103,57 @@ def test_update_employee_partial(db_session):
     assert updated.last_name == "Update"
 
 
+def test_create_employee_syncs_user_employee_id(db_session):
+    from app.db.models.user import User
+
+    user = User(username="empuser1", email="empuser1@example.com", password_hash="x")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    emp = create_employee(db_session, EmployeeCreate(first_name="Sync", last_name="Create", user_id=user.id))
+    db_session.refresh(user)
+
+    assert emp.user_id == user.id
+    assert user.employee_id == emp.id
+
+
+def test_update_employee_syncs_user_employee_id(db_session):
+    from app.db.models.user import User
+
+    user = User(username="empuser2", email="empuser2@example.com", password_hash="x")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    emp = create_employee(db_session, EmployeeCreate(first_name="Sync", last_name="Update"))
+    updated = update_employee(db_session, emp, EmployeeUpdate(user_id=user.id))
+    db_session.refresh(user)
+
+    assert updated.user_id == user.id
+    assert user.employee_id == emp.id
+
+
+def test_update_employee_switching_user_unlinks_old(db_session):
+    from app.db.models.user import User
+
+    user_a = User(username="empuserA", email="empuserA@example.com", password_hash="x")
+    user_b = User(username="empuserB", email="empuserB@example.com", password_hash="x")
+    db_session.add_all([user_a, user_b])
+    db_session.commit()
+
+    emp = create_employee(db_session, EmployeeCreate(first_name="Switch", last_name="User"))
+    update_employee(db_session, emp, EmployeeUpdate(user_id=user_a.id))
+    db_session.refresh(user_a)
+    assert user_a.employee_id == emp.id
+
+    update_employee(db_session, emp, EmployeeUpdate(user_id=user_b.id))
+    db_session.refresh(user_a)
+    db_session.refresh(user_b)
+    assert user_a.employee_id is None
+    assert user_b.employee_id == emp.id
+
+
 def test_delete_employee_cascades(db_session):
     emp = create_employee(db_session, EmployeeCreate(first_name="Del", last_name="Ete"))
     contract = create_contract(

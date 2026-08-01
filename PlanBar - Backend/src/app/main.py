@@ -90,6 +90,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestSizeLimitMiddleware, max_size=10 * 1024 * 1024)
     app.include_router(api_router, prefix="/api/v1")
     run_database_setup()
+    _repair_one_sided_user_employee_links()
     seed_initial_users()
     app.add_exception_handler(StarletteHTTPException, http_error_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -104,6 +105,25 @@ def run_database_setup() -> None:
     except Exception:  # noqa: BLE001
         logger.warning("Alembic migration failed, falling back to create_all")
         Base.metadata.create_all(bind=engine)
+
+
+def _repair_one_sided_user_employee_links() -> None:
+    """Backfill users.employee_id from employees.user_id (idempotent).
+
+    Legacy data only set the reverse FK (employees.user_id), leaving
+    users.employee_id NULL, which broke planer team-scope. Runs on every
+    startup regardless of whether alembic migrations apply.
+    """
+    try:
+        db = SessionLocal()
+        from app.services.user_service import backfill_user_employee_ids
+
+        repaired = backfill_user_employee_ids(db)
+        if repaired:
+            logger.info("Backfilled users.employee_id for %s user(s) from employee.user_id", repaired)
+        db.close()
+    except Exception:  # noqa: BLE001
+        logger.warning("Failed to backfill one-sided user/employee links", exc_info=True)
 
 
 def _generate_complex_password() -> str:

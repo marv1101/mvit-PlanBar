@@ -36,13 +36,13 @@ def _create_shift_for_employee(client, auth_headers, emp_id):
 
 
 def test_planer_cannot_approve_swap_with_foreign_employee(
-    client, auth_headers, planer_auth_headers, planner_team, db_session
+    client, auth_headers, planer_auth_headers, planner_team, db_session, planer_employee_id
 ):
     emp1 = _create_employee(client, auth_headers, "Own", "Swap")
     foreign = _create_employee(client, auth_headers, "Foreign", "Swap")
     client.post(
         f"/api/v1/teams/{planner_team}/employees",
-        json={"employee_ids": [emp1]},
+        json={"employee_ids": [planer_employee_id, emp1]},
         headers=auth_headers,
     )
 
@@ -67,13 +67,13 @@ def test_planer_cannot_approve_swap_with_foreign_employee(
 
 
 def test_planer_can_approve_swap_with_team_members(
-    client, auth_headers, planer_auth_headers, planner_team, db_session
+    client, auth_headers, planer_auth_headers, planner_team, db_session, planer_employee_id
 ):
     emp1 = _create_employee(client, auth_headers, "Own1", "Swap")
     emp2 = _create_employee(client, auth_headers, "Own2", "Swap")
     client.post(
         f"/api/v1/teams/{planner_team}/employees",
-        json={"employee_ids": [emp1, emp2]},
+        json={"employee_ids": [planer_employee_id, emp1, emp2]},
         headers=auth_headers,
     )
 

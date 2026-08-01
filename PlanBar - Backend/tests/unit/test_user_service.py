@@ -2,7 +2,9 @@ import pytest
 from app.core.auth import verify_password
 from app.db.base import Base
 from app.db.models.employee import Employee
+from app.db.models.team import Team
 from app.schemas.user import AdminUserCreate, UserCreate, UserUpdate
+from app.services import team_service
 from app.services.user_service import (
     admin_create_user,
     authenticate_user,
@@ -152,3 +154,114 @@ def test_admin_create_user_with_employee(db_session):
     user, _password = admin_create_user(db_session, admin_in)
     db_session.refresh(employee)
     assert employee.user_id == user.id
+
+
+def test_admin_create_user_sets_employee_link_and_teams(db_session):
+    team = Team(name="PlanerTeam", color="#123456")
+    db_session.add(team)
+    db_session.commit()
+    db_session.refresh(team)
+    employee = Employee(first_name="Plan", last_name="Er")
+    db_session.add(employee)
+    db_session.commit()
+    db_session.refresh(employee)
+
+    admin_in = AdminUserCreate(
+        username="planerteam",
+        email="planerteam@example.com",
+        role="planer",
+        employee_id=employee.id,
+        team_ids=[team.id],
+    )
+    user, _password = admin_create_user(db_session, admin_in)
+    db_session.refresh(employee)
+
+    assert user.employee_id == employee.id
+    assert employee.user_id == user.id
+    assert [t.id for t in employee.teams] == [team.id]
+    assert [t.id for t in team_service.get_teams_for_user(db_session, user)] == [team.id]
+
+
+def test_update_user_links_employee_and_sets_teams(db_session):
+    team = Team(name="LinkTeam")
+    db_session.add(team)
+    db_session.commit()
+    db_session.refresh(team)
+    employee = Employee(first_name="Link", last_name="User")
+    db_session.add(employee)
+    db_session.commit()
+    db_session.refresh(employee)
+
+    user = create_user(db_session, UserCreate(username="linkuser", email="link@example.com", password="Password@123"))
+    updated = update_user(db_session, user, UserUpdate(employee_id=employee.id, team_ids=[team.id]))
+    db_session.refresh(employee)
+
+    assert updated.employee_id == employee.id
+    assert employee.user_id == user.id
+    assert [t.id for t in employee.teams] == [team.id]
+    assert [t.id for t in team_service.get_teams_for_user(db_session, user)] == [team.id]
+
+
+def test_update_user_replaces_teams(db_session):
+    team_a = Team(name="TeamA")
+    team_b = Team(name="TeamB")
+    db_session.add_all([team_a, team_b])
+    db_session.commit()
+    db_session.refresh(team_a)
+    db_session.refresh(team_b)
+    employee = Employee(first_name="Replace", last_name="Teams")
+    db_session.add(employee)
+    db_session.commit()
+    db_session.refresh(employee)
+
+    user = create_user(
+        db_session, UserCreate(username="teamuser", email="teamuser@example.com", password="Password@123")
+    )
+    update_user(db_session, user, UserUpdate(employee_id=employee.id, team_ids=[team_a.id]))
+    db_session.refresh(employee)
+    assert [t.id for t in employee.teams] == [team_a.id]
+
+    update_user(db_session, user, UserUpdate(team_ids=[team_b.id]))
+    db_session.refresh(employee)
+    assert [t.id for t in employee.teams] == [team_b.id]
+
+
+def test_update_user_unlinks_employee(db_session):
+    employee = Employee(first_name="Unlink", last_name="User")
+    db_session.add(employee)
+    db_session.commit()
+    db_session.refresh(employee)
+
+    user = create_user(
+        db_session, UserCreate(username="unlinkuser", email="unlink@example.com", password="Password@123")
+    )
+    update_user(db_session, user, UserUpdate(employee_id=employee.id))
+    db_session.refresh(employee)
+    assert user.employee_id == employee.id
+    assert employee.user_id == user.id
+
+    updated = update_user(db_session, user, UserUpdate(employee_id=0))
+    db_session.refresh(employee)
+    assert updated.employee_id is None
+    assert employee.user_id is None
+
+
+def test_update_user_switching_employee_unlinks_old(db_session):
+    emp_a = Employee(first_name="Old", last_name="Employee")
+    emp_b = Employee(first_name="New", last_name="Employee")
+    db_session.add_all([emp_a, emp_b])
+    db_session.commit()
+    db_session.refresh(emp_a)
+    db_session.refresh(emp_b)
+
+    user = create_user(
+        db_session, UserCreate(username="switchuser", email="switch@example.com", password="Password@123")
+    )
+    update_user(db_session, user, UserUpdate(employee_id=emp_a.id))
+    update_user(db_session, user, UserUpdate(employee_id=emp_b.id))
+    db_session.refresh(emp_a)
+    db_session.refresh(emp_b)
+
+    assert user.employee_id == emp_b.id
+    assert emp_a.user_id is None
+    assert emp_b.user_id == user.id

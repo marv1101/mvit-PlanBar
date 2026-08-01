@@ -80,8 +80,8 @@ export function Teams() {
     setTeamToAssign(team);
     setAssignedEmployeeIds([]);
     try {
-      const data = await teamService.getTeam(Number(team.id));
-      setAssignedEmployeeIds((data as unknown as { employee_ids: number[] }).employee_ids ?? []);
+      const data: Team = await teamService.getTeam(Number(team.id));
+      setAssignedEmployeeIds(data.employee_ids ?? []);
     } catch {
       toast.error('Fehler beim Laden der Team-Mitglieder');
     }
