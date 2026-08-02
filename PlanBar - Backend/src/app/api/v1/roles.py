@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
-from app.core.versioning import ConflictError, add_cache_headers, compute_etag, detect_conflict
+from app.core.versioning import ConflictError, check_etag_conflict, set_etag_header, set_etag_response
 from app.db.models.user import User
 from app.dependencies import get_current_user, get_db, require_admin
 from app.schemas.pagination import PaginatedResponse, PaginationParams
@@ -43,14 +43,7 @@ def get_role(
     if not role:
         raise NotFoundException(detail="Role not found")
     if response is not None:
-        etag = compute_etag(
-            {
-                "name": role.name,
-                "color": role.color,
-                "updated_at": str(role.updated_at),
-            }
-        )
-        add_cache_headers(response, etag=etag, last_modified=role.updated_at)
+        set_etag_header(response, role, "name", "color")
     return role
 
 
@@ -66,15 +59,8 @@ def update_role(
     role = role_service.get_role_by_id(db, role_id)
     if not role:
         raise NotFoundException(detail="Role not found")
-    role_etag = compute_etag(
-        {
-            "name": role.name,
-            "color": role.color,
-            "updated_at": str(role.updated_at),
-        }
-    )
     try:
-        detect_conflict(role.updated_at, if_match, role_etag)
+        check_etag_conflict(role, if_match, "name", "color")
     except ConflictError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -82,14 +68,7 @@ def update_role(
         )
     updated = role_service.update_role(db, role_id, data)
     if response is not None:
-        new_etag = compute_etag(
-            {
-                "name": updated.name,
-                "color": updated.color,
-                "updated_at": str(updated.updated_at),
-            }
-        )
-        add_cache_headers(response, etag=new_etag)
+        set_etag_response(response, updated, "name", "color")
     return updated
 
 

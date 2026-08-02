@@ -1,5 +1,4 @@
 import api from '../lib/api';
-import { getStoredEtag, setStoredEtag } from '../lib/api';
 import type { PaginatedResponse, Team } from '../types';
 
 export interface TeamCreateDTO {
@@ -34,14 +33,8 @@ export async function createTeam(dto: TeamCreateDTO): Promise<Team> {
 }
 
 export async function updateTeam(id: number, dto: TeamUpdateDTO): Promise<Team> {
-  const url = `/teams/${id}`;
-  const headers: Record<string, string> = {};
-  const etag = getStoredEtag(url);
-  if (etag) headers['If-Match'] = etag;
-  const response = await api.put(url, dto, { headers });
-  const newEtag = response.headers['etag'];
-  if (newEtag) setStoredEtag(url, newEtag);
-  return response.data;
+  const { data } = await api.put(`/teams/${id}`, dto);
+  return data;
 }
 
 export async function deleteTeam(id: number): Promise<void> {
@@ -54,8 +47,6 @@ export async function assignTeamEmployees(id: number, dto: TeamAssignmentDTO): P
 }
 
 export async function getTeam(id: number): Promise<Team & { employee_ids: number[] }> {
-  const response = await api.get(`/teams/${id}`);
-  const etag = response.headers['etag'];
-  if (etag) setStoredEtag(`/teams/${id}`, etag);
-  return response.data;
+  const { data } = await api.get(`/teams/${id}`);
+  return data;
 }

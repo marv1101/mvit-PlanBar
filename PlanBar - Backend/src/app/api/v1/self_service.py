@@ -3,9 +3,8 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
 from app.db.models.availability import Availability
-from app.db.models.employee import Timecard
+from app.db.models.employee import Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
-from app.db.models.team import employee_teams
 from app.db.models.user import User
 from app.dependencies import get_current_user, get_db
 from app.schemas.availability import AvailabilityResponse, AvailabilityUpdate
@@ -81,16 +80,11 @@ def get_my_team_schedule(
             detail="User is not assigned to any team",
         )
 
-    shiftplans = (
-        db.query(Shiftplan)
-        .join(employee_teams, employee_teams.c.employee_id == Shiftplan.employee_id)
-        .filter(
-            Shiftplan.schedule_id == schedule_id,
-            employee_teams.c.team_id.in_(team_ids),
-        )
-        .order_by(Shiftplan.date.asc())
-        .all()
-    )
+    shiftplans = team_service.filter_query_by_team_scope(
+        db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule_id),
+        Shiftplan,
+        team_ids,
+    ).order_by(Shiftplan.date.asc()).all()
 
     result = []
     for sp in shiftplans:
@@ -121,14 +115,9 @@ def get_my_team_employees(
     team_ids = team_service.get_team_ids_for_user(db, current_user)
     if not team_ids:
         return []
-    employees = (
-        db.query(Employee)
-        .join(employee_teams, employee_teams.c.employee_id == Employee.id)
-        .filter(employee_teams.c.team_id.in_(team_ids))
-        .distinct()
-        .order_by(Employee.last_name, Employee.first_name)
-        .all()
-    )
+    employees = team_service.filter_query_by_team_scope(
+        db.query(Employee), Employee, team_ids
+    ).distinct().order_by(Employee.last_name, Employee.first_name).all()
     return employees
 
 

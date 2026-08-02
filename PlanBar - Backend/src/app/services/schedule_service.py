@@ -2,6 +2,7 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -38,10 +39,6 @@ def list_schedules_for(db: Session, user) -> list[Schedule]:
     if not team_ids:
         return []
 
-    # Find all schedule ids that have at least one shiftplan whose employee
-    # belongs to one of the planner's teams.
-    from sqlalchemy import select
-
     subquery = (
         select(Shiftplan.schedule_id)
         .join(Employee, Employee.id == Shiftplan.employee_id)
@@ -70,9 +67,6 @@ def _assert_team_restriction_for_employee_ids(db: Session, employee_ids: set[int
     team_ids = team_service.get_team_ids_for_user(db, user)
     if not team_ids:
         raise PermissionError("User is not assigned to any team")
-    # All referenced employees must belong to one of the planner's teams.
-    from sqlalchemy import select
-
     if not employee_ids:
         return
     rows = (
@@ -108,7 +102,6 @@ def assert_team_read_access(db: Session, schedule: Schedule, user) -> None:
         raise PermissionError("User is not assigned to any team")
     employee_ids = _schedule_employee_ids(schedule)
     if not employee_ids:
-        # Empty schedules are visible to everyone with team scope (todo: refine).
         return
     row = (
         db.query(employee_teams)
@@ -236,13 +229,9 @@ async def submit_schedule_to_tito(
         team_ids = team_service.get_team_ids_for_user(db, user)
         if not team_ids:
             raise ValueError("User is not assigned to any team")
-        employees = (
-            db.query(Employee)
-            .join(employee_teams, employee_teams.c.employee_id == Employee.id)
-            .filter(employee_teams.c.team_id.in_(team_ids))
-            .distinct()
-            .all()
-        )
+        employees = team_service.filter_query_by_team_scope(
+            db.query(Employee), Employee, team_ids
+        ).distinct().all()
         employee_ids = {e.id for e in employees}
         shift_wishes = (
             db.query(ShiftWish)

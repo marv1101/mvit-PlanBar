@@ -5,7 +5,7 @@ users.employee_id NULL, which broke planer team-scope. This backfills the
 canonical column without overwriting existing links.
 
 Revision ID: 0014
-Revises: 0006
+Revises: 0011
 Create Date: 2026-08-01
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0014"
-down_revision = "0006"
+down_revision = "0011"
 branch_labels = None
 depends_on = None
 

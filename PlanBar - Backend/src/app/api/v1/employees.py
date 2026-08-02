@@ -4,10 +4,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
-from app.core.versioning import ConflictError, add_cache_headers, compute_etag, detect_conflict
+from app.core.versioning import ConflictError, check_etag_conflict, set_etag_header, set_etag_response
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
-from app.db.models.team import employee_teams
 from app.db.models.user import User
 from app.dependencies import get_current_user, get_db, require_admin
 from app.schemas.employee import (
@@ -46,39 +45,6 @@ from app.services.tito_callback import _calc_effective_hours
 router = APIRouter()
 
 
-def _check_employee_read_access(
-    current_user: User,
-    employee_id: int,
-    db: Session,
-    allow_planer: bool = True,
-) -> None:
-    if current_user.role == "admin":
-        return
-    if current_user.role == "planer":
-        if not allow_planer:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized",
-            )
-        from app.services import team_service
-
-        if team_service.employee_in_teams(
-            db,
-            employee_id,
-            team_service.get_team_ids_for_user(db, current_user),
-        ):
-            return
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Employee is not in your team scope",
-        )
-    if current_user.employee_id != employee_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized",
-        )
-
-
 @router.post("", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)
 def create_employee_endpoint(
     data: EmployeeCreate,
@@ -106,7 +72,7 @@ def list_employees_endpoint(
             total = 0
             items = []
         else:
-            query = db.query(Employee).join(employee_teams).filter(employee_teams.c.team_id.in_(team_ids)).distinct()
+            query = team_service.filter_query_by_team_scope(db.query(Employee), Employee, team_ids).distinct()
             total = query.count()
             items = query.offset(pagination.offset).limit(pagination.limit).all()
     else:
@@ -138,17 +104,16 @@ def get_employee_endpoint(
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
-    _check_employee_read_access(current_user, employee_id, db)
-    if response is not None:
-        etag = compute_etag(
-            {
-                "first_name": employee.first_name,
-                "last_name": employee.last_name,
-                "email": employee.email,
-                "updated_at": str(employee.updated_at),
-            }
+    from app.services import team_service
+    try:
+        team_service.assert_user_can_access_employee(db, current_user, employee_id)
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized",
         )
-        add_cache_headers(response, etag=etag, last_modified=employee.updated_at)
+    if response is not None:
+        set_etag_header(response, employee, "first_name", "last_name", "email")
     return employee
 
 
@@ -164,16 +129,8 @@ def update_employee_endpoint(
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
-    employee_etag = compute_etag(
-        {
-            "first_name": employee.first_name,
-            "last_name": employee.last_name,
-            "email": employee.email,
-            "updated_at": str(employee.updated_at),
-        }
-    )
     try:
-        detect_conflict(employee.updated_at, if_match, employee_etag)
+        check_etag_conflict(employee, if_match, "first_name", "last_name", "email")
     except ConflictError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -181,15 +138,7 @@ def update_employee_endpoint(
         )
     updated = update_employee(db, employee, data, actor_id=admin.id)
     if response is not None:
-        new_etag = compute_etag(
-            {
-                "first_name": updated.first_name,
-                "last_name": updated.last_name,
-                "email": updated.email,
-                "updated_at": str(updated.updated_at),
-            }
-        )
-        add_cache_headers(response, etag=new_etag)
+        set_etag_response(response, updated, "first_name", "last_name", "email")
     return updated
 
 
@@ -247,7 +196,14 @@ def get_contract_endpoint(
     contract = get_contract_by_id(db, contract_id)
     if not contract:
         raise NotFoundException(detail="Contract not found")
-    _check_employee_read_access(current_user, contract.employee_id, db, allow_planer=False)
+    from app.services import team_service
+    try:
+        team_service.assert_user_can_access_employee(db, current_user, contract.employee_id, allow_planer=False)
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized",
+        )
     return contract
 
 
@@ -306,7 +262,14 @@ def get_timecard_endpoint(
     timecard = get_timecard_by_id(db, timecard_id)
     if not timecard:
         raise NotFoundException(detail="Timecard not found")
-    _check_employee_read_access(current_user, timecard.employee_id, db, allow_planer=False)
+    from app.services import team_service
+    try:
+        team_service.assert_user_can_access_employee(db, current_user, timecard.employee_id, allow_planer=False)
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized",
+        )
     return timecard
 
 
@@ -402,7 +365,14 @@ def get_employee_time_account(
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
-    _check_employee_read_access(current_user, employee_id, db, allow_planer=False)
+    from app.services import team_service
+    try:
+        team_service.assert_user_can_access_employee(db, current_user, employee_id, allow_planer=False)
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized",
+        )
     return _build_time_account_response(employee, db)
 
 

@@ -131,3 +131,27 @@ export function setStoredEtag(url: string, etag: string): void {
 export function clearStoredEtag(url: string): void {
   etagStore.delete(url);
 }
+
+// --- ETag interceptors -------------------------------------------------------
+
+const MUTATING_METHODS = new Set(['put', 'patch', 'delete']);
+const SINGLE_RESOURCE_RE = /\/\d+$/;
+
+api.interceptors.request.use((config) => {
+  const method = (config.method || '').toLowerCase();
+  if (MUTATING_METHODS.has(method) && SINGLE_RESOURCE_RE.test(config.url || '')) {
+    const etag = etagStore.get(config.url || '');
+    if (etag) {
+      config.headers.set('If-Match', etag);
+    }
+  }
+  return config;
+});
+
+api.interceptors.response.use((response) => {
+  const etag = response.headers['etag'];
+  if (etag) {
+    etagStore.set(response.config.url || '', etag);
+  }
+  return response;
+});

@@ -1,5 +1,4 @@
 import api from '../lib/api';
-import { getStoredEtag, setStoredEtag } from '../lib/api';
 import type { PaginatedResponse, ArbZgWarning } from '../types';
 
 export interface ShiftplanCreateDTO {
@@ -96,10 +95,8 @@ export async function getSchedules(offset?: number, limit?: number): Promise<Pag
 }
 
 export async function getSchedule(id: number): Promise<ScheduleResponseDTO> {
-  const response = await api.get(`/schedules/${id}`);
-  const etag = response.headers['etag'];
-  if (etag) setStoredEtag(`/schedules/${id}`, etag);
-  return response.data;
+  const { data } = await api.get(`/schedules/${id}`);
+  return data;
 }
 
 export async function createSchedule(dto: ScheduleCreateDTO): Promise<ScheduleWithArbzgDTO> {
@@ -108,14 +105,8 @@ export async function createSchedule(dto: ScheduleCreateDTO): Promise<ScheduleWi
 }
 
 export async function updateSchedule(id: number, dto: ScheduleUpdateDTO): Promise<ScheduleResponseDTO> {
-  const url = `/schedules/${id}`;
-  const headers: Record<string, string> = {};
-  const etag = getStoredEtag(url);
-  if (etag) headers['If-Match'] = etag;
-  const response = await api.put(url, dto, { headers });
-  const newEtag = response.headers['etag'];
-  if (newEtag) setStoredEtag(url, newEtag);
-  return response.data;
+  const { data } = await api.put(`/schedules/${id}`, dto);
+  return data;
 }
 
 export async function deleteSchedule(id: number): Promise<void> {

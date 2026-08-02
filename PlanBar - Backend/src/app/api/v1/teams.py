@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
-from app.core.versioning import ConflictError, add_cache_headers, compute_etag, detect_conflict
+from app.core.versioning import ConflictError, check_etag_conflict, set_etag_header, set_etag_response
 from app.db.models.team import Team
 from app.db.models.user import User
 from app.dependencies import get_current_user, get_db, require_admin
@@ -29,14 +29,6 @@ def _team_with_employees(team: Team) -> TeamWithEmployeesResponse:
         created_at=team.created_at,
         updated_at=team.updated_at,
     )
-
-
-def _team_etag_dict(team: Team) -> dict:
-    return {
-        "name": team.name,
-        "color": team.color,
-        "updated_at": str(team.updated_at),
-    }
 
 
 @router.post("", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)
@@ -94,8 +86,7 @@ def get_team_endpoint(
     if current_user.role != "admin" and team not in team_service.get_teams_for_user(db, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     if response is not None:
-        etag = compute_etag(_team_etag_dict(team))
-        add_cache_headers(response, etag=etag, last_modified=team.updated_at)
+        set_etag_header(response, team, "name", "color")
     return _team_with_employees(team)
 
 
@@ -111,9 +102,8 @@ def update_team_endpoint(
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
         raise NotFoundException(detail="Team not found")
-    team_etag = compute_etag(_team_etag_dict(team))
     try:
-        detect_conflict(team.updated_at, if_match, team_etag)
+        check_etag_conflict(team, if_match, "name", "color")
     except ConflictError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -121,8 +111,7 @@ def update_team_endpoint(
         )
     updated = team_service.update_team(db, team_id, data, actor_id=admin.id)
     if response is not None:
-        new_etag = compute_etag(_team_etag_dict(updated))
-        add_cache_headers(response, etag=new_etag)
+        set_etag_response(response, updated, "name", "color")
     return updated
 
 

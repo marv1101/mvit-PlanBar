@@ -1,5 +1,4 @@
 import api from '../lib/api';
-import { getStoredEtag, setStoredEtag } from '../lib/api';
 import type { PaginatedResponse } from '../types';
 
 export interface EmployeeCreateDTO {
@@ -51,10 +50,8 @@ export async function getEmployees(offset?: number, limit?: number): Promise<Pag
 }
 
 export async function getEmployee(id: number): Promise<EmployeeResponseDTO> {
-  const response = await api.get(`/employees/${id}`);
-  const etag = response.headers['etag'];
-  if (etag) setStoredEtag(`/employees/${id}`, etag);
-  return response.data;
+  const { data } = await api.get(`/employees/${id}`);
+  return data;
 }
 
 export async function createEmployee(dto: EmployeeCreateDTO): Promise<EmployeeResponseDTO> {
@@ -63,14 +60,8 @@ export async function createEmployee(dto: EmployeeCreateDTO): Promise<EmployeeRe
 }
 
 export async function updateEmployee(id: number, dto: EmployeeUpdateDTO): Promise<EmployeeResponseDTO> {
-  const url = `/employees/${id}`;
-  const headers: Record<string, string> = {};
-  const etag = getStoredEtag(url);
-  if (etag) headers['If-Match'] = etag;
-  const response = await api.put(url, dto, { headers });
-  const newEtag = response.headers['etag'];
-  if (newEtag) setStoredEtag(url, newEtag);
-  return response.data;
+  const { data } = await api.put(`/employees/${id}`, dto);
+  return data;
 }
 
 export async function deleteEmployee(id: number): Promise<void> {

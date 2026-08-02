@@ -19,7 +19,7 @@ from app.core.exceptions import (
     UnauthorizedException,
 )
 from app.core.rate_limit import limiter
-from app.core.versioning import ConflictError, add_cache_headers, compute_etag, detect_conflict
+from app.core.versioning import ConflictError, check_etag_conflict, set_etag_header, set_etag_response
 from app.db.models.employee import Employee
 from app.db.models.user import User
 from app.dependencies import get_current_user, get_db, require_admin
@@ -233,15 +233,7 @@ def get_user(
     if user is None:
         raise NotFoundException(detail="User not found")
     if response is not None:
-        etag = compute_etag(
-            {
-                "username": user.username,
-                "email": user.email,
-                "role": user.role,
-                "updated_at": str(user.updated_at),
-            }
-        )
-        add_cache_headers(response, etag=etag, last_modified=user.updated_at)
+        set_etag_header(response, user, "username", "email", "role")
     return user
 
 
@@ -261,16 +253,8 @@ def update_user_endpoint(
     if user is None:
         raise NotFoundException(detail="User not found")
 
-    user_etag = compute_etag(
-        {
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "updated_at": str(user.updated_at),
-        }
-    )
     try:
-        detect_conflict(user.updated_at, if_match, user_etag)
+        check_etag_conflict(user, if_match, "username", "email", "role")
     except ConflictError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -288,15 +272,7 @@ def update_user_endpoint(
 
     updated = update_user(db, user, user_in, actor_id=current_user.id)
     if response is not None:
-        new_etag = compute_etag(
-            {
-                "username": updated.username,
-                "email": updated.email,
-                "role": updated.role,
-                "updated_at": str(updated.updated_at),
-            }
-        )
-        add_cache_headers(response, etag=new_etag)
+        set_etag_response(response, updated, "username", "email", "role")
     return updated
 
 

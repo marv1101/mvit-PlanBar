@@ -1,5 +1,4 @@
 import api from '../lib/api';
-import { getStoredEtag, setStoredEtag } from '../lib/api';
 import type { PaginatedResponse } from '../types';
 
 export type ShiftWishType = 'preferred' | 'unavailable' | 'vacation';
@@ -39,10 +38,8 @@ export async function getShiftWishes(offset?: number, limit?: number): Promise<P
 }
 
 export async function getShiftWish(id: number): Promise<ShiftWishResponseDTO> {
-  const response = await api.get(`/requests/${id}`);
-  const etag = response.headers['etag'];
-  if (etag) setStoredEtag(`/requests/${id}`, etag);
-  return response.data;
+  const { data } = await api.get(`/requests/${id}`);
+  return data;
 }
 
 export async function createShiftWish(dto: ShiftWishCreateDTO): Promise<ShiftWishResponseDTO> {
@@ -51,14 +48,8 @@ export async function createShiftWish(dto: ShiftWishCreateDTO): Promise<ShiftWis
 }
 
 export async function updateShiftWish(id: number, dto: ShiftWishUpdateDTO): Promise<ShiftWishResponseDTO> {
-  const url = `/requests/${id}`;
-  const headers: Record<string, string> = {};
-  const etag = getStoredEtag(url);
-  if (etag) headers['If-Match'] = etag;
-  const response = await api.put(url, dto, { headers });
-  const newEtag = response.headers['etag'];
-  if (newEtag) setStoredEtag(url, newEtag);
-  return response.data;
+  const { data } = await api.put(`/requests/${id}`, dto);
+  return data;
 }
 
 export async function deleteShiftWish(id: number): Promise<void> {

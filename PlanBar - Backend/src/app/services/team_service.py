@@ -1,9 +1,9 @@
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Query, Session
 
 from app.core.exceptions import ConflictException, NotFoundException
 from app.db.models.employee import Employee
-from app.db.models.team import Team
+from app.db.models.team import Team, employee_teams
 from app.schemas.team import TeamCreate, TeamUpdate
 from app.services import audit_service
 
@@ -177,3 +177,70 @@ def employee_in_teams(db: Session, employee_id: int, team_ids: list[int]) -> boo
         return False
     emp_team_ids = {t.id for t in emp.teams}
     return bool(emp_team_ids.intersection(team_ids))
+
+
+def user_can_access_employee(db: Session, user, employee_id: int) -> bool:
+    """Check whether *user* may access the given employee.
+
+    - Admins always have access.
+    - Planners have access if the employee belongs to one of their teams.
+    - Regular users can only access their own employee record.
+    """
+    if user.role == "admin":
+        return True
+    if user.role == "planer":
+        return employee_in_teams(db, employee_id, get_team_ids_for_user(db, user))
+    return user.employee_id == employee_id
+
+
+def assert_user_can_access_employee(
+    db: Session,
+    user,
+    employee_id: int,
+    *,
+    allow_planer: bool = True,
+) -> None:
+    """Raise if *user* may not access the given employee.
+
+    Same logic as :func:`user_can_access_employee` but raises
+    ``PermissionError`` on denial instead of returning ``False``.
+
+    Parameters
+    ----------
+    allow_planer:
+        When ``False``, planners are denied even if the employee is in
+        their team scope (used for contract/timecard sub-resources).
+    """
+    if user.role == "admin":
+        return
+    if user.role == "planer":
+        if not allow_planer:
+            raise PermissionError("Planer access not allowed for this resource")
+        if not employee_in_teams(db, employee_id, get_team_ids_for_user(db, user)):
+            raise PermissionError("Employee is not in your team scope")
+        return
+    if user.employee_id != employee_id:
+        raise PermissionError("Not authorized")
+
+
+def filter_query_by_team_scope(
+    query: Query,
+    entity,
+    team_ids: list[int],
+) -> Query:
+    """Filter *query* so only rows whose employee belongs to one of *team_ids* remain.
+
+    Works for any SQLAlchemy entity that has an ``employee_id`` column
+    (e.g. ``Shiftplan``, ``ShiftWish``) or an ``id`` column that *is* the
+    employee id (``Employee`` itself).
+
+    Returns an unmodified query when *team_ids* is empty (no restriction).
+    """
+    if not team_ids:
+        return query.filter(False)
+    emp_col = getattr(entity, "employee_id", None) or entity.id
+    return (
+        query
+        .join(employee_teams, employee_teams.c.employee_id == emp_col)
+        .filter(employee_teams.c.team_id.in_(team_ids))
+    )

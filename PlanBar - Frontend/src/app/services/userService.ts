@@ -1,5 +1,4 @@
 import api from '../lib/api';
-import { getStoredEtag, setStoredEtag } from '../lib/api';
 import type { PaginatedResponse } from '../types';
 
 export interface AdminUserCreateDTO {
@@ -52,15 +51,14 @@ export async function adminCreateUser(dto: AdminUserCreateDTO): Promise<AdminUse
   return data;
 }
 
+export async function getUser(id: number): Promise<UserResponseDTO> {
+  const { data } = await api.get(`/users/${id}`);
+  return data;
+}
+
 export async function updateUser(id: number, dto: UserUpdateDTO): Promise<UserResponseDTO> {
-  const url = `/users/${id}`;
-  const headers: Record<string, string> = {};
-  const etag = getStoredEtag(url);
-  if (etag) headers['If-Match'] = etag;
-  const response = await api.put(url, dto, { headers });
-  const newEtag = response.headers['etag'];
-  if (newEtag) setStoredEtag(url, newEtag);
-  return response.data;
+  const { data } = await api.put(`/users/${id}`, dto);
+  return data;
 }
 
 export async function changePassword(oldPassword: string, newPassword: string): Promise<UserResponseDTO> {

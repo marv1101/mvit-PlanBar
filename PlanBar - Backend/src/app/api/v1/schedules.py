@@ -3,11 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.requests import ShiftWishResponse
 from app.core.exceptions import NotFoundException
-from app.core.versioning import ConflictError, add_cache_headers, compute_etag, detect_conflict
+from app.core.versioning import ConflictError, check_etag_conflict, set_etag_header, set_etag_response
 from app.db.models.employee import Employee
 from app.db.models.schedule import Shiftplan
 from app.db.models.shift_wish import ShiftWish
-from app.db.models.team import employee_teams
 from app.db.models.user import User
 from app.dependencies import get_current_user, get_db, require_admin_or_planer
 from app.schemas.pagination import PaginatedResponse, PaginationParams
@@ -134,15 +133,7 @@ def get_schedule_endpoint(
             detail="Schedule is not in your team scope",
         )
     if response is not None:
-        etag = compute_etag(
-            {
-                "name": schedule.name,
-                "status": schedule.status,
-                "week_type": schedule.week_type,
-                "updated_at": str(schedule.updated_at),
-            }
-        )
-        add_cache_headers(response, etag=etag, last_modified=schedule.updated_at)
+        set_etag_header(response, schedule, "name", "status", "week_type")
     return schedule
 
 
@@ -163,16 +154,8 @@ def update_schedule_endpoint(
             detail="Schedule is not in your team scope",
         )
 
-    schedule_etag = compute_etag(
-        {
-            "name": schedule.name,
-            "status": schedule.status,
-            "week_type": schedule.week_type,
-            "updated_at": str(schedule.updated_at),
-        }
-    )
     try:
-        detect_conflict(schedule.updated_at, if_match, schedule_etag)
+        check_etag_conflict(schedule, if_match, "name", "status", "week_type")
     except ConflictError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -181,15 +164,7 @@ def update_schedule_endpoint(
 
     updated = update_schedule(db, schedule, data, actor_id=user.id)
     if response is not None:
-        new_etag = compute_etag(
-            {
-                "name": updated.name,
-                "status": updated.status,
-                "week_type": updated.week_type,
-                "updated_at": str(updated.updated_at),
-            }
-        )
-        add_cache_headers(response, etag=new_etag)
+        set_etag_response(response, updated, "name", "status", "week_type")
     return updated
 
 
@@ -447,10 +422,7 @@ def get_pending_wishes(
 
         team_ids = team_service.get_team_ids_for_user(db, user)
         if team_ids:
-            query = query.join(
-                employee_teams,
-                employee_teams.c.employee_id == ShiftWish.employee_id,
-            ).filter(employee_teams.c.team_id.in_(team_ids))
+            query = team_service.filter_query_by_team_scope(query, ShiftWish, team_ids)
         else:
             query = query.filter(ShiftWish.employee_id == -1)
     total = query.count()
@@ -492,10 +464,7 @@ def get_wishes_by_status(
 
         team_ids = team_service.get_team_ids_for_user(db, user)
         if team_ids:
-            query = query.join(
-                employee_teams,
-                employee_teams.c.employee_id == ShiftWish.employee_id,
-            ).filter(employee_teams.c.team_id.in_(team_ids))
+            query = team_service.filter_query_by_team_scope(query, ShiftWish, team_ids)
         else:
             query = query.filter(ShiftWish.employee_id == -1)
     total = query.count()

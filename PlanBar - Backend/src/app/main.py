@@ -111,9 +111,11 @@ def _repair_one_sided_user_employee_links() -> None:
     """Backfill users.employee_id from employees.user_id (idempotent).
 
     Legacy data only set the reverse FK (employees.user_id), leaving
-    users.employee_id NULL, which broke planer team-scope. Runs on every
-    startup regardless of whether alembic migrations apply.
+    users.employee_id NULL, which broke planer team-scope. Runs only in
+    development/test environments; production relies on migration 0014.
     """
+    if settings.environment not in ("development", "test"):
+        return
     try:
         db = SessionLocal()
         from app.services.user_service import backfill_user_employee_ids
@@ -122,7 +124,7 @@ def _repair_one_sided_user_employee_links() -> None:
         if repaired:
             logger.info("Backfilled users.employee_id for %s user(s) from employee.user_id", repaired)
         db.close()
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.warning("Failed to backfill one-sided user/employee links", exc_info=True)
 
 
