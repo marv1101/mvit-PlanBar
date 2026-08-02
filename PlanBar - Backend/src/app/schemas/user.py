@@ -59,7 +59,9 @@ class UserUpdate(BaseModel):
     username: str | None = Field(None, min_length=3, max_length=64)
     email: EmailStr | None = None
     password: str | None = Field(None, min_length=8)
-    role: str | None = Field(None, pattern=r"^(admin|user)$")
+    role: str | None = Field(None, pattern=r"^(admin|user|planer)$")
+    employee_id: int | None = None
+    team_ids: list[int] | None = None
 
     @field_validator("password")
     @classmethod
@@ -109,8 +111,9 @@ class ChangePasswordRequest(BaseModel):
 class AdminUserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=64)
     email: EmailStr
-    role: str = Field(default="user", pattern="^(admin|user)$")
+    role: str = Field(default="user", pattern="^(admin|user|planer)$")
     employee_id: int | None = None
+    team_ids: list[int] = []
 
 
 class AdminUserCreateResponse(UserResponse):

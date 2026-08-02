@@ -24,6 +24,10 @@ employee_roles = Table(
 )
 
 
+# NOTE: employee_teams is defined in app.db.models.team to avoid circular imports.
+# It is imported lazily via the secondary relationship below.
+
+
 class Employee(Base):
     __tablename__ = "employees"
 
@@ -51,6 +55,16 @@ class Employee(Base):
     timecards = relationship("Timecard", back_populates="employee", lazy="selectin")
     shift_wishes = relationship("ShiftWish", back_populates="employee", lazy="selectin")
     roles = relationship("Role", secondary=employee_roles, lazy="selectin")
+    teams = relationship(
+        "Team",
+        secondary="employee_teams",
+        lazy="selectin",
+        back_populates="employees",
+    )
+
+    @property
+    def team_ids(self) -> list[int]:
+        return [team.id for team in self.teams]
 
     @property
     def role_ids(self) -> list[int]:

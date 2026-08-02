@@ -72,6 +72,7 @@ export function employeeFromResponse(dto: EmployeeResponseDTO): Employee {
     },
     color: dto.color || '#3b82f6',
     maxWorkHours: dto.max_work_hours ?? 40,
+    teamIds: dto.team_ids ?? [],
   };
 }
 
@@ -87,6 +88,7 @@ export function employeeToCreate(emp: Employee): EmployeeCreateDTO {
     break_end: emp.breakTime.end,
     max_work_hours: emp.maxWorkHours,
     role_ids: emp.roles.length > 0 ? emp.roles.map(Number) : undefined,
+    team_ids: emp.teamIds ?? [],
   };
 }
 
@@ -203,13 +205,15 @@ import {
 } from '../types';
 
 export function userFromResponse(dto: UserResponseDTO): AppUser {
+  const role: AppUser['role'] = dto.role === 'admin' ? 'admin' : dto.role === 'planer' ? 'planer' : 'employee';
   return {
     id: String(dto.id),
     username: dto.username,
     email: dto.email,
-    role: dto.role === 'admin' ? 'admin' : 'employee',
+    role,
     mustChangePassword: dto.must_change_password,
     lastLogin: dto.last_login,
+    employeeId: dto.employee_id,
   };
 }
 

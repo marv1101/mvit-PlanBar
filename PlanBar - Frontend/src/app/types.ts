@@ -59,6 +59,7 @@ export interface Employee {
   breakTime: BreakTime;
   color: string; // for calendar display
   maxWorkHours?: number; // maximum work hours per week
+  teamIds?: number[];
 }
 
 export type RequestType = 'urlaubswunsch' | 'bevorzugt' | 'nicht-verfügbar';
@@ -130,13 +131,24 @@ export interface TiTOMetrics {
   employeeFairness?: Record<string, EmployeeFairnessEntry>;
 }
 
+export interface Team {
+  id: string;
+  name: string;
+  color?: string;
+  description?: string;
+  employee_ids?: number[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AppUser {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'employee';
+  role: 'admin' | 'planer' | 'employee';
   mustChangePassword: boolean;
   lastLogin: string | null;
+  employeeId?: number | null;
 }
 
 export interface ShiftTemplateEntry {

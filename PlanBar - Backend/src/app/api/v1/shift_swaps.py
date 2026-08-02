@@ -9,13 +9,22 @@ from app.db.models.employee import Employee
 from app.db.models.schedule import Shiftplan
 from app.db.models.shift_swap import ShiftSwapRequest
 from app.db.models.user import User
-from app.dependencies import get_current_user, get_db, require_admin
+from app.dependencies import get_current_user, get_db, require_admin_or_planer
 from app.schemas.shift_swap import (
     ShiftSwapCreate,
     ShiftSwapReject,
     ShiftSwapResponse,
 )
+from app.services import team_service
 from app.services.notification_service import create_notification
+
+
+def _swap_in_user_scope(db: Session, swap: ShiftSwapRequest, user) -> bool:
+    """Check whether both employees of the swap are within the user's team scope."""
+    return team_service.user_can_access_employee(db, user, swap.employee_id) and team_service.user_can_access_employee(
+        db, user, swap.target_employee_id
+    )
+
 
 router = APIRouter()
 
@@ -99,11 +108,16 @@ def get_my_shift_swaps(
 def approve_shift_swap(
     swap_id: int,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    user: User = Depends(require_admin_or_planer),
 ):
     swap = db.query(ShiftSwapRequest).filter(ShiftSwapRequest.id == swap_id).first()
     if not swap:
         raise NotFoundException(detail="Shift swap not found")
+    if not _swap_in_user_scope(db, swap, user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Shift swap is outside of your team scope",
+        )
     if swap.status != ShiftSwapStatus.PENDING.value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -119,7 +133,7 @@ def approve_shift_swap(
     target_shift.employee_id = swap.employee_id
 
     swap.status = ShiftSwapStatus.APPROVED.value
-    swap.approved_by = admin.id
+    swap.approved_by = user.id
     swap.reviewed_at = datetime.now(timezone.utc)
     db.add(swap)
     db.commit()
@@ -154,11 +168,16 @@ def reject_shift_swap(
     swap_id: int,
     body: ShiftSwapReject,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    user: User = Depends(require_admin_or_planer),
 ):
     swap = db.query(ShiftSwapRequest).filter(ShiftSwapRequest.id == swap_id).first()
     if not swap:
         raise NotFoundException(detail="Shift swap not found")
+    if not _swap_in_user_scope(db, swap, user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Shift swap is outside of your team scope",
+        )
     if swap.status != ShiftSwapStatus.PENDING.value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -166,7 +185,7 @@ def reject_shift_swap(
         )
 
     swap.status = ShiftSwapStatus.REJECTED.value
-    swap.approved_by = admin.id
+    swap.approved_by = user.id
     swap.reviewed_at = datetime.now(timezone.utc)
     swap.rejection_reason = body.rejection_reason
     db.add(swap)

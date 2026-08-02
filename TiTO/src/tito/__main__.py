@@ -1,7 +1,8 @@
 import argparse
-from .config import Settings
+
 from .api import create_app
-from .db import get_connection, enqueue_job
+from .config import Settings
+from .db import enqueue_job, get_connection
 from .worker import run_worker
 
 

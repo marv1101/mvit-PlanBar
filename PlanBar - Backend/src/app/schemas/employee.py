@@ -17,6 +17,7 @@ class EmployeeBase(BaseModel):
 
 class EmployeeCreate(EmployeeBase):
     user_id: int | None = None
+    team_ids: list[int] = []
 
 
 class EmployeeUpdate(BaseModel):
@@ -30,11 +31,13 @@ class EmployeeUpdate(BaseModel):
     max_work_hours: float | None = None
     user_id: int | None = None
     role_ids: list[int] | None = None
+    team_ids: list[int] | None = None
 
 
 class EmployeeResponse(EmployeeBase):
     id: int
     user_id: int | None = None
+    team_ids: list[int] = []
     created_at: datetime
     updated_at: datetime
 

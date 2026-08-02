@@ -2,21 +2,134 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.core.exceptions import NotFoundException
 from app.db.models.employee import Employee, Timecard
 from app.db.models.role import Role
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
+from app.db.models.team import employee_teams
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
-from app.services import audit_service
+from app.services import audit_service, team_service
 from app.services.arbzg_validator import ArbZgResult, validate_schedule
 from app.services.holiday_service import get_german_holidays
 from app.services.notification_service import create_notification_and_push
 from app.services.tito_proxy import tito_proxy
 
 logger = logging.getLogger(__name__)
+
+
+def _schedule_employee_ids(schedule: Schedule) -> set[int]:
+    return {sp.employee_id for sp in schedule.shiftplans} if schedule.shiftplans else set()
+
+
+def list_schedules_for(db: Session, user) -> list[Schedule]:
+    """List schedules visible to the user.
+
+    Admins see all schedules. Planners see only schedules whose shiftplans
+    reference at least one employee from one of the planner's teams.
+    """
+    if user.role == "admin":
+        return list_schedules(db)
+
+    team_ids = team_service.get_team_ids_for_user(db, user)
+    if not team_ids:
+        return []
+
+    subquery = (
+        select(Shiftplan.schedule_id)
+        .join(Employee, Employee.id == Shiftplan.employee_id)
+        .join(employee_teams, employee_teams.c.employee_id == Employee.id)
+        .where(employee_teams.c.team_id.in_(team_ids))
+        .distinct()
+    )
+    schedule_ids = [row[0] for row in db.execute(subquery).all()]
+    if not schedule_ids:
+        return []
+    return db.query(Schedule).filter(Schedule.id.in_(schedule_ids)).order_by(Schedule.created_at.desc()).all()
+
+
+def get_schedule_for_user(db: Session, schedule_id: int, user) -> Schedule:
+    """Get a schedule, enforcing team-based read access for planners."""
+    schedule = get_schedule_by_id(db, schedule_id)
+    if not schedule:
+        raise NotFoundException(detail="Schedule not found")
+    assert_team_read_access(db, schedule, user)
+    return schedule
+
+
+def _assert_team_restriction_for_employee_ids(db: Session, employee_ids: set[int], user) -> None:
+    if user.role == "admin":
+        return
+    team_ids = team_service.get_team_ids_for_user(db, user)
+    if not team_ids:
+        raise PermissionError("User is not assigned to any team")
+    if not employee_ids:
+        return
+    rows = (
+        db.execute(
+            select(employee_teams.c.employee_id)
+            .where(
+                employee_teams.c.employee_id.in_(employee_ids),
+                employee_teams.c.team_id.in_(team_ids),
+            )
+            .distinct()
+        )
+        .scalars()
+        .all()
+    )
+    if set(rows) != employee_ids:
+        raise PermissionError("Schedule references employees outside of the user's teams")
+
+
+def assert_team_write_access(db: Session, schedule: Schedule, user) -> None:
+    """Raise PermissionError if the user cannot write to this schedule due to team scope."""
+    if user.role == "admin":
+        return
+    employee_ids = _schedule_employee_ids(schedule)
+    _assert_team_restriction_for_employee_ids(db, employee_ids, user)
+
+
+def assert_team_read_access(db: Session, schedule: Schedule, user) -> None:
+    """Planners can read a schedule if at least one assigned employee is in their team."""
+    if user.role == "admin":
+        return
+    team_ids = team_service.get_team_ids_for_user(db, user)
+    if not team_ids:
+        raise PermissionError("User is not assigned to any team")
+    employee_ids = _schedule_employee_ids(schedule)
+    if not employee_ids:
+        return
+    row = (
+        db.query(employee_teams)
+        .filter(
+            employee_teams.c.employee_id.in_(employee_ids),
+            employee_teams.c.team_id.in_(team_ids),
+        )
+        .first()
+    )
+    if row is None:
+        raise PermissionError("Schedule is not in user's teams")
+
+
+def assert_team_write_on_shiftplans(
+    db: Session,
+    shiftplans: list[ShiftplanCreate] | list[dict],
+    user,
+) -> None:
+    """Validate that every shiftplan's employee_id is in the user's team scope."""
+    if user.role == "admin":
+        return
+    employee_ids = set()
+    for sp in shiftplans:
+        if isinstance(sp, ShiftplanCreate):
+            employee_ids.add(sp.employee_id)
+        else:
+            employee_ids.add(sp.get("employee_id"))
+    _assert_team_restriction_for_employee_ids(db, employee_ids, user)
 
 
 def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = None) -> Schedule:
@@ -109,16 +222,34 @@ def delete_schedule(db: Session, schedule: Schedule, actor_id: int | None = None
     audit_service.log_delete(db, user_id=actor_id, resource_type="schedule", resource_id=str(schedule.id))
 
 
-async def submit_schedule_to_tito(db: Session, schedule: Schedule, callback_url: str | None = None) -> Schedule:
-    employees = db.query(Employee).all()
-    shift_wishes = (
-        db.query(ShiftWish)
-        .filter(
-            ShiftWish.date >= schedule.start_date,
-            ShiftWish.date <= schedule.end_date,
+async def submit_schedule_to_tito(
+    db: Session, schedule: Schedule, callback_url: str | None = None, user=None
+) -> Schedule:
+    if user and user.role != "admin":
+        team_ids = team_service.get_team_ids_for_user(db, user)
+        if not team_ids:
+            raise ValueError("User is not assigned to any team")
+        employees = team_service.filter_query_by_team_scope(db.query(Employee), Employee, team_ids).distinct().all()
+        employee_ids = {e.id for e in employees}
+        shift_wishes = (
+            db.query(ShiftWish)
+            .filter(
+                ShiftWish.date >= schedule.start_date,
+                ShiftWish.date <= schedule.end_date,
+                ShiftWish.employee_id.in_(employee_ids),
+            )
+            .all()
         )
-        .all()
-    )
+    else:
+        employees = db.query(Employee).all()
+        shift_wishes = (
+            db.query(ShiftWish)
+            .filter(
+                ShiftWish.date >= schedule.start_date,
+                ShiftWish.date <= schedule.end_date,
+            )
+            .all()
+        )
 
     pending = [w for w in shift_wishes if w.status == "pending"]
     if pending:

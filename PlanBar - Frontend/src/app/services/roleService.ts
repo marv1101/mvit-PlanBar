@@ -30,6 +30,11 @@ export async function createRole(dto: RoleCreateDTO): Promise<RoleResponseDTO> {
   return data;
 }
 
+export async function getRole(id: number): Promise<RoleResponseDTO> {
+  const { data } = await api.get(`/roles/${id}`);
+  return data;
+}
+
 export async function updateRole(id: number, dto: RoleUpdateDTO): Promise<RoleResponseDTO> {
   const { data } = await api.put(`/roles/${id}`, dto);
   return data;

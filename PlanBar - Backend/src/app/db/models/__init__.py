@@ -9,6 +9,7 @@ from app.db.models.role import Role
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_swap import ShiftSwapRequest
 from app.db.models.shift_wish import ShiftWish
+from app.db.models.team import Team
 from app.db.models.time_tracking import TimeEntry
 from app.db.models.user import User
 
@@ -28,6 +29,7 @@ __all__ = [
     "ShiftSwapRequest",
     "ShiftWish",
     "Shiftplan",
+    "Team",
     "TimeEntry",
     "Timecard",
     "User",

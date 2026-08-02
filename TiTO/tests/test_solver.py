@@ -324,7 +324,7 @@ def test_solver_metrics_include_fairness_info():
     metrics = result["metrics"]
     # Should include employee-level fairness info
     assert "employeeFairness" in metrics
-    for emp_id, fair_data in metrics["employeeFairness"].items():
+    for fair_data in metrics["employeeFairness"].values():
         assert "currentBalanceHours" in fair_data
         assert "scheduledHours" in fair_data
         assert "projectedBalance" in fair_data

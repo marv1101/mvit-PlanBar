@@ -44,8 +44,14 @@ export function useUpdateEmployee() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success('Mitarbeiter aktualisiert');
     },
-    onError: () => {
-      toast.error('Fehler beim Aktualisieren des Mitarbeiters');
+    onError: (error: unknown) => {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 409) {
+        toast.error('Die Daten wurden inzwischen geändert. Bitte Seite neu laden.');
+        queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      } else {
+        toast.error('Fehler beim Aktualisieren des Mitarbeiters');
+      }
     },
   });
 }

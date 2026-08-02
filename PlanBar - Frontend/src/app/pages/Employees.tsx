@@ -1,20 +1,29 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Plus, Edit, Trash2, Loader2, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, RotateCcw, AlertTriangle, Building2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { EmployeeForm } from '../components/EmployeeForm';
-import { Employee } from '../types';
+import { Employee, Team } from '../types';
 import { Badge } from '../components/ui/badge';
+import * as teamService from '../services/teamService';
 
 export function Employees() {
+  const { user } = useAuth();
   const { employees, deleteEmployee, roles, loading, error, refresh } = useApp();
+  const isAdmin = user?.role === 'admin';
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
+
+  React.useEffect(() => {
+    teamService.getTeams().then(res => setAllTeams(res.items)).catch(() => {});
+  }, []);
 
   const handleEdit = (employee: Employee) => {
     setEditingEmployee(employee);
@@ -41,6 +50,10 @@ export function Employees() {
 
   const getRoleById = (roleId: string) => {
     return roles.find(r => r.id === roleId);
+  };
+
+  const getTeamById = (teamId: number) => {
+    return allTeams.find(t => Number(t.id) === teamId);
   };
 
   if (loading) {
@@ -88,6 +101,7 @@ export function Employees() {
           <h2 className="font-semibold text-2xl mb-2">Mitarbeiter</h2>
           <p className="text-gray-600">Verwalten Sie Ihre Mitarbeiter und deren Arbeitszeiten</p>
         </div>
+        {isAdmin && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -107,6 +121,7 @@ export function Employees() {
             <EmployeeForm employee={editingEmployee} onClose={handleCloseDialog} />
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4">
@@ -126,6 +141,7 @@ export function Employees() {
                     <p className="text-sm text-gray-600">{employee.email}</p>
                   </div>
                 </div>
+                {isAdmin && (
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -144,6 +160,7 @@ export function Employees() {
                     <Trash2 className="h-4 w-4 text-red-600" />
                   </Button>
                 </div>
+                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -161,6 +178,25 @@ export function Employees() {
                     })}
                     {employee.roles.length === 0 && (
                       <span className="text-sm text-gray-500">Keine Rollen zugewiesen</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium mb-2 flex items-center gap-1">
+                    <Building2 className="h-3.5 w-3.5" />
+                    Teams
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(employee.teamIds ?? []).map(teamId => {
+                      const team = getTeamById(teamId);
+                      return team ? (
+                        <Badge key={teamId} variant="secondary" style={{ backgroundColor: (team.color || '#9ca3af') + '20', color: team.color || '#6b7280' }}>
+                          {team.name}
+                        </Badge>
+                      ) : null;
+                    })}
+                    {(employee.teamIds ?? []).length === 0 && (
+                      <span className="text-sm text-gray-500">Kein Team zugewiesen</span>
                     )}
                   </div>
                 </div>

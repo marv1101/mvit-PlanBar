@@ -1,6 +1,6 @@
 import json
 import sqlite3
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 try:
     import psycopg2
     import psycopg2.extras
-    from psycopg2 import pool as _pg_pool  # noqa: F401 — available for import
+    from psycopg2 import pool as _pg_pool
 
     PSYCOPG2_AVAILABLE = True
 except ImportError:
@@ -54,8 +54,6 @@ def get_connection(
 
 def _get_postgres_connection(database_url: str) -> psycopg2.extensions.connection:
     """Get PostgreSQL connection with proper configuration."""
-    global _pg_pool
-
     # Remove the scheme prefix for psycopg2
     database_url.replace("postgresql://", "").replace("postgres://", "")
 
@@ -327,12 +325,12 @@ def enqueue_job(
             if "no transaction is active" in str(e):
                 pass
             else:
-                raise e
-        except Exception as e:
+                raise
+        except Exception:
             if hasattr(connection, "commit"):
                 connection.commit()
             else:
-                raise e
+                raise
         return job_id
 
 

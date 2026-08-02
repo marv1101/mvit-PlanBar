@@ -14,6 +14,10 @@ def list_roles(db: Session, offset: int = 0, limit: int | None = None) -> list[R
     return query.all()
 
 
+def get_role_by_id(db: Session, role_id: int) -> Role | None:
+    return db.query(Role).filter(Role.id == role_id).first()
+
+
 def create_role(db: Session, data: RoleCreate, actor_id: int | None = None) -> Role:
     role = Role(name=data.name, color=data.color, permissions=data.permissions)
     db.add(role)

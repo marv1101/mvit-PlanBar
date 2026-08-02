@@ -187,7 +187,7 @@ def _create_jwt(secret: str, role: str, audience: str | None = None, issuer: str
 
     header_b64 = b64encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
     payload_b64 = b64encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
-    signing_input = f"{header_b64}.{payload_b64}".encode("utf-8")
+    signing_input = f"{header_b64}.{payload_b64}".encode()
     signature = hmac.new(secret.encode("utf-8"), signing_input, hashlib.sha256).digest()
     signature_b64 = b64encode(signature)
     return f"{header_b64}.{payload_b64}.{signature_b64}"

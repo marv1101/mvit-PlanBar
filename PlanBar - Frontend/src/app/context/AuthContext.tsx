@@ -4,11 +4,13 @@ import { toast } from 'sonner';
 import api from '../lib/api';
 import { changePassword as changePasswordApi } from '../services/userService';
 
+type UserRole = 'admin' | 'planer' | 'employee';
+
 interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'employee';
+  role: UserRole;
   employeeId?: string;
 }
 
@@ -24,11 +26,12 @@ interface AuthContextType {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function mapBackendUser(data: { id: number; username: string; email: string; role: string; employee_id?: number | null }): User {
+  const role: UserRole = data.role === 'admin' ? 'admin' : data.role === 'planer' ? 'planer' : 'employee';
   return {
     id: String(data.id),
     name: data.username,
     email: data.email,
-    role: data.role === 'user' ? 'employee' : (data.role as 'admin' | 'employee'),
+    role,
     employeeId: data.employee_id ? String(data.employee_id) : undefined,
   };
 }

@@ -1,7 +1,7 @@
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field, model_validator, ConfigDict
+from datetime import datetime, timezone
+from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 # ============================================================================
 # Metadata Model
@@ -11,12 +11,12 @@ from pydantic import BaseModel, Field, model_validator, ConfigDict
 class Metadata(BaseModel):
     """Metadata for a job."""
 
-    jobId: Optional[str] = Field(default=None, description="Unique job identifier")
+    jobId: str | None = Field(default=None, description="Unique job identifier")
     tenantId: int = Field(..., ge=1, description="Tenant ID for multi-tenancy")
     priority: int = Field(default=0, ge=0, description="Job priority (higher = more urgent)")
-    timestamp: Optional[str] = Field(default=None, description="ISO 8601 timestamp")
-    idempotency_key: Optional[str] = Field(default=None, description="For idempotent job processing")
-    callback_url: Optional[str] = Field(default=None, description="URL for callback after processing")
+    timestamp: str | None = Field(default=None, description="ISO 8601 timestamp")
+    idempotency_key: str | None = Field(default=None, description="For idempotent job processing")
+    callback_url: str | None = Field(default=None, description="URL for callback after processing")
 
 
 # ============================================================================
@@ -31,9 +31,9 @@ class ShiftTemplate(BaseModel):
     name: str = Field(..., description="Human-readable shift name")
     startTime: str = Field(..., pattern=r"^\d{2}:\d{2}$", description="Start time in HH:MM format")
     endTime: str = Field(..., pattern=r"^\d{2}:\d{2}$", description="End time in HH:MM format")
-    minBreakMinutes: Optional[int] = Field(default=None, ge=0, description="Minimum break in minutes")
-    skills: Optional[List[str]] = Field(default=None, description="Required skills for this shift")
-    color: Optional[str] = Field(default=None, description="Color code for UI display")
+    minBreakMinutes: int | None = Field(default=None, ge=0, description="Minimum break in minutes")
+    skills: list[str] | None = Field(default=None, description="Required skills for this shift")
+    color: str | None = Field(default=None, description="Color code for UI display")
 
 
 # ============================================================================
@@ -45,15 +45,15 @@ class Requirement(BaseModel):
     """Shift requirement for a specific time slot."""
 
     # Support both old and new field names
-    shiftTemplateId: Optional[str] = Field(default=None, description="Reference to shift template (new)")
-    shiftId: Optional[str] = Field(default=None, alias="shiftId", description="Reference to shift template (old)")
+    shiftTemplateId: str | None = Field(default=None, description="Reference to shift template (new)")
+    shiftId: str | None = Field(default=None, alias="shiftId", description="Reference to shift template (old)")
 
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Date in YYYY-MM-DD format")
-    startTime: Optional[str] = Field(default=None, pattern=r"^\d{2}:\d{2}$", description="Start time override")
-    endTime: Optional[str] = Field(default=None, pattern=r"^\d{2}:\d{2}$", description="End time override")
-    count: Optional[int] = Field(default=None, ge=1, description="Number of employees needed (new)")
-    neededSkills: Optional[Dict[str, int]] = Field(default=None, description="Required skills with counts (old)")
-    skills: Optional[List[str]] = Field(default=None, description="Required skills (new)")
+    startTime: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$", description="Start time override")
+    endTime: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$", description="End time override")
+    count: int | None = Field(default=None, ge=1, description="Number of employees needed (new)")
+    neededSkills: dict[str, int] | None = Field(default=None, description="Required skills with counts (old)")
+    skills: list[str] | None = Field(default=None, description="Required skills (new)")
 
     @model_validator(mode="after")
     def normalize_requirement_fields(self) -> "Requirement":
@@ -92,16 +92,16 @@ class Employee(BaseModel):
 
     id: str = Field(..., description="Unique employee identifier")
     name: str = Field(..., description="Employee name")
-    role: Optional[str] = Field(default=None, description="Primary role of the employee")
-    contractHours: Optional[float] = Field(default=None, gt=0, description="Weekly contract hours (new)")
-    contract: Optional[Dict[str, Any]] = Field(default=None, description="Contract details (old)")
-    maxDailyHours: Optional[float] = Field(default=None, gt=0, description="Maximum daily working hours")
-    skills: Optional[List[str]] = Field(default=None, description="Employee skills")
-    breakMinutes: Optional[int] = Field(default=None, ge=0, description="Preferred break in minutes")
-    maxConsecutiveDays: Optional[int] = Field(default=None, ge=1, le=31, description="Maximum consecutive working days")
-    minFreeSundaysPerYear: Optional[int] = Field(default=None, ge=0, le=52, description="Minimum free Sundays per year")
-    forbiddenDates: Optional[List[str]] = Field(default=None, description="Forbidden dates (old)")
-    currentBalanceHours: Optional[float] = Field(default=0.0, description="Aktueller Zeitkontostand in Stunden")
+    role: str | None = Field(default=None, description="Primary role of the employee")
+    contractHours: float | None = Field(default=None, gt=0, description="Weekly contract hours (new)")
+    contract: dict[str, Any] | None = Field(default=None, description="Contract details (old)")
+    maxDailyHours: float | None = Field(default=None, gt=0, description="Maximum daily working hours")
+    skills: list[str] | None = Field(default=None, description="Employee skills")
+    breakMinutes: int | None = Field(default=None, ge=0, description="Preferred break in minutes")
+    maxConsecutiveDays: int | None = Field(default=None, ge=1, le=31, description="Maximum consecutive working days")
+    minFreeSundaysPerYear: int | None = Field(default=None, ge=0, le=52, description="Minimum free Sundays per year")
+    forbiddenDates: list[str] | None = Field(default=None, description="Forbidden dates (old)")
+    currentBalanceHours: float | None = Field(default=0.0, description="Aktueller Zeitkontostand in Stunden")
 
     @model_validator(mode="after")
     def normalize_employee_fields(self) -> "Employee":
@@ -131,12 +131,12 @@ class Wish(BaseModel):
 
     employeeId: str = Field(..., description="Employee ID")
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Date in YYYY-MM-DD format")
-    shiftTemplateId: Optional[str] = Field(default=None, description="Preferred shift template (new)")
-    shiftId: Optional[str] = Field(default=None, alias="shiftId", description="Preferred shift template (old)")
+    shiftTemplateId: str | None = Field(default=None, description="Preferred shift template (new)")
+    shiftId: str | None = Field(default=None, alias="shiftId", description="Preferred shift template (old)")
     type: str = Field(default="OFF", description="Wish type: OFF, SHIFT, etc.")
     priority: int = Field(default=0, ge=0, le=10, description="Wish priority (new)")
-    weight: Optional[int] = Field(default=None, description="Wish weight (old)")
-    comment: Optional[str] = Field(default=None, description="Comment (old)")
+    weight: int | None = Field(default=None, description="Wish weight (old)")
+    comment: str | None = Field(default=None, description="Comment (old)")
 
     @model_validator(mode="after")
     def normalize_wish_fields(self) -> "Wish":
@@ -163,19 +163,19 @@ class Config(BaseModel):
     schemaVersion: str = Field(default="1.0", description="Schema version for backward compatibility")
     startDate: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Planning period start")
     endDate: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Planning period end")
-    maxConsecutiveDays: Optional[int] = Field(default=6, ge=1, le=31, description="Max consecutive working days")
-    minRestTimeHours: Optional[float] = Field(default=11, gt=0, description="Minimum rest time between shifts in hours")
-    maxDailyWorkHours: Optional[float] = Field(default=10, gt=0, description="Maximum daily working hours")
-    minFreeSundaysPerYear: Optional[int] = Field(default=15, ge=0, le=52, description="Minimum free Sundays per year")
-    holidayDates: Optional[List[str]] = Field(default=None, description="List of public holiday dates (YYYY-MM-DD) treated like Sundays per ArbZG §9")
-    defaultWeeklyHours: Optional[float] = Field(default=40.0, gt=0, description="Default weekly contract hours")
-    maxSameShiftConsecutive: Optional[int] = Field(
+    maxConsecutiveDays: int | None = Field(default=6, ge=1, le=31, description="Max consecutive working days")
+    minRestTimeHours: float | None = Field(default=11, gt=0, description="Minimum rest time between shifts in hours")
+    maxDailyWorkHours: float | None = Field(default=10, gt=0, description="Maximum daily working hours")
+    minFreeSundaysPerYear: int | None = Field(default=15, ge=0, le=52, description="Minimum free Sundays per year")
+    holidayDates: list[str] | None = Field(default=None, description="List of public holiday dates (YYYY-MM-DD) treated like Sundays per ArbZG §9")
+    defaultWeeklyHours: float | None = Field(default=40.0, gt=0, description="Default weekly contract hours")
+    maxSameShiftConsecutive: int | None = Field(
         default=0,
         ge=0,
         le=14,
         description="Max consecutive days with same shift type (0 = disabled)",
     )
-    solverTimeoutSeconds: Optional[int] = Field(default=300, gt=0, description="Solver timeout in seconds")
+    solverTimeoutSeconds: int | None = Field(default=300, gt=0, description="Solver timeout in seconds")
 
 
 # ============================================================================
@@ -190,10 +190,10 @@ class JobPayload(BaseModel):
 
     metadata: Metadata
     config: Config
-    shiftTemplates: List[ShiftTemplate]
-    requirements: List[Requirement]
-    employees: List[Employee]
-    wishes: Optional[List[Wish]] = Field(default=None)
+    shiftTemplates: list[ShiftTemplate]
+    requirements: list[Requirement]
+    employees: list[Employee]
+    wishes: list[Wish] | None = Field(default=None)
 
     @model_validator(mode="after")
     def validate_references(self) -> "JobPayload":
@@ -224,8 +224,8 @@ class JobPayload(BaseModel):
     def validate_date_range(self) -> "JobPayload":
         """Validate that startDate is before endDate."""
 
-        start = datetime.strptime(self.config.startDate, "%Y-%m-%d")
-        end = datetime.strptime(self.config.endDate, "%Y-%m-%d")
+        start = datetime.strptime(self.config.startDate, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        end = datetime.strptime(self.config.endDate, "%Y-%m-%d").replace(tzinfo=timezone.utc)
 
         if start >= end:
             raise ValueError("startDate must be before endDate")
@@ -254,7 +254,9 @@ def validate_job_payload(payload: dict) -> JobPayload:
     """
     try:
         return JobPayload.model_validate(payload)
-    except Exception as e:
+    except (ValueError, TypeError, KeyError):
+        raise
+    except ValidationError as e:
         raise ValueError(f"Validation failed: {e}")
 
 
@@ -287,12 +289,12 @@ class SolveResult(BaseModel):
     """Result of the optimization run."""
 
     status: str = Field(..., description="Solver status (SUCCESS, FEASIBLE, INFEASIBLE, TIMEOUT)")
-    assignments: List[Assignment] = Field(default_factory=list, description="Schedule assignments")
-    metrics: Dict[str, Any] = Field(default_factory=dict, description="Optimization metrics")
-    constraintViolations: Optional[List[Dict[str, Any]]] = Field(
+    assignments: list[Assignment] = Field(default_factory=list, description="Schedule assignments")
+    metrics: dict[str, Any] = Field(default_factory=dict, description="Optimization metrics")
+    constraintViolations: list[dict[str, Any]] | None = Field(
         default=None, description="Details about constraint violations (if any)"
     )
-    solverInfo: Optional[Dict[str, Any]] = Field(
+    solverInfo: dict[str, Any] | None = Field(
         default=None,
         description="Solver-specific information (runtime, iterations, etc.)",
     )

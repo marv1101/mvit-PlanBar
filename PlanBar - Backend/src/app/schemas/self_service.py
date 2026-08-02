@@ -5,6 +5,7 @@ class MyShiftResponse(BaseModel):
     id: int
     schedule_id: int
     schedule_name: str
+    employee_id: int
     date: str
     start_time: str
     end_time: str

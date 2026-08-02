@@ -52,6 +52,7 @@ describe('employeeFromResponse', () => {
     max_work_hours: 35,
     user_id: 10,
     role_ids: [1, 2],
+    team_ids: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
   };
@@ -162,6 +163,7 @@ describe('employeeToCreate', () => {
       breakTime: { start: '12:00', end: '13:00', duration: 60 },
       color: '#ff0000',
       maxWorkHours: 35,
+      teamIds: [],
     };
     const result = employeeToCreate(emp);
     expect(result.first_name).toBe('Max');
@@ -184,6 +186,7 @@ describe('employeeToCreate', () => {
       workingHours: defaultWorkingHours,
       breakTime: { start: '12:00', end: '13:00', duration: 60 },
       color: '#00ff00',
+      teamIds: [],
     };
     const result = employeeToCreate(emp);
     expect(result.first_name).toBe('Solo');
@@ -199,6 +202,7 @@ describe('employeeToCreate', () => {
       workingHours: defaultWorkingHours,
       breakTime: { start: '12:00', end: '13:00', duration: 60 },
       color: '#0000ff',
+      teamIds: [],
     };
     const result = employeeToCreate(emp);
     expect(result.first_name).toBe('');
@@ -214,6 +218,7 @@ describe('employeeToCreate', () => {
       workingHours: defaultWorkingHours,
       breakTime: { start: '12:00', end: '13:00', duration: 60 },
       color: '#ff00ff',
+      teamIds: [],
     };
     const result = employeeToCreate(emp);
     expect(result.role_ids).toBeUndefined();
@@ -228,6 +233,7 @@ describe('employeeToCreate', () => {
       workingHours: defaultWorkingHours,
       breakTime: { start: '12:00', end: '13:00', duration: 60 },
       color: '#fff',
+      teamIds: [],
     };
     const result = employeeToCreate(emp);
     expect(result.first_name).toBe('Hans Peter');
@@ -692,6 +698,7 @@ describe('userFromResponse', () => {
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     last_login: '2024-06-01T08:00:00Z',
+    employee_id: null,
   };
 
   it('bildet UserResponseDTO auf AppUser (employee-Rolle) ab', () => {
@@ -708,6 +715,12 @@ describe('userFromResponse', () => {
     const dto = { ...baseDto, role: 'admin' };
     const result = userFromResponse(dto);
     expect(result.role).toBe('admin');
+  });
+
+  it('erkennt planer-Rolle', () => {
+    const dto = { ...baseDto, role: 'planer' };
+    const result = userFromResponse(dto);
+    expect(result.role).toBe('planer');
   });
 
   it('behandelt mustChangePassword=true', () => {

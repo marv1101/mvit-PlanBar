@@ -46,3 +46,13 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return current_user
+
+
+def require_admin_or_planer(current_user: User = Depends(get_current_user)) -> User:
+    """Allow admin or planer roles. Used for schedule planning endpoints."""
+    if current_user.role not in ("admin", "planer"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or planer access required",
+        )
+    return current_user

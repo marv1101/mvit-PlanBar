@@ -72,3 +72,38 @@ def detect_conflict(
             raise ConflictError("Resource may have been modified. Please refresh and try again.")
 
     return False
+
+
+# ---------------------------------------------------------------------------
+# Convenience helpers for the GET/PUT ETag pattern
+# ---------------------------------------------------------------------------
+
+
+def resource_etag_dict(model, *fields: str) -> dict:
+    """Build the dict used to compute an ETag for *model*.
+
+    *fields* are attribute names read from *model*.  ``updated_at`` is
+    always included automatically.
+    """
+    d = {f: str(getattr(model, f)) for f in fields}
+    d["updated_at"] = str(model.updated_at)
+    return d
+
+
+def set_etag_header(response: Response, model, *fields: str) -> None:
+    """Compute and set the ETag + Cache-Control headers on *response* (GET)."""
+    etag = compute_etag(resource_etag_dict(model, *fields))
+    add_cache_headers(response, etag=etag, last_modified=model.updated_at)
+
+
+def check_etag_conflict(model, if_match: str | None, *fields: str) -> None:
+    """Raise ``ConflictError`` if the client's ETag doesn't match (PUT pre-check)."""
+    etag = compute_etag(resource_etag_dict(model, *fields))
+    detect_conflict(model.updated_at, if_match, etag)
+
+
+def set_etag_response(response: Response, model, *fields: str) -> str:
+    """Set the new ETag after a successful update (PUT post-check).  Returns the ETag."""
+    etag = compute_etag(resource_etag_dict(model, *fields))
+    add_cache_headers(response, etag=etag)
+    return etag

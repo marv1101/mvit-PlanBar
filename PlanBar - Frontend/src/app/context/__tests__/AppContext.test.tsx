@@ -23,8 +23,8 @@ const base = '/api/v1'
 // ---------------------------------------------------------------------------
 
 const employeeDTOs: EmployeeResponseDTO[] = [
-  { id: 1, first_name: 'Max', last_name: 'Müller', email: 'max@example.com', color: '#3b82f6', working_hours_json: null, break_start: '12:00', break_end: '13:00', max_work_hours: 40, user_id: 2, role_ids: [1], created_at: '2026-01-15T00:00:00Z', updated_at: '2026-05-20T00:00:00Z' },
-  { id: 2, first_name: 'Anna', last_name: 'Schmidt', email: 'anna@example.com', color: '#ef4444', working_hours_json: null, break_start: '12:00', break_end: '12:30', max_work_hours: 40, user_id: null, role_ids: [2], created_at: '2026-02-01T00:00:00Z', updated_at: '2026-05-10T00:00:00Z' },
+  { id: 1, first_name: 'Max', last_name: 'Müller', email: 'max@example.com', color: '#3b82f6', working_hours_json: null, break_start: '12:00', break_end: '13:00', max_work_hours: 40, user_id: 2, role_ids: [1], team_ids: [], created_at: '2026-01-15T00:00:00Z', updated_at: '2026-05-20T00:00:00Z' },
+  { id: 2, first_name: 'Anna', last_name: 'Schmidt', email: 'anna@example.com', color: '#ef4444', working_hours_json: null, break_start: '12:00', break_end: '12:30', max_work_hours: 40, user_id: null, role_ids: [2], team_ids: [], created_at: '2026-02-01T00:00:00Z', updated_at: '2026-05-10T00:00:00Z' },
 ]
 
 const roleDTOs: RoleResponseDTO[] = [

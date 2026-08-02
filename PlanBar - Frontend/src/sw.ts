@@ -21,8 +21,46 @@ self.addEventListener('install', () => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(clients.claim());
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => key.startsWith('workbox-precache') === false && key.includes('api-cache') === false)
+          .map((key) => caches.delete(key))
+      )
+    ).then(() => clients.claim())
+  );
 });
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+const OFFLINE_ACTIONS_CACHE = 'planbar-offline-actions';
+
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-offline-actions') {
+    event.waitUntil(processOfflineActions());
+  } else if (event.tag === 'sync-initial-data') {
+    event.waitUntil(syncInitialData());
+  }
+});
+
+async function processOfflineActions() {
+  const clientList = await self.clients.matchAll();
+  for (const client of clientList) {
+    client.postMessage({ type: 'PROCESS_OFFLINE_QUEUE' });
+  }
+}
+
+async function syncInitialData() {
+  const clientList = await self.clients.matchAll();
+  for (const client of clientList) {
+    client.postMessage({ type: 'SYNC_INITIAL_DATA' });
+  }
+}
 
 self.addEventListener('push', (event) => {
   let data: { title: string; body: string; url: string; tag: string } = {

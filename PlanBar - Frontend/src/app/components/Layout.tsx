@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router';
-import { Calendar, Users, ClipboardList, LayoutDashboard, UserCog, Eye, LogOut, User, UserPlus, Menu, X, Clock, MessageSquare, UserCheck } from 'lucide-react';
+import { Calendar, Users, ClipboardList, LayoutDashboard, UserCog, Eye, LogOut, User, UserPlus, Menu, X, Clock, MessageSquare, UserCheck, Building2 } from 'lucide-react';
 import { PushBell } from './PushBell';
+import { TeamSelector } from './TeamSelector';
 import { cn } from './ui/utils';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
@@ -46,13 +47,14 @@ export function Layout() {
   const allNavItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
     { path: '/roles', label: 'Rollen', icon: UserCog, roles: ['admin'] },
-    { path: '/employees', label: 'Mitarbeiter', icon: Users, roles: ['admin'] },
+    { path: '/teams', label: 'Teams', icon: Building2, roles: ['admin'] },
+    { path: '/employees', label: 'Mitarbeiter', icon: Users, roles: ['admin', 'planer'] },
     { path: '/users', label: 'Benutzer', icon: UserPlus, roles: ['admin'] },
-    { path: '/requests', label: 'Wünsche', icon: ClipboardList, roles: ['admin', 'employee'] },
-    { path: '/schedule', label: 'Schichtplan', icon: Calendar, roles: ['admin'] },
+    { path: '/requests', label: 'Wünsche', icon: ClipboardList, roles: ['admin', 'planer', 'employee'] },
+    { path: '/schedule', label: 'Schichtplan', icon: Calendar, roles: ['admin', 'planer'] },
     { path: '/time-accounts', label: 'Zeitkonten', icon: Clock, roles: ['admin'] },
     { path: '/self-service', label: 'Self-Service', icon: UserCheck, roles: ['admin', 'employee'] },
-    { path: '/employee-view', label: 'Mitarbeiteransicht', icon: Eye, roles: ['admin', 'employee'] },
+    { path: '/employee-view', label: 'Mitarbeiteransicht', icon: Eye, roles: ['admin', 'planer', 'employee'] },
     { path: '/pinboard', label: 'Pinnwand', icon: MessageSquare, roles: ['admin', 'employee'] },
   ];
 
@@ -80,12 +82,13 @@ export function Layout() {
               <h1 className="font-semibold text-xl truncate">MVIT PlanBar</h1>
             </div>
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+              <TeamSelector />
               <PushBell />
               <div className="hidden sm:flex items-center gap-2 text-sm text-gray-700">
                 <User className="h-4 w-4" />
                 <span className="truncate max-w-[120px]">{user?.name}</span>
                 <span className="text-xs text-gray-500">
-                  ({user?.role === 'admin' ? 'Administrator' : 'Mitarbeiter'})
+                  ({user?.role === 'admin' ? 'Administrator' : user?.role === 'planer' ? 'Planer' : 'Mitarbeiter'})
                 </span>
               </div>
               <Button

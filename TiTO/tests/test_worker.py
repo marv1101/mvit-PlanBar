@@ -11,23 +11,22 @@ Tests für den TiTO Worker mit Fokus auf:
 
 import time
 import uuid
-from unittest.mock import Mock, patch
 from datetime import datetime, timezone
+from unittest.mock import Mock, patch
 
-
+import requests
 from tito.config import Settings
-from tito.worker import WorkerContext, run_worker, _process_pending_callbacks
 from tito.db import (
-    get_connection,
+    enqueue_callback,
     enqueue_job,
     fetch_next_job,
-    mark_job_processing,
-    store_result,
+    get_connection,
     mark_job_failed_with_retry,
+    mark_job_processing,
     move_job_to_dlq,
-    enqueue_callback,
+    store_result,
 )
-
+from tito.worker import WorkerContext, _process_pending_callbacks, run_worker
 
 # ============================================================================
 # Helper-Funktionen für Tests
@@ -130,20 +129,22 @@ class TestRunWorker:
 
     def test_worker_registers_at_startup(self, tmp_path):
         """Teste, dass Worker sich beim Start registriert."""
-        settings, connection = setup_test_db(tmp_path)
+        settings, _connection = setup_test_db(tmp_path)
 
-        with patch("tito.worker.requests.post") as mock_post:
+        with (
+            patch("tito.worker.requests.post") as mock_post,
+            patch("tito.worker.psutil.cpu_percent", return_value=50.0),
+            patch("tito.worker.psutil.virtual_memory") as mock_vmem,
+            patch("tito.worker.fetch_next_job", return_value=None),
+            patch("tito.worker._process_pending_callbacks"),
+            self._setup_limited_worker(max_loops=1),
+        ):
             mock_post.return_value = Mock(status_code=200)
-            with patch("tito.worker.psutil.cpu_percent", return_value=50.0):
-                with patch("tito.worker.psutil.virtual_memory") as mock_vmem:
-                    mock_vmem.return_value = Mock(percent=50.0)
-                    with patch("tito.worker.fetch_next_job", return_value=None):
-                        with patch("tito.worker._process_pending_callbacks"):
-                            with self._setup_limited_worker(max_loops=1):
-                                try:
-                                    run_worker(settings)
-                                except KeyboardInterrupt:
-                                    pass
+            mock_vmem.return_value = Mock(percent=50.0)
+            try:
+                run_worker(settings)
+            except KeyboardInterrupt:
+                pass
 
             # Prüfe, dass Register-Request gesendet wurde
             register_calls = [c for c in mock_post.call_args_list if "workers/register" in str(c)]
@@ -151,31 +152,33 @@ class TestRunWorker:
 
     def test_worker_sends_heartbeat(self, tmp_path):
         """Teste Heartbeat-Sendung."""
-        settings, connection = setup_test_db(tmp_path)
+        settings, _connection = setup_test_db(tmp_path)
 
-        with patch("tito.worker.requests.post") as mock_post:
+        # Mock time.time() um Heartbeat zu erzwingen
+        current_time = [1000.0]  # Startwert
+
+        def mock_time():
+            return current_time[0]
+
+        def mock_sleep(duration):
+            current_time[0] += duration + 5  # Erhöhe Zeit um >5 Sekunden
+
+        with (
+            patch("tito.worker.requests.post") as mock_post,
+            patch("tito.worker.psutil.cpu_percent", return_value=50.0),
+            patch("tito.worker.psutil.virtual_memory") as mock_vmem,
+            patch("tito.worker.fetch_next_job", return_value=None),
+            patch("tito.worker._process_pending_callbacks"),
+            patch("tito.worker.time.time", side_effect=mock_time),
+            patch("tito.worker.time.sleep", side_effect=mock_sleep),
+            self._setup_limited_worker(max_loops=3),
+        ):
             mock_post.return_value = Mock(status_code=200)
-            with patch("tito.worker.psutil.cpu_percent", return_value=50.0):
-                with patch("tito.worker.psutil.virtual_memory") as mock_vmem:
-                    mock_vmem.return_value = Mock(percent=50.0)
-                    with patch("tito.worker.fetch_next_job", return_value=None):
-                        with patch("tito.worker._process_pending_callbacks"):
-                            # Mock time.time() um Heartbeat zu erzwingen
-                            current_time = [1000.0]  # Startwert
-
-                            def mock_time():
-                                return current_time[0]
-
-                            def mock_sleep(duration):
-                                current_time[0] += duration + 5  # Erhöhe Zeit um >5 Sekunden
-
-                            with patch("tito.worker.time.time", side_effect=mock_time):
-                                with patch("tito.worker.time.sleep", side_effect=mock_sleep):
-                                    with self._setup_limited_worker(max_loops=3):
-                                        try:
-                                            run_worker(settings)
-                                        except KeyboardInterrupt:
-                                            pass
+            mock_vmem.return_value = Mock(percent=50.0)
+            try:
+                run_worker(settings)
+            except KeyboardInterrupt:
+                pass
 
             # Prüfe, dass Heartbeat gesendet wurde
             heartbeat_calls = [c for c in mock_post.call_args_list if "workers/heartbeat" in str(c)]
@@ -183,20 +186,22 @@ class TestRunWorker:
 
     def test_worker_deregisters_on_shutdown(self, tmp_path):
         """Teste Deregistrierung beim Herunterfahren."""
-        settings, connection = setup_test_db(tmp_path)
+        settings, _connection = setup_test_db(tmp_path)
 
-        with patch("tito.worker.requests.post") as mock_post:
+        with (
+            patch("tito.worker.requests.post") as mock_post,
+            patch("tito.worker.psutil.cpu_percent", return_value=50.0),
+            patch("tito.worker.psutil.virtual_memory") as mock_vmem,
+            patch("tito.worker.fetch_next_job", return_value=None),
+            patch("tito.worker._process_pending_callbacks"),
+            self._setup_limited_worker(max_loops=1),
+        ):
             mock_post.return_value = Mock(status_code=200)
-            with patch("tito.worker.psutil.cpu_percent", return_value=50.0):
-                with patch("tito.worker.psutil.virtual_memory") as mock_vmem:
-                    mock_vmem.return_value = Mock(percent=50.0)
-                    with patch("tito.worker.fetch_next_job", return_value=None):
-                        with patch("tito.worker._process_pending_callbacks"):
-                            with self._setup_limited_worker(max_loops=1):
-                                try:
-                                    run_worker(settings)
-                                except KeyboardInterrupt:
-                                    pass
+            mock_vmem.return_value = Mock(percent=50.0)
+            try:
+                run_worker(settings)
+            except KeyboardInterrupt:
+                pass
 
             # Prüfe, dass Deregister-Request gesendet wurde
             deregister_calls = [c for c in mock_post.call_args_list if "workers/deregister" in str(c)]
@@ -209,21 +214,23 @@ class TestRunWorker:
         payload = create_test_payload()
         job_id = enqueue_job(connection, payload, settings.queue_table)
 
-        with patch("tito.worker.requests.post") as mock_post:
+        with (
+            patch("tito.worker.requests.post") as mock_post,
+            patch("tito.worker.psutil.cpu_percent", return_value=50.0),
+            patch("tito.worker.psutil.virtual_memory") as mock_vmem,
+            patch("tito.worker.build_model"),
+            patch(
+                "tito.worker.solve_model",
+                return_value={"status": "SUCCESS"},
+            ),
+            self._setup_limited_worker(max_loops=2),
+        ):
             mock_post.return_value = Mock(status_code=200)
-            with patch("tito.worker.psutil.cpu_percent", return_value=50.0):
-                with patch("tito.worker.psutil.virtual_memory") as mock_vmem:
-                    mock_vmem.return_value = Mock(percent=50.0)
-                    with patch("tito.worker.build_model"):
-                        with patch(
-                            "tito.worker.solve_model",
-                            return_value={"status": "SUCCESS"},
-                        ):
-                            with self._setup_limited_worker(max_loops=2):
-                                try:
-                                    run_worker(settings)
-                                except KeyboardInterrupt:
-                                    pass
+            mock_vmem.return_value = Mock(percent=50.0)
+            try:
+                run_worker(settings)
+            except KeyboardInterrupt:
+                pass
 
         # Prüfe, dass Job verarbeitet wurde
         from tito.db import fetch_job_status_by_id
@@ -242,16 +249,18 @@ class TestRunWorker:
 
         job_id = enqueue_job(connection, payload, settings.queue_table)
 
-        with patch("tito.worker.requests.post") as mock_post:
+        with (
+            patch("tito.worker.requests.post") as mock_post,
+            patch("tito.worker.psutil.cpu_percent", return_value=50.0),
+            patch("tito.worker.psutil.virtual_memory") as mock_vmem,
+            self._setup_limited_worker(max_loops=2),
+        ):
             mock_post.return_value = Mock(status_code=200)
-            with patch("tito.worker.psutil.cpu_percent", return_value=50.0):
-                with patch("tito.worker.psutil.virtual_memory") as mock_vmem:
-                    mock_vmem.return_value = Mock(percent=50.0)
-                    with self._setup_limited_worker(max_loops=2):
-                        try:
-                            run_worker(settings)
-                        except KeyboardInterrupt:
-                            pass
+            mock_vmem.return_value = Mock(percent=50.0)
+            try:
+                run_worker(settings)
+            except KeyboardInterrupt:
+                pass
 
         # Prüfe, dass Job als failed oder queued markiert wurde (retry)
         from tito.db import fetch_job_status_by_id
@@ -267,25 +276,27 @@ class TestRunWorker:
         payload = create_test_payload()
         job_id = enqueue_job(connection, payload, settings.queue_table)
 
-        with patch("tito.worker.requests.post") as mock_post:
+        with (
+            patch("tito.worker.requests.post") as mock_post,
+            patch("tito.worker.psutil.cpu_percent", return_value=50.0),
+            patch("tito.worker.psutil.virtual_memory") as mock_vmem,
+            patch("tito.worker.build_model"),
+            patch(
+                "tito.worker.solve_model",
+                return_value={"status": "SUCCESS"},
+            ),
+            patch(
+                "tito.worker.enqueue_callback",
+                side_effect=RuntimeError("callback enqueue failed"),
+            ),
+            self._setup_limited_worker(max_loops=2),
+        ):
             mock_post.return_value = Mock(status_code=200)
-            with patch("tito.worker.psutil.cpu_percent", return_value=50.0):
-                with patch("tito.worker.psutil.virtual_memory") as mock_vmem:
-                    mock_vmem.return_value = Mock(percent=50.0)
-                    with patch("tito.worker.build_model"):
-                        with patch(
-                            "tito.worker.solve_model",
-                            return_value={"status": "SUCCESS"},
-                        ):
-                            with patch(
-                                "tito.worker.enqueue_callback",
-                                side_effect=RuntimeError("callback enqueue failed"),
-                            ):
-                                with self._setup_limited_worker(max_loops=2):
-                                    try:
-                                        run_worker(settings)
-                                    except KeyboardInterrupt:
-                                        pass
+            mock_vmem.return_value = Mock(percent=50.0)
+            try:
+                run_worker(settings)
+            except KeyboardInterrupt:
+                pass
 
         from tito.db import fetch_job_status_by_id
 
@@ -386,7 +397,7 @@ class TestProcessPendingCallbacks:
         )
 
         with patch("tito.worker.requests.post") as mock_post:
-            mock_post.side_effect = Exception("Network error")
+            mock_post.side_effect = requests.RequestException("Network error")
             _process_pending_callbacks(connection, settings, {})
 
         # Prüfe, dass Callback als pending verbleibt

@@ -1,17 +1,18 @@
 from datetime import date as Date
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.enums import NotificationType, WishStatus
 from app.core.exceptions import NotFoundException
-from app.core.versioning import ConflictError, compute_etag, detect_conflict
+from app.core.versioning import ConflictError, check_etag_conflict, set_etag_header, set_etag_response
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
-from app.dependencies import get_current_user, get_db, require_admin
+from app.dependencies import get_current_user, get_db, require_admin_or_planer
 from app.schemas.pagination import PaginatedResponse, PaginationParams
+from app.services import team_service
 from app.services.notification_service import create_notification_and_push
 
 router = APIRouter()
@@ -45,6 +46,7 @@ class ShiftWishResponse(BaseModel):
     reviewed_by: int | None = None
     reviewed_at: datetime | None = None
     rejection_reason: str | None = None
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -59,7 +61,7 @@ def create_shift_wish(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.employee_id != data.employee_id and current_user.role != "admin":
+    if not team_service.user_can_access_employee(db, current_user, data.employee_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
@@ -86,7 +88,13 @@ def list_shift_wishes(
     status: str | None = Query(None),
 ):
     query = db.query(ShiftWish)
-    if current_user.role != "admin":
+    if current_user.role == "planer":
+        team_ids = team_service.get_team_ids_for_user(db, current_user)
+        if team_ids:
+            query = team_service.filter_query_by_team_scope(query, ShiftWish, team_ids)
+        else:
+            query = query.filter(ShiftWish.employee_id == -1)
+    elif current_user.role != "admin":
         query = query.filter(ShiftWish.employee_id == current_user.employee_id)
     if status:
         query = query.filter(ShiftWish.status == status)
@@ -100,15 +108,18 @@ def get_shift_wish(
     wish_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    response: Response = None,
 ):
     wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
     if not wish:
         raise NotFoundException(detail="Shift wish not found")
-    if current_user.role != "admin" and wish.employee_id != current_user.employee_id:
+    if not team_service.user_can_access_employee(db, current_user, wish.employee_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
         )
+    if response is not None:
+        set_etag_header(response, wish, "date", "type", "status")
     return wish
 
 
@@ -119,33 +130,31 @@ def update_shift_wish(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     if_match: str | None = Header(None, alias="If-Match"),
+    response: Response = None,
 ):
     wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
     if not wish:
         raise NotFoundException(detail="Shift wish not found")
 
-    wish_etag = compute_etag(
-        {
-            "date": str(wish.date),
-            "type": wish.type,
-            "status": wish.status,
-            "updated_at": str(wish.updated_at),
-        }
-    )
     try:
-        detect_conflict(wish.updated_at, if_match, wish_etag)
+        check_etag_conflict(wish, if_match, "date", "type", "status")
     except ConflictError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Shift wish was modified by another user. Please refresh and try again.",
         )
 
-    if current_user.employee_id != wish.employee_id and current_user.role != "admin":
+    if not team_service.user_can_access_employee(db, current_user, wish.employee_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
         )
     if data.employee_id is not None:
+        if not team_service.user_can_access_employee(db, current_user, data.employee_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized",
+            )
         wish.employee_id = data.employee_id
     if data.date is not None:
         wish.date = data.date
@@ -156,15 +165,17 @@ def update_shift_wish(
     if data.note is not None:
         wish.note = data.note
     if data.status is not None:
-        if current_user.role != "admin":
+        if current_user.role == "user":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admins can update wish status",
+                detail="Only admins or planners can update wish status",
             )
         wish.status = data.status
     db.add(wish)
     db.commit()
     db.refresh(wish)
+    if response is not None:
+        set_etag_response(response, wish, "date", "type", "status")
     return wish
 
 
@@ -177,7 +188,7 @@ def delete_shift_wish(
     wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
     if not wish:
         raise NotFoundException(detail="Shift wish not found")
-    if current_user.employee_id != wish.employee_id and current_user.role != "admin":
+    if not team_service.user_can_access_employee(db, current_user, wish.employee_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
@@ -190,13 +201,18 @@ def delete_shift_wish(
 def approve_shift_wish(
     wish_id: int,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    user: User = Depends(require_admin_or_planer),
 ):
     wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
     if not wish:
         raise NotFoundException(detail="Shift wish not found")
+    if not team_service.user_can_access_employee(db, user, wish.employee_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Wish belongs to an employee outside of your team scope",
+        )
     wish.status = WishStatus.APPROVED.value
-    wish.reviewed_by = admin.id
+    wish.reviewed_by = user.id
     wish.reviewed_at = datetime.now(timezone.utc)
     wish.rejection_reason = None
     db.add(wish)
@@ -227,13 +243,18 @@ def reject_shift_wish(
     wish_id: int,
     body: ShiftWishReject,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    user: User = Depends(require_admin_or_planer),
 ):
     wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
     if not wish:
         raise NotFoundException(detail="Shift wish not found")
+    if not team_service.user_can_access_employee(db, user, wish.employee_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Wish belongs to an employee outside of your team scope",
+        )
     wish.status = WishStatus.REJECTED.value
-    wish.reviewed_by = admin.id
+    wish.reviewed_by = user.id
     wish.reviewed_at = datetime.now(timezone.utc)
     wish.rejection_reason = body.rejection_reason
     db.add(wish)

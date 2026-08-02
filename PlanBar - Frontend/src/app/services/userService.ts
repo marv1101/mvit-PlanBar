@@ -6,6 +6,16 @@ export interface AdminUserCreateDTO {
   email: string;
   role: string;
   employee_id?: number;
+  team_ids?: number[];
+}
+
+export interface UserUpdateDTO {
+  username?: string;
+  email?: string;
+  password?: string;
+  role?: string;
+  employee_id?: number | null;
+  team_ids?: number[] | null;
 }
 
 export interface UserResponseDTO {
@@ -14,6 +24,7 @@ export interface UserResponseDTO {
   email: string;
   role: string;
   must_change_password: boolean;
+  employee_id: number | null;
   created_at: string;
   updated_at: string;
   last_login: string | null;
@@ -40,6 +51,16 @@ export async function adminCreateUser(dto: AdminUserCreateDTO): Promise<AdminUse
   return data;
 }
 
+export async function getUser(id: number): Promise<UserResponseDTO> {
+  const { data } = await api.get(`/users/${id}`);
+  return data;
+}
+
+export async function updateUser(id: number, dto: UserUpdateDTO): Promise<UserResponseDTO> {
+  const { data } = await api.put(`/users/${id}`, dto);
+  return data;
+}
+
 export async function changePassword(oldPassword: string, newPassword: string): Promise<UserResponseDTO> {
   const { data } = await api.post('/users/change-password', {
     old_password: oldPassword,
@@ -51,6 +72,11 @@ export async function changePassword(oldPassword: string, newPassword: string): 
 export async function getUnlinkedEmployees(): Promise<UnlinkedEmployeeDTO[]> {
   const { data } = await api.get('/users/employees/unlinked');
   return data;
+}
+
+export async function getAllEmployees(): Promise<Array<{ id: number; first_name: string; last_name: string; email: string | null; user_id: number | null }>> {
+  const { data } = await api.get('/employees', { params: { limit: 1000 } });
+  return data.items;
 }
 
 export async function deleteUser(id: number): Promise<void> {

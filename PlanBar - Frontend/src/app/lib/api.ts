@@ -115,3 +115,43 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// --- ETag Store for optimistic concurrency control ---------------------------
+
+const etagStore = new Map<string, string>();
+
+export function getStoredEtag(url: string): string | undefined {
+  return etagStore.get(url);
+}
+
+export function setStoredEtag(url: string, etag: string): void {
+  etagStore.set(url, etag);
+}
+
+export function clearStoredEtag(url: string): void {
+  etagStore.delete(url);
+}
+
+// --- ETag interceptors -------------------------------------------------------
+
+const MUTATING_METHODS = new Set(['put', 'patch', 'delete']);
+const SINGLE_RESOURCE_RE = /\/\d+$/;
+
+api.interceptors.request.use((config) => {
+  const method = (config.method || '').toLowerCase();
+  if (MUTATING_METHODS.has(method) && SINGLE_RESOURCE_RE.test(config.url || '')) {
+    const etag = etagStore.get(config.url || '');
+    if (etag) {
+      config.headers.set('If-Match', etag);
+    }
+  }
+  return config;
+});
+
+api.interceptors.response.use((response) => {
+  const etag = response.headers['etag'];
+  if (etag) {
+    etagStore.set(response.config.url || '', etag);
+  }
+  return response;
+});

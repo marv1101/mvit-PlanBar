@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -20,6 +20,7 @@ from app.core.exceptions import (
     UnauthorizedException,
 )
 from app.core.rate_limit import limiter
+from app.core.versioning import ConflictError, check_etag_conflict, set_etag_header, set_etag_response
 from app.db.models.employee import Employee
 from app.db.models.user import User
 from app.dependencies import get_current_user, get_db, require_admin
@@ -230,6 +231,7 @@ def get_user(
     user_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    response: Response = None,
 ):
     if current_user.id != user_id and current_user.role != "admin":
         raise UnauthorizedException(detail="Insufficient permissions")
@@ -237,6 +239,8 @@ def get_user(
     user = get_user_by_id(db, user_id)
     if user is None:
         raise NotFoundException(detail="User not found")
+    if response is not None:
+        set_etag_header(response, user, "username", "email", "role")
     return user
 
 
@@ -246,6 +250,8 @@ def update_user_endpoint(
     user_in: UserUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    if_match: str | None = Header(None, alias="If-Match"),
+    response: Response = None,
 ):
     if current_user.role != "admin":
         raise UnauthorizedException(detail="Insufficient permissions")
@@ -253,6 +259,14 @@ def update_user_endpoint(
     user = get_user_by_id(db, user_id)
     if user is None:
         raise NotFoundException(detail="User not found")
+
+    try:
+        check_etag_conflict(user, if_match, "username", "email", "role")
+    except ConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User was modified by another user. Please refresh and try again.",
+        )
 
     if user_in.email:
         existing = db.query(User).filter(User.email == user_in.email, User.id != user.id).first()
@@ -263,7 +277,10 @@ def update_user_endpoint(
         if existing:
             raise ConflictException(detail="Username already in use")
 
-    return update_user(db, user, user_in, actor_id=current_user.id)
+    updated = update_user(db, user, user_in, actor_id=current_user.id)
+    if response is not None:
+        set_etag_response(response, updated, "username", "email", "role")
+    return updated
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
