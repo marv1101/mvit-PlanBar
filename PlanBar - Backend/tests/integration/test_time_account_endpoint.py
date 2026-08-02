@@ -109,8 +109,8 @@ def test_get_time_account_with_projected(client, auth_headers, db_session):
 
     schedule = Schedule(
         name="Current",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 6, 7),
+        start_date=date(2099, 12, 25),
+        end_date=date(2099, 12, 31),
         status="submitted",
     )
     db_session.add(schedule)
@@ -119,7 +119,7 @@ def test_get_time_account_with_projected(client, auth_headers, db_session):
     sp = Shiftplan(
         schedule_id=schedule.id,
         employee_id=emp_id,
-        date=date(2026, 6, 1),
+        date=date(2099, 12, 25),
         shift_id="früh",
         start_time=time(6, 0),
         end_time=time(14, 0),
@@ -166,8 +166,8 @@ def test_get_time_account_projected_multiweek(client, auth_headers, db_session):
 
     schedule = Schedule(
         name="Multiweek Submitted",
-        start_date=date(2026, 5, 18),
-        end_date=date(2026, 6, 15),
+        start_date=date(2100, 1, 1),
+        end_date=date(2100, 1, 28),
         status="submitted",
     )
     db_session.add(schedule)
@@ -176,7 +176,7 @@ def test_get_time_account_projected_multiweek(client, auth_headers, db_session):
     sp1 = Shiftplan(
         schedule_id=schedule.id,
         employee_id=emp_id,
-        date=date(2026, 5, 18),
+        date=date(2100, 1, 1),
         shift_id="früh",
         start_time=time(6, 0),
         end_time=time(14, 0),
@@ -184,7 +184,7 @@ def test_get_time_account_projected_multiweek(client, auth_headers, db_session):
     sp2 = Shiftplan(
         schedule_id=schedule.id,
         employee_id=emp_id,
-        date=date(2026, 5, 25),
+        date=date(2100, 1, 8),
         shift_id="früh",
         start_time=time(6, 0),
         end_time=time(14, 0),
