@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.v1.requests import ShiftWishResponse
 from app.core.exceptions import NotFoundException
-from app.core.versioning import ConflictError, compute_etag, detect_conflict
+from app.core.versioning import ConflictError, add_cache_headers, compute_etag, detect_conflict
 from app.db.models.employee import Employee
 from app.db.models.schedule import Shiftplan
 from app.db.models.shift_wish import ShiftWish
@@ -124,6 +124,7 @@ def get_schedule_endpoint(
     schedule_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    response: Response = None,
 ):
     try:
         schedule = get_schedule_for_user(db, schedule_id, current_user)
@@ -132,6 +133,16 @@ def get_schedule_endpoint(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Schedule is not in your team scope",
         )
+    if response is not None:
+        etag = compute_etag(
+            {
+                "name": schedule.name,
+                "status": schedule.status,
+                "week_type": schedule.week_type,
+                "updated_at": str(schedule.updated_at),
+            }
+        )
+        add_cache_headers(response, etag=etag, last_modified=schedule.updated_at)
     return schedule
 
 
@@ -142,6 +153,7 @@ def update_schedule_endpoint(
     db: Session = Depends(get_db),
     user: User = Depends(require_admin_or_planer),
     if_match: str | None = Header(None, alias="If-Match"),
+    response: Response = None,
 ):
     try:
         schedule = get_schedule_for_user(db, schedule_id, user)
@@ -167,7 +179,18 @@ def update_schedule_endpoint(
             detail="Schedule was modified by another user. Please refresh and try again.",
         )
 
-    return update_schedule(db, schedule, data, actor_id=user.id)
+    updated = update_schedule(db, schedule, data, actor_id=user.id)
+    if response is not None:
+        new_etag = compute_etag(
+            {
+                "name": updated.name,
+                "status": updated.status,
+                "week_type": updated.week_type,
+                "updated_at": str(updated.updated_at),
+            }
+        )
+        add_cache_headers(response, etag=new_etag)
+    return updated
 
 
 @router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)

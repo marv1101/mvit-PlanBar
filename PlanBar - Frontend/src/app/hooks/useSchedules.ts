@@ -35,8 +35,14 @@ export function useUpdateSchedule() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success('Schichtplan aktualisiert');
     },
-    onError: () => {
-      toast.error('Fehler beim Aktualisieren des Schichtplans');
+    onError: (error: unknown) => {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 409) {
+        toast.error('Die Daten wurden inzwischen geändert. Bitte Seite neu laden.');
+        queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      } else {
+        toast.error('Fehler beim Aktualisieren des Schichtplans');
+      }
     },
   });
 }

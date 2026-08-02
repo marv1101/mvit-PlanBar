@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
+from app.core.versioning import ConflictError, add_cache_headers, compute_etag, detect_conflict
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.team import employee_teams
@@ -105,12 +106,7 @@ def list_employees_endpoint(
             total = 0
             items = []
         else:
-            query = (
-                db.query(Employee)
-                .join(employee_teams)
-                .filter(employee_teams.c.team_id.in_(team_ids))
-                .distinct()
-            )
+            query = db.query(Employee).join(employee_teams).filter(employee_teams.c.team_id.in_(team_ids)).distinct()
             total = query.count()
             items = query.offset(pagination.offset).limit(pagination.limit).all()
     else:
@@ -137,11 +133,22 @@ def get_employee_endpoint(
     employee_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    response: Response = None,
 ):
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
     _check_employee_read_access(current_user, employee_id, db)
+    if response is not None:
+        etag = compute_etag(
+            {
+                "first_name": employee.first_name,
+                "last_name": employee.last_name,
+                "email": employee.email,
+                "updated_at": str(employee.updated_at),
+            }
+        )
+        add_cache_headers(response, etag=etag, last_modified=employee.updated_at)
     return employee
 
 
@@ -151,11 +158,39 @@ def update_employee_endpoint(
     data: EmployeeUpdate,
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
+    if_match: str | None = Header(None, alias="If-Match"),
+    response: Response = None,
 ):
     employee = get_employee_by_id(db, employee_id)
     if not employee:
         raise NotFoundException(detail="Employee not found")
-    return update_employee(db, employee, data, actor_id=admin.id)
+    employee_etag = compute_etag(
+        {
+            "first_name": employee.first_name,
+            "last_name": employee.last_name,
+            "email": employee.email,
+            "updated_at": str(employee.updated_at),
+        }
+    )
+    try:
+        detect_conflict(employee.updated_at, if_match, employee_etag)
+    except ConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Employee was modified by another user. Please refresh and try again.",
+        )
+    updated = update_employee(db, employee, data, actor_id=admin.id)
+    if response is not None:
+        new_etag = compute_etag(
+            {
+                "first_name": updated.first_name,
+                "last_name": updated.last_name,
+                "email": updated.email,
+                "updated_at": str(updated.updated_at),
+            }
+        )
+        add_cache_headers(response, etag=new_etag)
+    return updated
 
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)

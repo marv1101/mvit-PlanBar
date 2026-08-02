@@ -1,13 +1,13 @@
 from datetime import date as Date
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.enums import NotificationType, WishStatus
 from app.core.exceptions import NotFoundException
-from app.core.versioning import ConflictError, compute_etag, detect_conflict
+from app.core.versioning import ConflictError, add_cache_headers, compute_etag, detect_conflict
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.team import employee_teams
 from app.db.models.user import User
@@ -23,9 +23,7 @@ def _user_can_access_employee(current_user: User, employee_id: int, db: Session)
     if current_user.role == "admin":
         return True
     if current_user.role == "planer":
-        return team_service.employee_in_teams(
-            db, employee_id, team_service.get_team_ids_for_user(db, current_user)
-        )
+        return team_service.employee_in_teams(db, employee_id, team_service.get_team_ids_for_user(db, current_user))
     return current_user.employee_id == employee_id
 
 
@@ -57,6 +55,7 @@ class ShiftWishResponse(BaseModel):
     reviewed_by: int | None = None
     reviewed_at: datetime | None = None
     rejection_reason: str | None = None
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -121,6 +120,7 @@ def get_shift_wish(
     wish_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    response: Response = None,
 ):
     wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
     if not wish:
@@ -130,6 +130,16 @@ def get_shift_wish(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
         )
+    if response is not None:
+        etag = compute_etag(
+            {
+                "date": str(wish.date),
+                "type": wish.type,
+                "status": wish.status,
+                "updated_at": str(wish.updated_at),
+            }
+        )
+        add_cache_headers(response, etag=etag, last_modified=wish.updated_at)
     return wish
 
 
@@ -140,6 +150,7 @@ def update_shift_wish(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     if_match: str | None = Header(None, alias="If-Match"),
+    response: Response = None,
 ):
     wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
     if not wish:
@@ -191,6 +202,16 @@ def update_shift_wish(
     db.add(wish)
     db.commit()
     db.refresh(wish)
+    if response is not None:
+        new_etag = compute_etag(
+            {
+                "date": str(wish.date),
+                "type": wish.type,
+                "status": wish.status,
+                "updated_at": str(wish.updated_at),
+            }
+        )
+        add_cache_headers(response, etag=new_etag)
     return wish
 
 

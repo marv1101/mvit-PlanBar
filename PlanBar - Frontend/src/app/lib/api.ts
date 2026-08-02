@@ -115,3 +115,19 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// --- ETag Store for optimistic concurrency control ---------------------------
+
+const etagStore = new Map<string, string>();
+
+export function getStoredEtag(url: string): string | undefined {
+  return etagStore.get(url);
+}
+
+export function setStoredEtag(url: string, etag: string): void {
+  etagStore.set(url, etag);
+}
+
+export function clearStoredEtag(url: string): void {
+  etagStore.delete(url);
+}
