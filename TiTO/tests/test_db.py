@@ -3,9 +3,9 @@ from pathlib import Path
 
 from tito.config import Settings
 from tito.db import (
-    get_connection,
     enqueue_job,
     fetch_next_job,
+    get_connection,
     mark_job_processing,
     store_result,
 )

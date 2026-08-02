@@ -1,11 +1,12 @@
+from datetime import datetime, timedelta, timezone
+
 import pytest
-from datetime import datetime, timedelta
-from tito.schema import validate_job_payload, JobPayload, Employee
+from tito.schema import Employee, JobPayload, validate_job_payload
 
 
 def test_schema_accepts_valid_payload():
     """Test with a complete valid payload."""
-    today = datetime.now().date()
+    today = datetime.now(tz=timezone.utc).date()
     start_date = today.strftime("%Y-%m-%d")
     end_date = (today + timedelta(days=7)).strftime("%Y-%m-%d")
 
@@ -100,7 +101,7 @@ def test_schema_rejects_missing_required_fields():
     """Test that missing required fields are rejected."""
     payload = {"metadata": {"jobId": "job-schema-2"}}
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         validate_job_payload(payload)
 
 
@@ -118,7 +119,7 @@ def test_schema_rejects_invalid_date_format():
         "employees": [],
     }
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         validate_job_payload(payload)
 
 
@@ -143,7 +144,7 @@ def test_schema_rejects_invalid_time_format():
         "employees": [],
     }
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         validate_job_payload(payload)
 
 
@@ -185,7 +186,7 @@ def test_schema_validates_date_range():
         "employees": [],
     }
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         validate_job_payload(payload)
 
 
@@ -203,7 +204,7 @@ def test_schema_validates_references():
         "employees": [],
     }
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         validate_job_payload(payload)
 
 

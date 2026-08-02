@@ -3,8 +3,8 @@ import hashlib
 import hmac
 import json
 import logging
+from collections.abc import Iterable
 from datetime import datetime, timezone
-from typing import Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def _validate_jwt(
         if alg not in algorithms:
             return None
 
-        signing_input = f"{header_b64}.{payload_b64}".encode("utf-8")
+        signing_input = f"{header_b64}.{payload_b64}".encode()
         signature = _base64url_decode(signature_b64)
         if alg == "HS256":
             expected = hmac.new(secret.encode("utf-8"), signing_input, hashlib.sha256).digest()
@@ -53,7 +53,7 @@ def _validate_jwt(
             return None
 
         return payload
-    except Exception:
+    except (ValueError, KeyError, TypeError):
         return None
 
 

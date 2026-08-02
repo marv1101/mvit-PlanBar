@@ -1,24 +1,26 @@
 import json as json_module
+import logging
+import signal
 import time
 import uuid
+from typing import Any
+
 import psutil
 import requests
-import signal
-import logging
-from typing import Any
+
 from .config import Settings
 from .db import (
-    get_connection,
-    fetch_next_job,
-    mark_job_processing,
-    store_result,
-    mark_job_failed_with_retry,
-    move_job_to_dlq,
     enqueue_callback,
+    fetch_next_job,
     fetch_pending_callbacks,
+    get_connection,
+    mark_job_failed_with_retry,
+    mark_job_processing,
+    move_job_to_dlq,
     store_callback_result,
+    store_result,
 )
-from .schema import validate_job_payload, JobPayload
+from .schema import JobPayload, validate_job_payload
 from .solver import build_model, solve_model
 
 
@@ -70,7 +72,7 @@ def run_worker(settings: Settings) -> None:
             timeout=5,
             headers=headers,
         )
-    except Exception as e:
+    except requests.RequestException as e:
         logger.error(f"Failed to register worker: {e}")
 
     connection = get_connection(settings.database_url)
@@ -96,7 +98,7 @@ def run_worker(settings: Settings) -> None:
                         timeout=5,
                         headers=headers,
                     )
-                except Exception as e:
+                except requests.RequestException as e:
                     logger.error(f"Failed to send heartbeat: {e}")
 
             # Process job queue
@@ -141,25 +143,23 @@ def run_worker(settings: Settings) -> None:
                             tenant_id=job.get("metadata", {}).get("tenant_id"),
                         )
                         logger.info(f"Job {db_job_id}: Callback enqueued")
-                    except Exception as cb_exc:
+                    except Exception:
                         # The solver result is already stored. A failing callback
                         # enqueue must not fail the whole job; the callback queue
                         # retry mechanism handles delivery problems separately.
-                        logger.error(
-                            f"Job {db_job_id}: Result stored but callback enqueue failed: {cb_exc}",
-                            exc_info=True,
+                        logger.exception(
+                            f"Job {db_job_id}: Result stored but callback enqueue failed",
                         )
 
             except Exception as exc:
                 if result_stored:
                     # Something went wrong after the result was already persisted.
                     # Do NOT retry the job; log the post-completion error with details.
-                    logger.error(
-                        f"Job {db_job_id}: Post-completion error after result was stored: {exc}",
-                        exc_info=True,
+                    logger.exception(
+                        f"Job {db_job_id}: Post-completion error after result was stored",
                     )
                 else:
-                    logger.error(f"Job {db_job_id} failed: {exc}", exc_info=True)
+                    logger.exception(f"Job {db_job_id} failed")
 
                     # try to retry with exponential backoff
                     will_retry = mark_job_failed_with_retry(connection, db_job_id, str(exc))
@@ -184,7 +184,7 @@ def run_worker(settings: Settings) -> None:
 
         except KeyboardInterrupt:
             worker_context.should_stop = True
-        except Exception as e:
+        except RuntimeError as e:
             logger.error(f"Unexpected error in worker loop: {e}")
             time.sleep(1)
 
@@ -199,7 +199,7 @@ def run_worker(settings: Settings) -> None:
             headers=headers,
         )
         logger.info(f"Deregistered worker {worker_id}")
-    except Exception as e:
+    except requests.RequestException as e:
         logger.error(f"Failed to deregister worker: {e}")
 
     connection.close()
@@ -252,5 +252,5 @@ def _process_pending_callbacks(connection: Any, settings: Settings, headers: dic
                 store_callback_result(connection, callback_id, "pending")
                 logger.warning(f"Callback {callback_id}: Network error, will retry - {e}")
 
-    except Exception as e:
+    except requests.RequestException as e:
         logger.error(f"Error processing callbacks: {e}")

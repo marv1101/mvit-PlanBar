@@ -1,14 +1,14 @@
-from collections import defaultdict
-from typing import Dict, List, Tuple, Union
-from datetime import datetime, timezone
-import math
 import logging
+import math
+from collections import defaultdict
+from datetime import datetime, timezone
+
 from ortools.sat.python.cp_model import CpModel, CpSolver, CpSolverStatus, LinearExpr
 
 from .schema import JobPayload
 
 
-def build_model(payload: Union[dict, JobPayload]) -> dict:
+def build_model(payload: dict | JobPayload) -> dict:
     """
     Übersetze das Eingabe-Payload in ein vorläufiges Modell.
     Akzeptiert sowohl dict als auch JobPayload (Pydantic).
@@ -38,16 +38,16 @@ def _time_to_minutes(time_str: str) -> int:
 
 def _date_to_days(start_date_str: str, target_date_str: str) -> int:
     """Berechne Anzahl Tage zwischen zwei Daten (YYYY-MM-DD)."""
-    start = datetime.strptime(start_date_str, "%Y-%m-%d")
-    target = datetime.strptime(target_date_str, "%Y-%m-%d")
+    start = datetime.strptime(start_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    target = datetime.strptime(target_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     return (target - start).days
 
 
 def _parse_date(date_str: str) -> datetime:
-    return datetime.strptime(date_str, "%Y-%m-%d")
+    return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
 
 
-def _date_to_week_key(date_str: str) -> Tuple[int, int]:
+def _date_to_week_key(date_str: str) -> tuple[int, int]:
     dt = _parse_date(date_str)
     year, week, _ = dt.isocalendar()
     return year, week
@@ -168,8 +168,8 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             },
         }
 
-    date_requirements: Dict[str, List[int]] = defaultdict(list)
-    week_requirements: Dict[Tuple[int, int], List[int]] = defaultdict(list)
+    date_requirements: dict[str, list[int]] = defaultdict(list)
+    week_requirements: dict[tuple[int, int], list[int]] = defaultdict(list)
     for req_idx, requirement in enumerate(requirements):
         req_date = requirement.get("date")
         if req_date:
@@ -203,13 +203,13 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
 
             # Prüfe Skills
             employee_skills = set(employee.get("skills") or [])
-            has_required_skills = all(skill in employee_skills for skill in needed_skills.keys())
+            has_required_skills = all(skill in employee_skills for skill in needed_skills)
             if not has_required_skills:
                 continue
 
             # Rollentrennung: Wenn ein Skill mit "ROLE_" beginnt, wird er als Rollenanforderung gewertet.
             role_required = None
-            for skill in needed_skills.keys():
+            for skill in needed_skills:
                 if skill.startswith("ROLE_"):
                     role_required = skill.replace("ROLE_", "")
                     break
@@ -225,7 +225,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
 
     # Constraint 1b: Verhindere Doppelbesetzung bei count > 1
     # Gleicher Mitarbeiter darf nicht zwei expandierte Slots derselben Schicht am selben Tag besetzen
-    same_shift_day_groups: Dict[Tuple[str, str], List[int]] = defaultdict(list)
+    same_shift_day_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
     for req_idx, requirement in enumerate(requirements):
         key = (requirement.get("date", ""), requirement.get("shiftId", ""))
         same_shift_day_groups[key].append(req_idx)
@@ -264,9 +264,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         group_emp_indices = []
         for i, emp in enumerate(employees):
             emp_skills = set(emp.get("skills") or [])
-            if skill in emp_skills:
-                group_emp_indices.append(i)
-            elif skill.startswith("ROLE_") and emp.get("role") == skill.replace("ROLE_", ""):
+            if skill in emp_skills or skill.startswith("ROLE_") and emp.get("role") == skill.replace("ROLE_", ""):
                 group_emp_indices.append(i)
         if len(group_emp_indices) < 2:
             continue
@@ -452,7 +450,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             employee.get("contractHours") or (employee.get("contract") or {}).get("weeklyHours", default_weekly_hours)
         )
         weekly_limit_minutes = int(weekly_hours * 60)
-        for week_key, req_indices in week_requirements.items():
+        for req_indices in week_requirements.values():
             weekly_minutes = []
             for req_idx in req_indices:
                 requirement = requirements[req_idx]
@@ -462,7 +460,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                 cp_model.add(LinearExpr.sum(weekly_minutes) <= weekly_limit_minutes)
 
         if max_same_shift_consecutive > 0:
-            for shift_id in shift_templates.keys():
+            for shift_id in shift_templates:
                 shift_dates = []
                 for d in unique_dates:
                     for r_idx in date_requirements[d]:
@@ -562,8 +560,8 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     # Priorität 4: Balance Recovery (MA mit negativem Saldo bevorzugen)
     objective_terms = []
 
-    for emp_idx, req_idx in assignments:
-        objective_terms.append(assignments[(emp_idx, req_idx)] * 10000)
+    for (emp_idx, req_idx), value in assignments.items():
+        objective_terms.append(value * 10000)
 
     for wish_var, weight in wish_penalty_vars:
         objective_terms.append(wish_var * weight * 100)
@@ -588,8 +586,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                     bonus = 0
                 balance_recovery_terms.append(assignments[(emp_idx, req_idx)] * bonus)
 
-    for term in balance_recovery_terms:
-        objective_terms.append(term)
+    objective_terms.extend(balance_recovery_terms)
 
     if objective_terms:
         cp_model.maximize(LinearExpr.sum(objective_terms))
@@ -668,16 +665,15 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                     (i for i, r in enumerate(requirements) if r.get("date") == date and r.get("shiftId") == shift_id),
                     None,
                 )
-                if matching_req is not None:
-                    if solver.Value(assignments[(emp_idx, matching_req)]) == 0:
-                        violations.append(
-                            {
-                                "type": "WISH_NOT_FULFILLED",
-                                "severity": "SOFT",
-                                "message": f"Wish for employee {employee_id} on {date} (shift {shift_id}) not fulfilled",
-                                "details": wish,
-                            }
-                        )
+                if matching_req is not None and solver.Value(assignments[(emp_idx, matching_req)]) == 0:
+                    violations.append(
+                        {
+                            "type": "WISH_NOT_FULFILLED",
+                            "severity": "SOFT",
+                            "message": f"Wish for employee {employee_id} on {date} (shift {shift_id}) not fulfilled",
+                            "details": wish,
+                        }
+                    )
 
             elif wish_type == "preferred":
                 date = wish.get("date")

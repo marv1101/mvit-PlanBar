@@ -1,27 +1,28 @@
-from functools import wraps
+import logging
 import threading
 import time
-import logging
+from functools import wraps
 
 from flask import Flask, Response, jsonify, request
+
+from . import monitoring
 from .auth import authenticate_request, authorize_access
 from .config import Settings
 from .db import (
+    cleanup_inactive_workers,
+    deregister_worker,
     enqueue_job,
+    fetch_callback_status_by_job_id,
+    fetch_dlq_jobs,
+    fetch_job_by_id,
+    fetch_job_status_by_id,
+    fetch_pending_callbacks,
     get_connection,
     register_worker,
-    update_worker_heartbeat,
-    fetch_pending_callbacks,
-    fetch_dlq_jobs,
-    fetch_job_status_by_id,
-    fetch_callback_status_by_job_id,
-    fetch_job_by_id,
     update_job,
-    deregister_worker,
-    cleanup_inactive_workers,
+    update_worker_heartbeat,
 )
 from .schema import JobPayload
-from . import monitoring
 
 
 def cleanup_worker_thread(database_url: str, interval_minutes: int = 5):
@@ -33,7 +34,7 @@ def cleanup_worker_thread(database_url: str, interval_minutes: int = 5):
             deleted_count = cleanup_inactive_workers(connection, timeout_seconds=300)  # 5 minutes
             if deleted_count > 0:
                 print(f"[Cleanup] Removed {deleted_count} inactive workers")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             print(f"[Cleanup] Error during cleanup: {e}")
         time.sleep(interval_minutes * 60)
 
