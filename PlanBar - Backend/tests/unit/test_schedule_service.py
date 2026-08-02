@@ -752,6 +752,8 @@ async def test_submit_tito_planer_no_team_raises(db_session):
     db_session.commit()
     db_session.refresh(planer)
 
-    with patch("app.services.schedule_service.tito_proxy.submit_job"):
-        with pytest.raises(ValueError, match="not assigned to any team"):
-            await submit_schedule_to_tito(db_session, schedule, user=planer)
+    with (
+        patch("app.services.schedule_service.tito_proxy.submit_job"),
+        pytest.raises(ValueError, match="not assigned to any team"),
+    ):
+        await submit_schedule_to_tito(db_session, schedule, user=planer)
