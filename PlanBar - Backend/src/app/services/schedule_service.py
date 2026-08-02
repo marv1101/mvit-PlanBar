@@ -229,16 +229,40 @@ def delete_schedule(db: Session, schedule: Schedule, actor_id: int | None = None
     audit_service.log_delete(db, user_id=actor_id, resource_type="schedule", resource_id=str(schedule.id))
 
 
-async def submit_schedule_to_tito(db: Session, schedule: Schedule, callback_url: str | None = None) -> Schedule:
-    employees = db.query(Employee).all()
-    shift_wishes = (
-        db.query(ShiftWish)
-        .filter(
-            ShiftWish.date >= schedule.start_date,
-            ShiftWish.date <= schedule.end_date,
+async def submit_schedule_to_tito(
+    db: Session, schedule: Schedule, callback_url: str | None = None, user=None
+) -> Schedule:
+    if user and user.role != "admin":
+        team_ids = team_service.get_team_ids_for_user(db, user)
+        if not team_ids:
+            raise ValueError("User is not assigned to any team")
+        employees = (
+            db.query(Employee)
+            .join(employee_teams, employee_teams.c.employee_id == Employee.id)
+            .filter(employee_teams.c.team_id.in_(team_ids))
+            .distinct()
+            .all()
         )
-        .all()
-    )
+        employee_ids = {e.id for e in employees}
+        shift_wishes = (
+            db.query(ShiftWish)
+            .filter(
+                ShiftWish.date >= schedule.start_date,
+                ShiftWish.date <= schedule.end_date,
+                ShiftWish.employee_id.in_(employee_ids),
+            )
+            .all()
+        )
+    else:
+        employees = db.query(Employee).all()
+        shift_wishes = (
+            db.query(ShiftWish)
+            .filter(
+                ShiftWish.date >= schedule.start_date,
+                ShiftWish.date <= schedule.end_date,
+            )
+            .all()
+        )
 
     pending = [w for w in shift_wishes if w.status == "pending"]
     if pending:

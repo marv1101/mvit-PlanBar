@@ -5,6 +5,7 @@ that include their team members, but is rejected (403) when touching
 schedules that reference foreign employees.
 """
 
+from unittest.mock import patch
 
 
 def _create_employee(client, auth_headers, db_session, first="X", last="Y"):
@@ -49,7 +50,9 @@ def _login(client, email):
     raise NotImplementedError("Use planer_auth_headers fixture instead.")
 
 
-def test_planer_can_create_schedule_own_team(client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id):
+def test_planer_can_create_schedule_own_team(
+    client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id
+):
     emp_id = _create_employee(client, auth_headers, db_session, "Own", "Plan")
     # Link this employee to the planner_team via API endpoint
     client.post(
@@ -115,7 +118,9 @@ def test_employee_cannot_create_schedule(client, employee_auth_headers):
     assert response.status_code == 403
 
 
-def test_planer_can_update_own_schedule(client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id):
+def test_planer_can_update_own_schedule(
+    client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id
+):
     emp_id = _create_employee(client, auth_headers, db_session, "Upd", "Emp")
     client.post(
         f"/api/v1/teams/{planner_team}/employees",
@@ -178,7 +183,9 @@ def test_planer_cannot_update_foreign_schedule(client, auth_headers, db_session,
     assert response.status_code == 403
 
 
-def test_planer_can_list_only_own_team_schedules(client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id):
+def test_planer_can_list_only_own_team_schedules(
+    client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id
+):
     own_emp_id = _create_employee(client, auth_headers, db_session, "ListOwn", "Emp")
     client.post(
         f"/api/v1/teams/{planner_team}/employees",
@@ -229,7 +236,9 @@ def test_planer_can_list_only_own_team_schedules(client, auth_headers, db_sessio
     assert "HiddenFromPlaner" not in names
 
 
-def test_planer_can_delete_own_schedule(client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id):
+def test_planer_can_delete_own_schedule(
+    client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id
+):
     emp_id = _create_employee(client, auth_headers, db_session, "Del", "Emp")
     client.post(
         f"/api/v1/teams/{planner_team}/employees",
@@ -323,3 +332,103 @@ def test_planer_cannot_view_pending_wishes_foreign(client, auth_headers, db_sess
         headers=planer_auth_headers,
     )
     assert response.status_code == 403
+
+
+def test_planer_submit_tito_only_own_team_employees(
+    client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id
+):
+    """Regression: planer submitting to TiTO must only send own-team employees,
+    not all employees in the database."""
+    own_emp_id = _create_employee(client, auth_headers, db_session, "TitoOwn", "Emp")
+    other_team_emp_id = _create_employee(client, auth_headers, db_session, "TitoForeign", "Emp")
+    client.post(
+        f"/api/v1/teams/{planner_team}/employees",
+        json={"employee_ids": [planer_employee_id, own_emp_id]},
+        headers=auth_headers,
+    )
+
+    create_resp = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "TitoSubmit",
+            "start_date": "2099-02-01",
+            "end_date": "2099-02-07",
+            "shiftplans": [
+                {
+                    "employee_id": own_emp_id,
+                    "date": "2099-02-01",
+                    "shift_id": "frueh",
+                    "start_time": "06:00:00",
+                    "end_time": "14:00:00",
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    schedule_id = create_resp.json()["id"]
+
+    captured = {}
+
+    async def fake_submit(payload):
+        captured["payload"] = payload
+        return {"jobId": 99}
+
+    with patch("app.services.schedule_service.tito_proxy.submit_job", side_effect=fake_submit):
+        resp = client.post(
+            f"/api/v1/schedules/{schedule_id}/submit",
+            headers=planer_auth_headers,
+        )
+
+    assert resp.status_code == 200
+    emp_ids = {e["id"] for e in captured["payload"]["employees"]}
+    assert f"emp_{own_emp_id:03d}" in emp_ids
+    assert f"emp_{other_team_emp_id:03d}" not in emp_ids
+
+
+def test_admin_submit_tito_sends_all_employees(
+    client, auth_headers, db_session, planner_team, planer_auth_headers, planer_employee_id
+):
+    """Admin submitting to TiTO must include ALL employees."""
+    emp_id = _create_employee(client, auth_headers, db_session, "TitoAll", "Emp")
+    client.post(
+        f"/api/v1/teams/{planner_team}/employees",
+        json={"employee_ids": [planer_employee_id, emp_id]},
+        headers=auth_headers,
+    )
+
+    create_resp = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "TitoAdminSubmit",
+            "start_date": "2099-01-01",
+            "end_date": "2099-01-07",
+            "shiftplans": [
+                {
+                    "employee_id": emp_id,
+                    "date": "2099-01-01",
+                    "shift_id": "frueh",
+                    "start_time": "06:00:00",
+                    "end_time": "14:00:00",
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    schedule_id = create_resp.json()["id"]
+
+    captured = {}
+
+    async def fake_submit(payload):
+        captured["payload"] = payload
+        return {"jobId": 100}
+
+    with patch("app.services.schedule_service.tito_proxy.submit_job", side_effect=fake_submit):
+        resp = client.post(
+            f"/api/v1/schedules/{schedule_id}/submit",
+            headers=auth_headers,
+        )
+
+    assert resp.status_code == 200
+    emp_ids = {e["id"] for e in captured["payload"]["employees"]}
+    assert f"emp_{emp_id:03d}" in emp_ids
+    assert f"emp_{planer_employee_id:03d}" in emp_ids

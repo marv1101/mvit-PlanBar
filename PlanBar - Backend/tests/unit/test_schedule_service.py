@@ -1,10 +1,13 @@
 from datetime import date, time
+from unittest.mock import patch
 
 import pytest
 from app.db.base import Base
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
+from app.db.models.team import Team
+from app.db.models.user import User
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
 from app.services.schedule_service import (
     _build_shift_templates,
@@ -15,6 +18,7 @@ from app.services.schedule_service import (
     get_schedule_summary,
     list_schedules,
     replace_all_shifts,
+    submit_schedule_to_tito,
     update_schedule,
 )
 from sqlalchemy import create_engine
@@ -602,3 +606,152 @@ def test_create_schedule_with_shift_templates(db_session):
     schedule = create_schedule(db_session, data)
     assert schedule.shift_templates == shift_templates
     assert len(schedule.shift_templates) == 2
+
+
+# ─────────────────────────────────────────────────────────────────────
+# TiTO team-scope: submit_schedule_to_tito filters employees/wishes
+# ─────────────────────────────────────────────────────────────────────
+
+
+def _make_team_scope_data(db_session):
+    """Create shared test data: 2 teams, 4 employees, planer in team_a."""
+    team_a = Team(name="TeamA", color="#111111")
+    team_b = Team(name="TeamB", color="#222222")
+    db_session.add_all([team_a, team_b])
+    db_session.commit()
+
+    emp_a1 = Employee(first_name="A1", last_name="Worker")
+    emp_a2 = Employee(first_name="A2", last_name="Worker")
+    emp_b1 = Employee(first_name="B1", last_name="Worker")
+    emp_b2 = Employee(first_name="B2", last_name="Worker")
+    db_session.add_all([emp_a1, emp_a2, emp_b1, emp_b2])
+    db_session.commit()
+
+    emp_a1.teams.append(team_a)
+    emp_a2.teams.append(team_a)
+    emp_b1.teams.append(team_b)
+    emp_b2.teams.append(team_b)
+    db_session.commit()
+
+    planer_user = User(
+        username="tito_planer",
+        email="tito_planer@test.com",
+        password_hash="x",
+        role="planer",
+    )
+    admin = User(
+        username="tito_admin",
+        email="tito_admin@test.com",
+        password_hash="x",
+        role="admin",
+    )
+    db_session.add_all([planer_user, admin])
+    db_session.commit()
+    db_session.refresh(planer_user)
+    db_session.refresh(admin)
+
+    planer_emp = Employee(first_name="Planer", last_name="Emp")
+    db_session.add(planer_emp)
+    db_session.commit()
+    planer_emp.teams.append(team_a)
+    planer_emp.user_id = planer_user.id
+    db_session.commit()
+
+    schedule = Schedule(
+        name="TiTO Team Test",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+    db_session.refresh(schedule)
+
+    wish_a = ShiftWish(
+        employee_id=emp_a1.id,
+        date=date(2026, 6, 3),
+        type="day_off",
+        note="A wish",
+        status="approved",
+    )
+    wish_b = ShiftWish(
+        employee_id=emp_b1.id,
+        date=date(2026, 6, 4),
+        type="day_off",
+        note="B wish",
+        status="approved",
+    )
+    db_session.add_all([wish_a, wish_b])
+    db_session.commit()
+
+    return {
+        "teams": (team_a, team_b),
+        "employees": (emp_a1, emp_a2, emp_b1, emp_b2),
+        "planer": planer_user,
+        "admin": admin,
+        "schedule": schedule,
+    }
+
+
+@pytest.mark.asyncio
+async def test_submit_tito_admin_gets_all_employees(db_session):
+    data = _make_team_scope_data(db_session)
+    captured = {}
+
+    async def fake_submit(payload):
+        captured["payload"] = payload
+        return {"jobId": 1}
+
+    with patch("app.services.schedule_service.tito_proxy.submit_job", side_effect=fake_submit):
+        result = await submit_schedule_to_tito(db_session, data["schedule"], user=data["admin"])
+
+    emp_ids = {e["id"] for e in captured["payload"]["employees"]}
+    assert emp_ids == {"emp_001", "emp_002", "emp_003", "emp_004", "emp_005"}
+    assert len(captured["payload"]["wishes"]) == 2
+    assert result.status == "submitted"
+
+
+@pytest.mark.asyncio
+async def test_submit_tito_planer_gets_only_own_team_employees(db_session):
+    data = _make_team_scope_data(db_session)
+    captured = {}
+
+    async def fake_submit(payload):
+        captured["payload"] = payload
+        return {"jobId": 2}
+
+    with patch("app.services.schedule_service.tito_proxy.submit_job", side_effect=fake_submit):
+        result = await submit_schedule_to_tito(db_session, data["schedule"], user=data["planer"])
+
+    emp_ids = {e["id"] for e in captured["payload"]["employees"]}
+    assert emp_ids == {"emp_001", "emp_002", "emp_005"}
+    assert len(captured["payload"]["wishes"]) == 1
+    assert captured["payload"]["wishes"][0]["employeeId"] == "emp_001"
+    assert result.status == "submitted"
+
+
+@pytest.mark.asyncio
+async def test_submit_tito_planer_no_team_raises(db_session):
+    schedule = Schedule(
+        name="No Team",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+    db_session.refresh(schedule)
+
+    planer = User(
+        username="unassigned_planer",
+        email="unassigned@test.com",
+        password_hash="x",
+        role="planer",
+    )
+    db_session.add(planer)
+    db_session.commit()
+    db_session.refresh(planer)
+
+    with patch("app.services.schedule_service.tito_proxy.submit_job"):
+        with pytest.raises(ValueError, match="not assigned to any team"):
+            await submit_schedule_to_tito(db_session, schedule, user=planer)

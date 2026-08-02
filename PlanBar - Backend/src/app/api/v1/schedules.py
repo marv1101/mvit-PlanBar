@@ -200,7 +200,7 @@ async def submit_schedule_endpoint(
             detail="Schedule is not in your team scope",
         )
     try:
-        return await submit_schedule_to_tito(db, schedule)
+        return await submit_schedule_to_tito(db, schedule, user=user)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
