@@ -80,11 +80,15 @@ def get_my_team_schedule(
             detail="User is not assigned to any team",
         )
 
-    shiftplans = team_service.filter_query_by_team_scope(
-        db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule_id),
-        Shiftplan,
-        team_ids,
-    ).order_by(Shiftplan.date.asc()).all()
+    shiftplans = (
+        team_service.filter_query_by_team_scope(
+            db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule_id),
+            Shiftplan,
+            team_ids,
+        )
+        .order_by(Shiftplan.date.asc())
+        .all()
+    )
 
     result = []
     for sp in shiftplans:
@@ -115,9 +119,12 @@ def get_my_team_employees(
     team_ids = team_service.get_team_ids_for_user(db, current_user)
     if not team_ids:
         return []
-    employees = team_service.filter_query_by_team_scope(
-        db.query(Employee), Employee, team_ids
-    ).distinct().order_by(Employee.last_name, Employee.first_name).all()
+    employees = (
+        team_service.filter_query_by_team_scope(db.query(Employee), Employee, team_ids)
+        .distinct()
+        .order_by(Employee.last_name, Employee.first_name)
+        .all()
+    )
     return employees
 
 

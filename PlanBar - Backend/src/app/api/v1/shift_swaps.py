@@ -21,10 +21,10 @@ from app.services.notification_service import create_notification
 
 def _swap_in_user_scope(db: Session, swap: ShiftSwapRequest, user) -> bool:
     """Check whether both employees of the swap are within the user's team scope."""
-    return (
-        team_service.user_can_access_employee(db, user, swap.employee_id)
-        and team_service.user_can_access_employee(db, user, swap.target_employee_id)
+    return team_service.user_can_access_employee(db, user, swap.employee_id) and team_service.user_can_access_employee(
+        db, user, swap.target_employee_id
     )
+
 
 router = APIRouter()
 

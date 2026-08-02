@@ -78,6 +78,7 @@ def detect_conflict(
 # Convenience helpers for the GET/PUT ETag pattern
 # ---------------------------------------------------------------------------
 
+
 def resource_etag_dict(model, *fields: str) -> dict:
     """Build the dict used to compute an ETag for *model*.
 

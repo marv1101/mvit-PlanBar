@@ -105,6 +105,7 @@ def get_employee_endpoint(
     if not employee:
         raise NotFoundException(detail="Employee not found")
     from app.services import team_service
+
     try:
         team_service.assert_user_can_access_employee(db, current_user, employee_id)
     except PermissionError:
@@ -197,6 +198,7 @@ def get_contract_endpoint(
     if not contract:
         raise NotFoundException(detail="Contract not found")
     from app.services import team_service
+
     try:
         team_service.assert_user_can_access_employee(db, current_user, contract.employee_id, allow_planer=False)
     except PermissionError:
@@ -263,6 +265,7 @@ def get_timecard_endpoint(
     if not timecard:
         raise NotFoundException(detail="Timecard not found")
     from app.services import team_service
+
     try:
         team_service.assert_user_can_access_employee(db, current_user, timecard.employee_id, allow_planer=False)
     except PermissionError:
@@ -366,6 +369,7 @@ def get_employee_time_account(
     if not employee:
         raise NotFoundException(detail="Employee not found")
     from app.services import team_service
+
     try:
         team_service.assert_user_can_access_employee(db, current_user, employee_id, allow_planer=False)
     except PermissionError:

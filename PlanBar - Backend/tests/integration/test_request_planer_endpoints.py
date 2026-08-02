@@ -9,7 +9,9 @@ def _create_employee(client, auth_headers, first, last):
     ).json()["id"]
 
 
-def test_planer_can_list_team_wishes(client, auth_headers, planer_auth_headers, planner_team, db_session, planer_employee_id):
+def test_planer_can_list_team_wishes(
+    client, auth_headers, planer_auth_headers, planner_team, db_session, planer_employee_id
+):
     own_emp_id = _create_employee(client, auth_headers, "Own", "Wish")
     client.post(
         f"/api/v1/teams/{planner_team}/employees",
@@ -74,7 +76,9 @@ def test_planer_cannot_approve_foreign_wish(client, auth_headers, planer_auth_he
     assert response.status_code == 403
 
 
-def test_planer_can_create_wish_for_team_member(client, auth_headers, planer_auth_headers, planner_team, planer_employee_id):
+def test_planer_can_create_wish_for_team_member(
+    client, auth_headers, planer_auth_headers, planner_team, planer_employee_id
+):
     own_emp_id = _create_employee(client, auth_headers, "Own", "Create")
     client.post(
         f"/api/v1/teams/{planner_team}/employees",
@@ -99,7 +103,9 @@ def test_planer_cannot_create_wish_for_foreign_employee(client, auth_headers, pl
     assert response.status_code == 403
 
 
-def test_planer_can_update_team_wish_status(client, auth_headers, planer_auth_headers, planner_team, planer_employee_id):
+def test_planer_can_update_team_wish_status(
+    client, auth_headers, planer_auth_headers, planner_team, planer_employee_id
+):
     own_emp_id = _create_employee(client, auth_headers, "Own", "Update")
     client.post(
         f"/api/v1/teams/{planner_team}/employees",

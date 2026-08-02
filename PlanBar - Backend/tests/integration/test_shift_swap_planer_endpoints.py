@@ -29,9 +29,7 @@ def _create_shift_for_employee(client, auth_headers, emp_id):
         headers=auth_headers,
     )
     schedule_id = sched_resp.json()["id"]
-    shifts = client.get(
-        f"/api/v1/schedules/{schedule_id}/shifts", headers=auth_headers
-    ).json()["items"]
+    shifts = client.get(f"/api/v1/schedules/{schedule_id}/shifts", headers=auth_headers).json()["items"]
     return shifts[0]["id"]
 
 
@@ -60,9 +58,7 @@ def test_planer_cannot_approve_swap_with_foreign_employee(
     db_session.commit()
     db_session.refresh(swap)
 
-    response = client.put(
-        f"/api/v1/shift-swaps/{swap.id}/approve", headers=planer_auth_headers
-    )
+    response = client.put(f"/api/v1/shift-swaps/{swap.id}/approve", headers=planer_auth_headers)
     assert response.status_code == 403
 
 
@@ -91,9 +87,7 @@ def test_planer_can_approve_swap_with_team_members(
     db_session.commit()
     db_session.refresh(swap)
 
-    response = client.put(
-        f"/api/v1/shift-swaps/{swap.id}/approve", headers=planer_auth_headers
-    )
+    response = client.put(f"/api/v1/shift-swaps/{swap.id}/approve", headers=planer_auth_headers)
     assert response.status_code == 200
 
 

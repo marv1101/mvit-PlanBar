@@ -239,8 +239,6 @@ def filter_query_by_team_scope(
     if not team_ids:
         return query.filter(False)
     emp_col = getattr(entity, "employee_id", None) or entity.id
-    return (
-        query
-        .join(employee_teams, employee_teams.c.employee_id == emp_col)
-        .filter(employee_teams.c.team_id.in_(team_ids))
+    return query.join(employee_teams, employee_teams.c.employee_id == emp_col).filter(
+        employee_teams.c.team_id.in_(team_ids)
     )

@@ -20,9 +20,7 @@ def test_get_my_teams_employee(client, employee_auth_headers, auth_headers, db_s
     assert data[0]["name"] == "EmpTeam"
 
 
-def test_get_my_team_schedule_employee(
-    client, employee_auth_headers, auth_headers, db_session
-):
+def test_get_my_team_schedule_employee(client, employee_auth_headers, auth_headers, db_session):
     from app.db.models.employee import Employee
     from app.db.models.team import Team
 
@@ -59,18 +57,14 @@ def test_get_my_team_schedule_employee(
     )
     schedule_id = sched_resp.json()["id"]
 
-    response = client.get(
-        f"/api/v1/my/team-schedule?schedule_id={schedule_id}", headers=headers
-    )
+    response = client.get(f"/api/v1/my/team-schedule?schedule_id={schedule_id}", headers=headers)
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
     assert data[0]["employee_id"] == colleague.id
 
 
-def test_get_my_team_schedule_outside_team_forbidden(
-    client, employee_auth_headers, auth_headers, db_session
-):
+def test_get_my_team_schedule_outside_team_forbidden(client, employee_auth_headers, auth_headers, db_session):
     from app.db.models.employee import Employee
 
     headers, _ = employee_auth_headers
@@ -97,9 +91,7 @@ def test_get_my_team_schedule_outside_team_forbidden(
     )
     schedule_id = sched_resp.json()["id"]
 
-    response = client.get(
-        f"/api/v1/my/team-schedule?schedule_id={schedule_id}", headers=headers
-    )
+    response = client.get(f"/api/v1/my/team-schedule?schedule_id={schedule_id}", headers=headers)
     assert response.status_code == 403
 
 

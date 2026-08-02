@@ -66,9 +66,7 @@ def test_list_teams_planer(client, planer_auth_headers, auth_headers, planner_te
 
 
 def test_update_team_admin(client, auth_headers):
-    team_id = client.post(
-        "/api/v1/teams", json={"name": "Upd"}, headers=auth_headers
-    ).json()["id"]
+    team_id = client.post("/api/v1/teams", json={"name": "Upd"}, headers=auth_headers).json()["id"]
     response = client.put(
         f"/api/v1/teams/{team_id}",
         json={"name": "Renamed", "color": "#000000"},
@@ -89,9 +87,7 @@ def test_update_team_planer_forbidden(client, planer_auth_headers, planner_team)
 
 
 def test_delete_team_admin(client, auth_headers):
-    team_id = client.post(
-        "/api/v1/teams", json={"name": "ToDel"}, headers=auth_headers
-    ).json()["id"]
+    team_id = client.post("/api/v1/teams", json={"name": "ToDel"}, headers=auth_headers).json()["id"]
     response = client.delete(f"/api/v1/teams/{team_id}", headers=auth_headers)
     assert response.status_code == 204
     response = client.get(f"/api/v1/teams/{team_id}", headers=auth_headers)
@@ -106,9 +102,7 @@ def test_assign_employees_admin(client, auth_headers, db_session):
     db_session.commit()
     db_session.refresh(emp)
 
-    team_id = client.post(
-        "/api/v1/teams", json={"name": "AssignT"}, headers=auth_headers
-    ).json()["id"]
+    team_id = client.post("/api/v1/teams", json={"name": "AssignT"}, headers=auth_headers).json()["id"]
 
     response = client.post(
         f"/api/v1/teams/{team_id}/employees",

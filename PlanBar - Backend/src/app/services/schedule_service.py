@@ -229,9 +229,7 @@ async def submit_schedule_to_tito(
         team_ids = team_service.get_team_ids_for_user(db, user)
         if not team_ids:
             raise ValueError("User is not assigned to any team")
-        employees = team_service.filter_query_by_team_scope(
-            db.query(Employee), Employee, team_ids
-        ).distinct().all()
+        employees = team_service.filter_query_by_team_scope(db.query(Employee), Employee, team_ids).distinct().all()
         employee_ids = {e.id for e in employees}
         shift_wishes = (
             db.query(ShiftWish)
