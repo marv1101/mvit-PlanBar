@@ -28,7 +28,7 @@ self.addEventListener('activate', (event) => {
           .filter((key) => key.startsWith('workbox-precache') === false && key.includes('api-cache') === false)
           .map((key) => caches.delete(key))
       )
-    ).then(() => clients.claim())
+    ).then(() => self.clients.claim())
   );
 });
 
@@ -40,13 +40,13 @@ self.addEventListener('message', (event) => {
 
 const OFFLINE_ACTIONS_CACHE = 'planbar-offline-actions';
 
-self.addEventListener('sync', (event) => {
+self.addEventListener('sync', ((event: ExtendableEvent & { tag: string; waitUntil: (promise: Promise<unknown>) => void }) => {
   if (event.tag === 'sync-offline-actions') {
     event.waitUntil(processOfflineActions());
   } else if (event.tag === 'sync-initial-data') {
     event.waitUntil(syncInitialData());
   }
-});
+}) as EventListener);
 
 async function processOfflineActions() {
   const clientList = await self.clients.matchAll();
@@ -91,7 +91,7 @@ self.addEventListener('push', (event) => {
       tag: data.tag,
       data: { url: data.url },
       vibrate: [200, 100, 200],
-    }),
+    } as NotificationOptions),
   );
 });
 
@@ -99,15 +99,15 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const urlToOpen = event.notification.data?.url || '/';
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients: readonly WindowClient[]) => {
       for (const client of windowClients) {
         if (client.url.startsWith(self.location.origin) && 'focus' in client) {
           client.navigate(urlToOpen);
           return client.focus();
         }
       }
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(urlToOpen);
       }
     }),
   );

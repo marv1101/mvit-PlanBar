@@ -10,7 +10,9 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 
-function renderHome(user = mockAdminUser) {
+type MockUser = typeof mockAdminUser | typeof mockEmployeeUser | typeof mockPlanerUser | null;
+
+function renderHome(user: MockUser = mockAdminUser) {
   const authValue = {
     user,
     login: vi.fn(),

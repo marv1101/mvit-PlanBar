@@ -1,3 +1,5 @@
+import type { Shift } from '../../../types';
+
 // Shared calendar constants
 export const ITEM_TYPE = 'SHIFT';
 export const EMPLOYEE_ITEM_TYPE = 'EMPLOYEE';
@@ -12,7 +14,7 @@ export const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => STA
 
 // Shared drag item types
 export interface DragItem {
-  shift: { id: string; date: string; startTime: string; endTime: string; employeeId: string };
+  shift: Shift;
   fromDate: string;
 }
 
@@ -21,7 +23,7 @@ export interface EmployeeDragItem {
 }
 
 export interface BreakDragItem {
-  shift: { id: string; date: string; startTime: string; endTime: string; employeeId: string; breakStart?: string; breakEnd?: string };
+  shift: Shift;
   breakType: 'start' | 'end';
 }
 

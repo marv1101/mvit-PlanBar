@@ -9,7 +9,7 @@ import { TIMEZONE } from '../lib/timezone';
 import { sanitizeLabel } from '../lib/sanitize';
 import { Pencil, Trash2, Coffee } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Employee } from '../../types';
+import type { Employee } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
@@ -100,7 +100,7 @@ function ShiftBar({
 
   return (
     <motion.div
-      ref={drag}
+      ref={(node: HTMLDivElement | null) => { drag(node); }}
       layout
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{

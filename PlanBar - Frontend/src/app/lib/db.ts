@@ -36,23 +36,23 @@ function openDB(): Promise<IDBDatabase> {
 
 async function withStore<T>(name: StoreName, mode: IDBTransactionMode, callback: (store: IDBObjectStore) => IDBRequest<T> | IDBRequest<T>[]): Promise<T> {
   const db = await openDB();
-  return new Promise((resolve, reject) => {
+  return new Promise<T>((resolve, reject) => {
     const tx = db.transaction(name, mode);
     const store = tx.objectStore(name);
     const result = callback(store);
 
     const resultReady = Array.isArray(result)
-      ? Promise.all(result.map(r => new Promise((res, rej) => {
+      ? Promise.all(result.map((r: IDBRequest<T>) => new Promise<unknown>((res, rej) => {
           r.onsuccess = () => res(r.result);
           r.onerror = () => rej(r.error);
         })))
-      : new Promise<T>((res, rej) => {
+      : new Promise<unknown>((res, rej) => {
           result.onsuccess = () => res(result.result);
           result.onerror = () => rej(result.error);
         });
 
     tx.oncomplete = () => {
-      resultReady.then(resolve).catch(reject);
+      resultReady.then((value) => resolve(value as T)).catch(reject);
       db.close();
     };
     tx.onerror = () => {
@@ -100,7 +100,7 @@ export const db = {
 
   async put<S extends StoreName>(store: S, item: StoreItem<S>): Promise<void> {
     return withStore<void>(store, 'readwrite', (s) => {
-      return s.put(item) as IDBRequest<void>;
+      return s.put(item) as unknown as IDBRequest<void>;
     });
   },
 
@@ -115,7 +115,7 @@ export const db = {
   async getAllFromIndex<S extends StoreName>(store: S, indexName: string, value: unknown): Promise<StoreItem<S>[]> {
     return withStore<StoreItem<S>[]>(store, 'readonly', (s) => {
       const idx = s.index(indexName);
-      return idx.getAll(value) as IDBRequest<StoreItem<S>[]>;
+      return idx.getAll(value as IDBValidKey) as IDBRequest<StoreItem<S>[]>;
     });
   },
 

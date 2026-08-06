@@ -70,5 +70,6 @@ export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegis
   if (!('serviceWorker' in navigator)) {
     return null;
   }
-  return navigator.serviceWorker.getRegistration('/');
+  const reg = await navigator.serviceWorker.getRegistration('/');
+  return reg ?? null;
 }

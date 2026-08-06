@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ErrorBoundary } from './ErrorBoundary'
 
-function ThrowError({ message = 'Test error' }: { message?: string }) {
+function ThrowError({ message = 'Test error' }: { message?: string }): React.JSX.Element {
   throw new Error(message)
 }
 

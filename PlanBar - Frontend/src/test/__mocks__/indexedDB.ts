@@ -28,10 +28,10 @@ class MockIDBRequest<T = unknown> {
     for (const h of handlers) h.call(this, event);
 
     if (event.type === 'upgradeneeded' && this.onupgradeneeded) {
-      this.onupgradeneeded.call(this, event as IDBVersionChangeEvent);
+      this.onupgradeneeded.call(this as unknown as IDBRequest<T>, event as IDBVersionChangeEvent);
     }
-    if (event.type === 'success' && this.onsuccess) this.onsuccess.call(this, event);
-    if (event.type === 'error' && this.onerror) this.onerror.call(this, event);
+    if (event.type === 'success' && this.onsuccess) this.onsuccess.call(this as unknown as IDBRequest<T>, event);
+    if (event.type === 'error' && this.onerror) this.onerror.call(this as unknown as IDBRequest<T>, event);
     return true;
   }
 
@@ -96,9 +96,9 @@ class MockIDBObjectStore {
         // Remove old entry if key changed
         for (const [k, v] of idx.data.entries()) {
           if (Array.isArray(v)) {
-            const filtered = v.filter((item: any) => item[this.store.keyPath] !== effectiveKey && String((item as any)[this.store.keyPath]) !== effectiveKey);
+        const filtered = v.filter((item: any) => (this.store.keyPath ? item[this.store.keyPath] : null) !== effectiveKey && String(this.store.keyPath ? (item as any)[this.store.keyPath] : '') !== effectiveKey);
             if (filtered.length !== v.length) {
-              idx.data.set(k, filtered);
+          idx.data.set(k, filtered as any);
             }
           }
         }
@@ -134,7 +134,7 @@ class MockIDBObjectStore {
         const indexValue = (item as Record<string, unknown>)[idx.keyPath];
         if (indexValue !== undefined && indexValue !== null) {
           const arr = idx.data.get(String(indexValue)) || [];
-          idx.data.set(String(indexValue), arr.filter((i: any) => String(i[this.store.keyPath]) !== String(key)));
+          idx.data.set(String(indexValue), arr.filter((i: any) => String(this.store.keyPath ? i[this.store.keyPath] : '') !== String(key)));
         }
       }
     }
@@ -227,13 +227,13 @@ class MockIDBTransaction {
 
   commit(): void {
     setTimeout(() => {
-      if (this.oncomplete) this.oncomplete.call(this, new Event('complete'));
+      if (this.oncomplete) this.oncomplete.call(this as unknown as IDBTransaction, new Event('complete'));
     }, 0);
   }
 
   abort(): void {
     setTimeout(() => {
-      if (this.onabort) this.onabort.call(this, new Event('abort'));
+      if (this.onabort) this.onabort.call(this as unknown as IDBTransaction, new Event('abort'));
     }, 0);
   }
 }
@@ -277,7 +277,7 @@ class MockIDBDatabase {
     const name = Array.isArray(storeNames) ? storeNames[0] : storeNames;
     const tx = new MockIDBTransaction(this, name, mode || 'readonly');
     setTimeout(() => {
-      if (tx.oncomplete) tx.oncomplete.call(tx, new Event('complete'));
+      if (tx.oncomplete) tx.oncomplete.call(tx as unknown as IDBTransaction, new Event('complete'));
     }, 0);
     return tx as unknown as IDBTransaction;
   }

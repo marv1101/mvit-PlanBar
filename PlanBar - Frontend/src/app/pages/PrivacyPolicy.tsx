@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Separator } from '../components/ui/separator';
 import { Shield, User, Cookie, Clock, Mail, FileText, AlertTriangle, Share2, Info } from 'lucide-react';
 
-function Section({ title, icon: Icon, children }: { title: string; icon: React.ComponentType; children: React.ReactNode }) {
+function Section({ title, icon: Icon, children }: { title: string; icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
   return (
     <Card className="mb-6">
       <CardHeader>

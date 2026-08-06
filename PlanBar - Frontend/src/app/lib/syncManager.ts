@@ -39,7 +39,7 @@ class SyncManager {
     if ('serviceWorker' in navigator && 'sync' in navigator.serviceWorker) {
       try {
         const registration = await navigator.serviceWorker.ready;
-        await registration.sync.register('sync-offline-actions');
+        await (registration as unknown as { sync: { register: (tag: string) => Promise<void> } }).sync.register('sync-offline-actions');
       } catch {
         // Background sync not available, will be processed on next online event
       }
