@@ -1,0 +1,167 @@
+# .github/workflows/zap-security.yml
+#
+# OWASP ZAP security scanning for PlanBar.
+#
+# - Push to dev  → Baseline Scan  (passive, no attacks, safe for any env)
+# - PR into main → Full Scan      (active scan, thorough, only on PR)
+
+name: ZAP Security Scan
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [main]
+
+env:
+  COMPOSE_FILE: docker-compose.ci.yml
+  ZAP_TARGET: "http://localhost:80"
+
+jobs:
+  # ──────────────────────────────────────────────
+  #  Baseline Scan — passive, fast, safe for dev
+  # ──────────────────────────────────────────────
+  zap-baseline:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    name: ZAP Baseline Scan (dev)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start application stack
+        run: |
+          docker compose up -d --build
+          echo "Waiting for frontend to become healthy..."
+          timeout 120 bash -c '
+            until docker compose ps --format json | \
+              python3 -c "import sys,json; services=[json.loads(l) for l in sys.stdin]; sys.exit(0 if all(s.get(\"Health\",\"\")==\"healthy\" for s in services) else 1)" 2>/dev/null; do
+              sleep 5
+            done
+          '
+          echo "All services healthy."
+          docker compose ps
+
+      - name: Run ZAP Baseline Scan
+        run: |
+          docker run --rm \
+            --network host \
+            -v "$(pwd)/zap-reports:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+              -t ${{ env.ZAP_TARGET }} \
+              -r report_baseline.html \
+              -J report_baseline.json \
+              -x report_baseline.xml \
+              -c /zap/wrk/.zap/rules.tsv \
+              -I \
+              -s
+
+      - name: Upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline-reports
+          path: zap-reports/
+          retention-days: 30
+
+      - name: Check scan results
+        if: always()
+        run: |
+          if [ -f zap-reports/report_baseline.json ]; then
+            FAILS=$(python3 -c "
+          import json, sys
+          with open('zap-reports/report_baseline.json') as f:
+              data = json.load(f)
+          # Count high and critical alerts
+          high = sum(1 for site in data.get('site', [])
+                     for alert in site.get('alerts', [])
+                     if alert.get('riskdesc', '').startswith(('High', 'Critical')))
+          print(high)
+          ")
+            echo "High/Critical findings: $FAILS"
+            if [ "$FAILS" -gt 0 ]; then
+              echo "::warning::ZAP Baseline found $FAILS high/critical findings"
+            fi
+          fi
+
+  # ──────────────────────────────────────────────
+  #  Full Scan — active scan, thorough, PR gate
+  # ──────────────────────────────────────────────
+  zap-full-scan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    name: ZAP Full Scan (PR → main)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start application stack
+        run: |
+          docker compose up -d --build
+          echo "Waiting for frontend to become healthy..."
+          timeout 120 bash -c '
+            until docker compose ps --format json | \
+              python3 -c "import sys,json; services=[json.loads(l) for l in sys.stdin]; sys.exit(0 if all(s.get(\"Health\",\"\")==\"healthy\" for s in services) else 1)" 2>/dev/null; do
+              sleep 5
+            done
+          '
+          echo "All services healthy."
+          docker compose ps
+
+      - name: Run ZAP Full Scan
+        run: |
+          docker run --rm \
+            --network host \
+            -v "$(pwd)/zap-reports:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-full-scan.py \
+              -t ${{ env.ZAP_TARGET }} \
+              -r report_full.html \
+              -J report_full.json \
+              -x report_full.xml \
+              -c /zap/wrk/.zap/rules.tsv \
+              -I \
+              -s
+
+      - name: Upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-full-scan-reports
+          path: zap-reports/
+          retention-days: 30
+
+      - name: Enforce scan policy
+        if: always()
+        run: |
+          if [ -f zap-reports/report_full.json ]; then
+            RESULT=$(python3 -c "
+          import json, sys
+          with open('zap-reports/report_full.json') as f:
+              data = json.load(f)
+          high = sum(1 for site in data.get('site', [])
+                     for alert in site.get('alerts', [])
+                     if alert.get('riskdesc', '').startswith(('High', 'Critical')))
+          medium = sum(1 for site in data.get('site', [])
+                       for alert in site.get('alerts', [])
+                       if alert.get('riskdesc', '').startswith('Medium'))
+          print(f'{high} {medium}')
+          ")
+            HIGH=$(echo $RESULT | cut -d' ' -f1)
+            MEDIUM=$(echo $RESULT | cut -d' ' -f2)
+            echo "High/Critical: $HIGH | Medium: $MEDIUM"
+
+            if [ "$HIGH" -gt 0 ]; then
+              echo "::error::ZAP Full Scan found $HIGH high/critical vulnerabilities — PR blocked."
+              exit 1
+            fi
+            if [ "$MEDIUM" -gt 5 ]; then
+              echo "::warning::ZAP Full Scan found $MEDIUM medium-severity findings (threshold: 5)."
+            fi
+          else
+            echo "::error::ZAP scan report not found — scan may have failed."
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
