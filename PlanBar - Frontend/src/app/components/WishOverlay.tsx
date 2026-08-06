@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Request, Employee } from '../../types';
+import { Request, Employee } from '../types';
 import { Ban, Calendar, Star } from 'lucide-react';
 
 // Colors for different wish types

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useDrag, useDrop, DndProvider } from 'react-dnd';
 import { TouchBackend } from 'react-dnd-touch-backend';
 import { useApp } from '../context/AppContext';
-import { Shift, Schedule, WeekType, Request } from '../../types';
+import { Shift, Schedule, WeekType, Request } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
@@ -18,7 +18,7 @@ import { ShiftListView } from './ShiftListView';
 import { SwimlaneCalendar } from './SwimlaneCalendar';
 import { Pencil, Trash2, Users, Save, Loader2, LayoutGrid, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Employee } from '../../types';
+import type { Employee } from '../types';
 import {
   ITEM_TYPE, EMPLOYEE_ITEM_TYPE, BREAK_START_ITEM_TYPE, BREAK_END_ITEM_TYPE,
   START_HOUR, END_HOUR, SNAP_MINUTES_SHIFT, SNAP_MINUTES_BREAK,
@@ -83,7 +83,7 @@ function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) 
 
   return (
     <motion.div
-      ref={drag}
+      ref={(node: HTMLDivElement | null) => { drag(node); }}
       layout
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{
@@ -609,7 +609,7 @@ function AddShiftDialog({
 
   React.useEffect(() => {
     if (date) {
-      setFormData(prev => ({
+      setFormData((prev: Shift) => ({
         ...prev,
         date: date.toISOString().split('T')[0],
         week: week,
@@ -759,7 +759,7 @@ export function EditableScheduleCalendar({
 
   const handleDrop = (shift: Shift, newDate: string) => {
     const newWeekType = getWeekType(new Date(newDate));
-    const updatedShifts = schedule.shifts.map(s =>
+    const updatedShifts = schedule.shifts.map((s: Shift) =>
       s.id === shift.id ? { ...s, date: newDate, week: newWeekType } : s
     );
     onUpdateSchedule({ ...schedule, shifts: updatedShifts });
@@ -768,7 +768,7 @@ export function EditableScheduleCalendar({
 
   const handleDropInDay = (shift: Shift, newStartTime: string, newEndTime: string) => {
     const startDiff = toMinutes(newStartTime) - toMinutes(shift.startTime);
-    const updatedShifts = schedule.shifts.map(s => {
+    const updatedShifts = schedule.shifts.map((s: Shift) => {
       if (s.id !== shift.id) return s;
       const updated = { ...s, startTime: newStartTime, endTime: newEndTime };
       if (s.breakStart) {
@@ -784,7 +784,7 @@ export function EditableScheduleCalendar({
   };
 
   const handleBreakUpdate = (shiftId: string, updatedShift: Shift) => {
-    const updatedShifts = schedule.shifts.map(s =>
+    const updatedShifts = schedule.shifts.map((s: Shift) =>
       s.id === shiftId ? updatedShift : s
     );
     onUpdateSchedule({ ...schedule, shifts: updatedShifts });
@@ -823,7 +823,7 @@ export function EditableScheduleCalendar({
   };
 
   const handleSaveEdit = (updatedShift: Shift) => {
-    const updatedShifts = schedule.shifts.map(s =>
+    const updatedShifts = schedule.shifts.map((s: Shift) =>
       s.id === updatedShift.id ? updatedShift : s
     );
     onUpdateSchedule({ ...schedule, shifts: updatedShifts });
@@ -837,7 +837,7 @@ export function EditableScheduleCalendar({
 
   const confirmDeleteShift = () => {
     if (!shiftToDelete) return;
-    const updatedShifts = schedule.shifts.filter(s => s.id !== shiftToDelete.id);
+    const updatedShifts = schedule.shifts.filter((s: Shift) => s.id !== shiftToDelete.id);
     onUpdateSchedule({ ...schedule, shifts: updatedShifts });
     toast.success('Schicht gelöscht');
     setShiftToDelete(null);
@@ -897,7 +897,7 @@ export function EditableScheduleCalendar({
     <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
       {isMobile ? (
         <ShiftListView
-          shifts={schedule.shifts.filter(s => s.week === currentWeek)}
+          shifts={schedule.shifts.filter((s: Shift) => s.week === currentWeek)}
           employees={employees}
           weekLabel={weekLabel}
           onEdit={handleEdit}

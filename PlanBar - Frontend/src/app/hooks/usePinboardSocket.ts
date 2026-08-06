@@ -20,7 +20,7 @@ const RECONNECT_MAX_DELAY = 30000;
 export function usePinboardSocket({ threadId, onNewMessage, onDocumentUploaded, enabled = true }: UsePinboardSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const tokenRef = useRef<string | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mountedRef = useRef(true);
   const reconnectAttemptsRef = useRef(0);
 
@@ -41,7 +41,7 @@ export function usePinboardSocket({ threadId, onNewMessage, onDocumentUploaded, 
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const url = `${protocol}//${host}/api/v1/pinboard/ws/threads/${threadId}?token=${encodeURIComponent(tokenRef.current)}`;
+    const url = `${protocol}//${host}/api/v1/pinboard/ws/threads/${threadId}?token=${encodeURIComponent(tokenRef.current ?? '')}`;
 
     wsRef.current = new WebSocket(url);
 

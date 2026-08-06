@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect } from 'vitest';
 import { WishOverlay } from './WishOverlay';
-import { Request, Employee } from '../../types';
+import { Request, Employee } from '../types';
 
 describe('WishOverlay', () => {
   const mockEmployee: Employee = {

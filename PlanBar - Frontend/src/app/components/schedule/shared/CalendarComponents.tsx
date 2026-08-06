@@ -17,7 +17,7 @@ export function EmployeeCard({ employee }: { employee: Employee }) {
 
   return (
     <motion.div
-      ref={drag}
+      ref={(node: HTMLDivElement | null) => { drag(node); }}
       layout
       animate={{
         opacity: isDragging ? 0.3 : 1,
@@ -60,7 +60,7 @@ export function BreakStartHandle({ shift, cursorClass = 'cursor-ns-resize' }: { 
 
   return (
     <div
-      ref={drag}
+      ref={(node: HTMLDivElement | null) => { drag(node); }}
       className={`absolute top-0 left-0 right-0 h-2 ${cursorClass} hover:bg-blue-400/30 active:bg-blue-400/50 flex items-center justify-center z-20 group/break`}
       style={{ opacity: isDragging ? 0.5 : 1 }}
       onMouseDown={(e) => e.stopPropagation()}
@@ -81,7 +81,7 @@ export function BreakEndHandle({ shift, cursorClass = 'cursor-ns-resize' }: { sh
 
   return (
     <div
-      ref={drag}
+      ref={(node: HTMLDivElement | null) => { drag(node); }}
       className={`absolute bottom-0 left-0 right-0 h-2 ${cursorClass} hover:bg-blue-400/30 active:bg-blue-400/50 flex items-center justify-center z-20 group/break`}
       style={{ opacity: isDragging ? 0.5 : 1 }}
       onMouseDown={(e) => e.stopPropagation()}

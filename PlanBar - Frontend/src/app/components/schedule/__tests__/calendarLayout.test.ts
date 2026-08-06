@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Shift } from '../../types';
+import { Shift } from '../../../types';
 import { assignLanes, getShiftStyle, getBreakStyle } from '../calendarLayout';
 
 const mockShiftA: Shift = {

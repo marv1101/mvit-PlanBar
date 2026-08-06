@@ -39,7 +39,7 @@ export function SelfService() {
   const currentEmployeeId = user?.employeeId;
 
   const myVacationRequests = (requests || []).filter(
-    r => r.employeeId === currentEmployeeId && (r.type === 'urlaubswunsch' || r.type === 'vacation')
+    r => r.employeeId === currentEmployeeId && (r.type === 'urlaubswunsch' || (r.type as string) === 'vacation')
   ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const handleAddVacation = () => {
