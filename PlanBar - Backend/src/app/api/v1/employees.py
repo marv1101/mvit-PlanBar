@@ -108,11 +108,11 @@ def get_employee_endpoint(
 
     try:
         team_service.assert_user_can_access_employee(db, current_user, employee_id)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
-        )
+        ) from e
     if response is not None:
         set_etag_header(response, employee, "first_name", "last_name", "email")
     return employee
@@ -132,11 +132,11 @@ def update_employee_endpoint(
         raise NotFoundException(detail="Employee not found")
     try:
         check_etag_conflict(employee, if_match, "first_name", "last_name", "email")
-    except ConflictError:
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Employee was modified by another user. Please refresh and try again.",
-        )
+        ) from e
     updated = update_employee(db, employee, data, actor_id=admin.id)
     if response is not None:
         set_etag_response(response, updated, "first_name", "last_name", "email")
@@ -201,11 +201,11 @@ def get_contract_endpoint(
 
     try:
         team_service.assert_user_can_access_employee(db, current_user, contract.employee_id, allow_planer=False)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
-        )
+        ) from e
     return contract
 
 
@@ -268,11 +268,11 @@ def get_timecard_endpoint(
 
     try:
         team_service.assert_user_can_access_employee(db, current_user, timecard.employee_id, allow_planer=False)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
-        )
+        ) from e
     return timecard
 
 
@@ -372,11 +372,11 @@ def get_employee_time_account(
 
     try:
         team_service.assert_user_can_access_employee(db, current_user, employee_id, allow_planer=False)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
-        )
+        ) from e
     return _build_time_account_response(employee, db)
 
 

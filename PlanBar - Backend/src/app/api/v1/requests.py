@@ -138,11 +138,11 @@ def update_shift_wish(
 
     try:
         check_etag_conflict(wish, if_match, "date", "type", "status")
-    except ConflictError:
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Shift wish was modified by another user. Please refresh and try again.",
-        )
+        ) from e
 
     if not team_service.user_can_access_employee(db, current_user, wish.employee_id):
         raise HTTPException(

@@ -25,8 +25,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
 
     try:
         payload = verify_token(token)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from e
 
     jti = payload.get("jti")
     if jti and is_token_revoked(jti, db):

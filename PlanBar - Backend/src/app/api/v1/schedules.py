@@ -97,11 +97,11 @@ def create_schedule_endpoint(
     # Planners can only reference employees from their own teams
     try:
         assert_team_write_on_shiftplans(db, data.shiftplans, user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Planer may only schedule for employees in their own teams",
-        )
+        ) from e
     schedule = create_schedule(db, data, user.id)
     return _build_schedule_with_arbzg_response(schedule)
 
@@ -127,11 +127,11 @@ def get_schedule_endpoint(
 ):
     try:
         schedule = get_schedule_for_user(db, schedule_id, current_user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Schedule is not in your team scope",
-        )
+        ) from e
     if response is not None:
         set_etag_header(response, schedule, "name", "status", "week_type")
     return schedule
@@ -148,19 +148,19 @@ def update_schedule_endpoint(
 ):
     try:
         schedule = get_schedule_for_user(db, schedule_id, user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Schedule is not in your team scope",
-        )
+        ) from e
 
     try:
         check_etag_conflict(schedule, if_match, "name", "status", "week_type")
-    except ConflictError:
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Schedule was modified by another user. Please refresh and try again.",
-        )
+        ) from e
 
     updated = update_schedule(db, schedule, data, actor_id=user.id)
     if response is not None:
@@ -176,11 +176,11 @@ def delete_schedule_endpoint(
 ):
     try:
         schedule = get_schedule_for_user(db, schedule_id, user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Schedule is not in your team scope",
-        )
+        ) from e
     delete_schedule(db, schedule, actor_id=user.id)
 
 
@@ -192,15 +192,15 @@ async def submit_schedule_endpoint(
 ):
     try:
         schedule = get_schedule_for_user(db, schedule_id, user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Schedule is not in your team scope",
-        )
+        ) from e
     try:
         return await submit_schedule_to_tito(db, schedule, user=user)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
 
 @router.post("/{schedule_id}/retry", response_model=ScheduleResponse)
@@ -211,11 +211,11 @@ async def retry_schedule_endpoint(
 ):
     try:
         schedule = get_schedule_for_user(db, schedule_id, user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Schedule is not in your team scope",
-        )
+        ) from e
     return await retry_schedule(db, schedule, actor_id=user.id)
 
 
@@ -227,11 +227,11 @@ def get_schedule_summary_endpoint(
 ):
     try:
         schedule = get_schedule_for_user(db, schedule_id, current_user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Schedule is not in your team scope",
-        )
+        ) from e
     return get_schedule_summary(db, schedule)
 
 
@@ -244,11 +244,11 @@ def get_schedule_shifts(
 ):
     try:
         schedule = get_schedule_for_user(db, schedule_id, current_user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Schedule is not in your team scope",
-        )
+        ) from e
     total = len(schedule.shiftplans)
     items = schedule.shiftplans[pagination.offset : pagination.offset + pagination.limit]
     return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
@@ -264,11 +264,11 @@ def update_shiftplan(
 ):
     try:
         schedule = get_schedule_for_user(db, schedule_id, user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Schedule is not in your team scope",
-        )
+        ) from e
     shiftplan = (
         db.query(Shiftplan)
         .filter(
@@ -289,11 +289,11 @@ def update_shiftplan(
         from app.services.schedule_service import _assert_team_restriction_for_employee_ids
 
         _assert_team_restriction_for_employee_ids(db, new_employee_ids, user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Planer may only assign employees from their own teams",
-        )
+        ) from e
     if data.employee_id is not None:
         shiftplan.employee_id = data.employee_id
     if data.date is not None:
@@ -351,18 +351,18 @@ def replace_all_shifts_endpoint(
 ):
     try:
         schedule = get_schedule_for_user(db, schedule_id, user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Schedule is not in your team scope",
-        )
+        ) from e
     try:
         assert_team_write_on_shiftplans(db, data.shiftplans, user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Planer may only schedule for employees in their own teams",
-        )
+        ) from e
     schedule, arbzg_result = replace_all_shifts(db, schedule, data.shiftplans, actor_id=user.id)
     warnings = [
         ArbZgViolationResponse(
@@ -402,11 +402,11 @@ def get_pending_wishes(
 ):
     try:
         schedule = get_schedule_for_user(db, schedule_id, user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Schedule is not in your team scope",
-        )
+        ) from e
 
     query = (
         db.query(ShiftWish)
@@ -445,11 +445,11 @@ def get_wishes_by_status(
     """
     try:
         schedule = get_schedule_for_user(db, schedule_id, user)
-    except PermissionError:
+    except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Schedule is not in your team scope",
-        )
+        ) from e
     query = (
         db.query(ShiftWish)
         .filter(

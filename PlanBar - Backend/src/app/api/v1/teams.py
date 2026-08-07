@@ -104,11 +104,11 @@ def update_team_endpoint(
         raise NotFoundException(detail="Team not found")
     try:
         check_etag_conflict(team, if_match, "name", "color")
-    except ConflictError:
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Team was modified by another user. Please refresh and try again.",
-        )
+        ) from e
     updated = team_service.update_team(db, team_id, data, actor_id=admin.id)
     if response is not None:
         set_etag_response(response, updated, "name", "color")

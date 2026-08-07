@@ -46,7 +46,7 @@ def clock_in(
     try:
         entry = svc_clock_in(db, emp_id, notes=(payload.notes if payload else None))
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     return entry
 
 
@@ -60,7 +60,7 @@ def clock_out(
     try:
         entry = svc_clock_out(db, emp_id)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     return entry
 
 
@@ -74,7 +74,7 @@ def today(
     try:
         return svc_get_daily_entries(db, emp_id, datetime.now(UTC).date())
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.get("/entries", response_model=list[TimeEntryResponse])

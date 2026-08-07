@@ -61,11 +61,11 @@ def update_role(
         raise NotFoundException(detail="Role not found")
     try:
         check_etag_conflict(role, if_match, "name", "color")
-    except ConflictError:
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Role was modified by another user. Please refresh and try again.",
-        )
+        ) from e
     updated = role_service.update_role(db, role_id, data)
     if response is not None:
         set_etag_response(response, updated, "name", "color")

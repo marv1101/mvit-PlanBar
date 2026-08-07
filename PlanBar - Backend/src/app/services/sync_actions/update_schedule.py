@@ -34,7 +34,7 @@ class UpdateSchedule(RoleRequired):
                 schedule.updated_at if hasattr(schedule, "updated_at") else None, schedule_etag, stored_etag
             )
         except ConflictError as e:
-            raise HTTPException(status_code=409, detail=str(e))
+            raise HTTPException(status_code=409, detail=str(e)) from e
         if "name" in data:
             schedule.name = data["name"]
         if "status" in data:

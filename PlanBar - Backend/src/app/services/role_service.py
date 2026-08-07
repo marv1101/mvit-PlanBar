@@ -23,9 +23,9 @@ def create_role(db: Session, data: RoleCreate, actor_id: int | None = None) -> R
     db.add(role)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise ConflictException(detail="Role with this name already exists")
+        raise ConflictException(detail="Role with this name already exists") from e
     db.refresh(role)
     audit_service.log_create(db, user_id=actor_id, resource_type="role", resource_id=str(role.id))
     return role
@@ -49,9 +49,9 @@ def update_role(
     db.add(role)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise ConflictException(detail="Role with this name already exists")
+        raise ConflictException(detail="Role with this name already exists") from e
     db.refresh(role)
     audit_service.log_update(db, user_id=actor_id, resource_type="role", resource_id=str(role.id))
     return role

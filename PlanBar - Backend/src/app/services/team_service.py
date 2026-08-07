@@ -27,9 +27,9 @@ def create_team(db: Session, data: TeamCreate, actor_id: int | None = None) -> T
     db.add(team)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise ConflictException(detail="Team with this name already exists")
+        raise ConflictException(detail="Team with this name already exists") from e
     db.refresh(team)
     audit_service.log_create(db, user_id=actor_id, resource_type="team", resource_id=str(team.id))
     return team
@@ -53,9 +53,9 @@ def update_team(
     db.add(team)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise ConflictException(detail="Team with this name already exists")
+        raise ConflictException(detail="Team with this name already exists") from e
     db.refresh(team)
     audit_service.log_update(db, user_id=actor_id, resource_type="team", resource_id=str(team.id))
     return team
