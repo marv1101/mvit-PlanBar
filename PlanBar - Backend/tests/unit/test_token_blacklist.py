@@ -36,7 +36,7 @@ class TestTokenBlacklist:
         revoked = db_session.query(RevokedToken).filter(RevokedToken.jti == jti).first()
         assert revoked is not None
         assert revoked.jti == jti
-        assert revoked.token_type == "access"
+        assert revoked.token_type == "access"  # noqa: S105 - token type, not a password
         assert revoked.user_id == 1
 
     def test_is_token_revoked_detects_revoked(self, db_session):

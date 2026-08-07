@@ -31,7 +31,7 @@ def test_login_success(client):
     data = response.json()
     assert data["access_token"]
     assert data["refresh_token"]
-    assert data["token_type"] == "bearer"
+    assert data["token_type"] == "bearer"  # noqa: S105 - token type, not a password
     assert data["must_change_password"] is True
 
 

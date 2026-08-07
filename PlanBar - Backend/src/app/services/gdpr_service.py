@@ -83,7 +83,7 @@ def delete_user_data(db: Session, user_id: int) -> dict:
     # 1. Anonymize user account
     user.username = anonymized_id
     user.email = f"{anonymized_id}@deleted.invalid"
-    user.password_hash = "DELETED"
+    user.password_hash = "DELETED"  # noqa: S105 - anonymization sentinel, not a real credential
     user.role = "user"
     user.must_change_password = False
     user.last_login = None

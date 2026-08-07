@@ -28,7 +28,7 @@ def test_register_login_and_refresh_token(client):
     token_data = login_response.json()
     assert token_data["access_token"]
     assert token_data["refresh_token"]
-    assert token_data["token_type"] == "bearer"
+    assert token_data["token_type"] == "bearer"  # noqa: S105 - token type, not a password
 
     auth_header = {"Authorization": f"Bearer {token_data['access_token']}"}
     me_response = client.get("/api/v1/users/me", headers=auth_header)

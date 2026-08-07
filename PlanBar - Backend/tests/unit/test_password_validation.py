@@ -11,8 +11,9 @@ class TestPasswordComplexity:
 
     def test_valid_password_accepted(self):
         """A password with all requirements should be accepted."""
-        user = UserCreate(username="testuser", email="test@example.com", password="StrongP@ss1")
-        assert user.password == "StrongP@ss1"
+        # Test fixture password, not a real credential.
+        user = UserCreate(username="testuser", email="test@example.com", password="StrongP@ss1")  # noqa: S105
+        assert user.password == "StrongP@ss1"  # noqa: S105 - test fixture password
 
     def test_too_short_rejected(self):
         """Password shorter than 8 chars should be rejected."""
@@ -45,7 +46,7 @@ class TestPasswordComplexity:
         Users may have old passwords that predate complexity requirements.
         """
         login = UserLogin(email="test@example.com", password="weakpass")
-        assert login.password == "weakpass"
+        assert login.password == "weakpass"  # noqa: S105 - test fixture password
 
     def test_change_password_schema_enforces_complexity(self):
         """ChangePasswordRequest should enforce complexity on new_password."""
