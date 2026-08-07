@@ -1,6 +1,7 @@
 from datetime import date, time
 
 import pytest
+
 from app.db.models.employee import Contract, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 

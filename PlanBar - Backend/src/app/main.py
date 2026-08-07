@@ -102,7 +102,7 @@ def run_database_setup() -> None:
         alembic_cfg = Config("alembic.ini")
         command.upgrade(alembic_cfg, "head")
         logger.info("Alembic migrations applied successfully")
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.warning("Alembic migration failed, falling back to create_all")
         Base.metadata.create_all(bind=engine)
 

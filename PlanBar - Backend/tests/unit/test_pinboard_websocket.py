@@ -22,6 +22,7 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
 os.environ.setdefault("ENVIRONMENT", "test")
 
 import pytest
+
 from app.api.v1.pinboard_ws import (
     authenticate_websocket,
     handle_websocket_message,

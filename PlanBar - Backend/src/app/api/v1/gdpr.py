@@ -10,7 +10,7 @@ GET    /api/v1/admin/employees/{id}/export         — Admin export (Art. 20)
 POST   /api/v1/admin/employees/{id}/restrict-processing — Admin restrict processing (Art. 18)
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
@@ -229,7 +229,7 @@ def object_to_processing(
     legal claims.
     """
     current_user.objection_filed = True
-    current_user.objection_date = datetime.now(timezone.utc)
+    current_user.objection_date = datetime.now(UTC)
     db.add(current_user)
     db.commit()
     db.refresh(current_user)

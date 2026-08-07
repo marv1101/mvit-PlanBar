@@ -1,5 +1,5 @@
+from datetime import UTC, datetime
 from datetime import date as Date
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
@@ -213,7 +213,7 @@ def approve_shift_wish(
         )
     wish.status = WishStatus.APPROVED.value
     wish.reviewed_by = user.id
-    wish.reviewed_at = datetime.now(timezone.utc)
+    wish.reviewed_at = datetime.now(UTC)
     wish.rejection_reason = None
     db.add(wish)
     db.commit()
@@ -255,7 +255,7 @@ def reject_shift_wish(
         )
     wish.status = WishStatus.REJECTED.value
     wish.reviewed_by = user.id
-    wish.reviewed_at = datetime.now(timezone.utc)
+    wish.reviewed_at = datetime.now(UTC)
     wish.rejection_reason = body.rejection_reason
     db.add(wish)
     db.commit()

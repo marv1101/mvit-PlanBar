@@ -1,6 +1,9 @@
 from datetime import date, time
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from app.db.base import Base
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
@@ -17,8 +20,6 @@ from app.services.tito_callback import (
     process_tito_callback,
     update_timecards_from_schedule,
 )
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture

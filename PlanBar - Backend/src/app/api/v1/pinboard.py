@@ -3,7 +3,7 @@ import logging
 import os
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import (
     APIRouter,
@@ -326,7 +326,7 @@ def create_message(
         content=data.content,
     )
     db.add(message)
-    thread.updated_at = datetime.now(timezone.utc)
+    thread.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(message)
     _notify_clients(thread_id, _message_to_response(message))
@@ -411,7 +411,7 @@ async def upload_document(
     stored_name = f"{uuid.uuid4().hex}{ext}"
     file_path = os.path.join(UPLOAD_DIR, stored_name)
 
-    with open(file_path, "wb") as f:  # noqa: ASYNC230
+    with open(file_path, "wb") as f:
         f.write(content)
 
     doc = PinboardDocument(
@@ -537,7 +537,7 @@ async def _broadcast(thread_id: int, message: dict):
     for conn in active_connections[thread_id]:
         try:
             await conn.send_json(message)
-        except Exception:  # noqa: BLE001,S110
+        except Exception:  # noqa: S110
             pass
 
 
@@ -579,7 +579,7 @@ async def _heartbeat_loop(websocket: WebSocket, thread_id: int):
                 return
 
             await websocket.send_json({"type": "ping"})
-    except Exception:  # noqa: BLE001
+    except Exception:
         _disconnect_ws(websocket, thread_id)
 
 
@@ -635,7 +635,7 @@ async def websocket_endpoint(
             )
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: user={user_id} thread={thread_id}")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f"WebSocket error user={user_id} thread={thread_id}: {e}")
     finally:
         heartbeat_task.cancel()

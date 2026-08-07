@@ -12,14 +12,15 @@ os.environ["ENVIRONMENT"] = "test"
 os.environ["ENABLE_SELF_REGISTRATION"] = "true"
 
 import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.db.base import Base
 from app.dependencies import get_db
 from app.main import create_app
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 settings.database_url = TEST_DATABASE_URL
 settings.tito_api_key = None

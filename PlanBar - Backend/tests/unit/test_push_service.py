@@ -16,10 +16,11 @@ import uuid
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pywebpush import WebPushException
+
 from app.db.models.push_subscription import PushSubscription
 from app.db.models.user import User
 from app.services import push_service
-from pywebpush import WebPushException
 
 # ---------------------------------------------------------------------------
 # Helpers / Fixtures

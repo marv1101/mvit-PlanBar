@@ -1,4 +1,7 @@
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from app.core.auth import verify_password
 from app.db.base import Base
 from app.db.models.employee import Employee
@@ -15,8 +18,6 @@ from app.services.user_service import (
     list_users,
     update_user,
 )
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture

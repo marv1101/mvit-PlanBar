@@ -2,6 +2,9 @@ from datetime import date, time
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from app.db.base import Base
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
@@ -21,8 +24,6 @@ from app.services.schedule_service import (
     submit_schedule_to_tito,
     update_schedule,
 )
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture

@@ -1,7 +1,7 @@
 """Export service for schedule PDF and iCal generation."""
 
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from icalendar import Calendar, Event
 from sqlalchemy.orm import Session
@@ -74,7 +74,7 @@ def export_schedule_ical(db: Session, schedule_id: int) -> bytes | None:
         emp_name = _employee_name(db, shift.employee_id)
 
         # Build event datetime (date + time)
-        start_dt = datetime.combine(shift.date, shift.start_time, tzinfo=timezone.utc)
+        start_dt = datetime.combine(shift.date, shift.start_time, tzinfo=UTC)
         # Handle overnight shifts: if end_time <= start_time, assume next day
         if shift.end_time <= shift.start_time:
             from datetime import timedelta
@@ -82,7 +82,7 @@ def export_schedule_ical(db: Session, schedule_id: int) -> bytes | None:
             end_date = shift.date + timedelta(days=1)
         else:
             end_date = shift.date
-        end_dt = datetime.combine(end_date, shift.end_time, tzinfo=timezone.utc)
+        end_dt = datetime.combine(end_date, shift.end_time, tzinfo=UTC)
 
         event = Event()
         event.add("summary", f"{shift.label or shift.shift_id} - {emp_name}")
@@ -173,7 +173,7 @@ def export_schedule_pdf(db: Session, schedule_id: int) -> bytes | None:
     pdf.cell(
         0,
         5,
-        f"Exportiert am {datetime.now(timezone.utc).strftime('%d.%m.%Y %H:%M')}",
+        f"Exportiert am {datetime.now(UTC).strftime('%d.%m.%Y %H:%M')}",
         new_x="LMARGIN",
         new_y="NEXT",
         align="C",

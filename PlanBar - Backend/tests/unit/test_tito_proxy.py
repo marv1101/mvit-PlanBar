@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+
 from app.services.tito_proxy import TiTOProxy, tito_proxy
 
 

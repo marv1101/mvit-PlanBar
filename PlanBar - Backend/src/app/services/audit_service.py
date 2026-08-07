@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -24,7 +24,7 @@ def log(
         details=details,
         ip_address=ip_address,
         user_agent=user_agent,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     db.add(entry)
     db.commit()
@@ -153,7 +153,7 @@ def get_suspicious_patterns(db: Session) -> list[dict]:
     patterns = []
 
     # 1. Multiple failed login attempts from same IP
-    five_min_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
+    five_min_ago = datetime.now(UTC) - timedelta(minutes=5)
     recent_failures = (
         db.query(AuditLog.ip_address, func.count(AuditLog.id).label("cnt"))
         .filter(

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import WebSocket
 from sqlalchemy.orm import Session
@@ -66,7 +66,7 @@ def _decode_user_id(token: str) -> int | None:
     """Return the user id encoded in the JWT, or ``None`` if invalid."""
     try:
         payload = verify_token(token)
-    except (ValueError, Exception):  # noqa: BLE001
+    except (ValueError, Exception):
         return None
     sub = payload.get("sub") if isinstance(payload, dict) else None
     if sub is None:
@@ -138,7 +138,7 @@ async def persist_chat_message(db: Session, thread_id: int, user_id: int, conten
     db.add(message)
     thread = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
     if thread:
-        thread.updated_at = datetime.now(timezone.utc)
+        thread.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(message)
 
