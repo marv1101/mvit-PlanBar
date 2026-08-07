@@ -58,8 +58,7 @@ def get_my_teams(
     current_user: User = Depends(get_current_user),
 ):
     """Return the teams the current user belongs to."""
-    teams = team_service.get_teams_for_user(db, current_user)
-    return teams
+    return team_service.get_teams_for_user(db, current_user)
 
 
 @router.get("/team-schedule", response_model=list[MyShiftResponse])
@@ -119,13 +118,12 @@ def get_my_team_employees(
     team_ids = team_service.get_team_ids_for_user(db, current_user)
     if not team_ids:
         return []
-    employees = (
+    return (
         team_service.filter_query_by_team_scope(db.query(Employee), Employee, team_ids)
         .distinct()
         .order_by(Employee.last_name, Employee.first_name)
         .all()
     )
-    return employees
 
 
 @router.get("/overtime", response_model=MyOvertimeResponse)
@@ -202,10 +200,9 @@ def get_my_availability(
     if not current_user.employee_id:
         return []
 
-    availabilities = (
+    return (
         db.query(Availability)
         .filter(Availability.employee_id == current_user.employee_id)
         .order_by(Availability.day_of_week.asc())
         .all()
     )
-    return availabilities

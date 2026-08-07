@@ -68,9 +68,8 @@ def list_my_teams_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     """List teams the current user belongs to (for planners/employees)."""
-    teams = team_service.get_teams_for_user(db, current_user)
     # Admins also can call this and will receive [] (no team restriction).
-    return teams
+    return team_service.get_teams_for_user(db, current_user)
 
 
 @router.get("/{team_id}", response_model=TeamWithEmployeesResponse)

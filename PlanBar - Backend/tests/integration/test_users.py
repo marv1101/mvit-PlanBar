@@ -121,9 +121,11 @@ def test_change_password(client, auth_headers):
         json={"username": "changepwuser", "email": "changepw@example.com", "password": "oldPassword@123"},
     )
     register_resp.json()["id"]
-    user_auth = {
-        "Authorization": f"Bearer {client.post('/api/v1/users/login', json={'email': 'changepw@example.com', 'password': 'oldPassword@123'}).json()['access_token']}"
-    }
+    token = client.post(
+        "/api/v1/users/login",
+        json={"email": "changepw@example.com", "password": "oldPassword@123"},
+    ).json()["access_token"]
+    user_auth = {"Authorization": f"Bearer {token}"}
 
     response = client.post(
         "/api/v1/users/change-password",
@@ -138,9 +140,11 @@ def test_change_password_wrong_old(client, auth_headers):
         "/api/v1/users",
         json={"username": "changepwfail", "email": "changepwfail@example.com", "password": "oldPassword@123"},
     )
-    user_auth = {
-        "Authorization": f"Bearer {client.post('/api/v1/users/login', json={'email': 'changepwfail@example.com', 'password': 'oldPassword@123'}).json()['access_token']}"
-    }
+    token = client.post(
+        "/api/v1/users/login",
+        json={"email": "changepwfail@example.com", "password": "oldPassword@123"},
+    ).json()["access_token"]
+    user_auth = {"Authorization": f"Bearer {token}"}
 
     response = client.post(
         "/api/v1/users/change-password",

@@ -146,7 +146,7 @@ class TestOvernightShiftDuration:
         violations = validate_max_daily_hours(shifts)
         assert len(violations) == 0
 
-        # No break violation: <=6h (well, it's 8h but crosses days – break check is per-day)
+        # No break violation: <=6h (well, it's 8h but crosses days - break check is per-day)
         # Actually 8h work in a day (22:00-06:00 spans two calendar days but is one continuous shift)
         # The break validator should still detect missing break for >6h
         break_violations = validate_breaks(shifts)

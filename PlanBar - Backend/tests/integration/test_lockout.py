@@ -20,7 +20,7 @@ class TestAccountLockout:
         email = "test@example.com"
 
         # First 4 attempts should not lock the account
-        for i in range(4):
+        for _ in range(4):
             assert self.lockout.record_failed_attempt(email) is False
             assert self.lockout.is_locked(email) is False
 
@@ -33,14 +33,14 @@ class TestAccountLockout:
         email = "test@example.com"
 
         # Make 4 failed attempts
-        for i in range(4):
+        for _ in range(4):
             self.lockout.record_failed_attempt(email)
 
         # Successful login should reset counter
         self.lockout.record_successful_login(email)
 
         # Should be able to make 4 more failed attempts without lockout
-        for i in range(4):
+        for _ in range(4):
             assert self.lockout.record_failed_attempt(email) is False
 
         assert self.lockout.is_locked(email) is False
@@ -50,7 +50,7 @@ class TestAccountLockout:
         email = "test@example.com"
 
         # Trigger lockout
-        for i in range(5):
+        for _ in range(5):
             self.lockout.record_failed_attempt(email)
 
         assert self.lockout.is_locked(email) is True
@@ -76,7 +76,7 @@ class TestAccountLockout:
         assert self.lockout.get_remaining_lockout_time(email) == 0
 
         # Trigger lockout
-        for i in range(5):
+        for _ in range(5):
             self.lockout.record_failed_attempt(email)
 
         # Should have positive remaining time
@@ -102,11 +102,11 @@ class TestAccountLockout:
         email2 = "user2@example.com"
 
         # Make 4 failed attempts for user1
-        for i in range(4):
+        for _ in range(4):
             self.lockout.record_failed_attempt(email1)
 
         # Make 2 failed attempts for user2
-        for i in range(2):
+        for _ in range(2):
             self.lockout.record_failed_attempt(email2)
 
         # user1 should have 4 attempts, user2 should have 2

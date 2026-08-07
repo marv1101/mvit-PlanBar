@@ -86,7 +86,7 @@ class TestLogFunctions:
 
 class TestQuery:
     def test_query_pagination_defaults(self, db_session):
-        for i in range(25):
+        for _ in range(25):
             audit_service.log(db_session, user_id=None, action="TEST", resource_type="test")
         items, pagination = audit_service.query(db_session)
         assert len(items) == 20

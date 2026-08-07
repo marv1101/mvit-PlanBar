@@ -398,7 +398,7 @@ def _get_week_type(dt: date) -> str:
     return "A" if weeks_diff % 2 == 0 else "B"
 
 
-def _build_tito_payload(
+def _build_tito_payload(  # noqa: PLR0915 - declarative TiTO payload builder; splitting risks changing the API contract
     schedule: Schedule,
     employees: list[Employee],
     shift_wishes: list[ShiftWish],

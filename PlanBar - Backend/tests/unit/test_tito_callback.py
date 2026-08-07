@@ -154,7 +154,7 @@ def test_update_timecards_from_schedule_updates_existing(db_session):
     timecards = db_session.query(Timecard).filter(Timecard.employee_id == emp.id).all()
     assert len(timecards) == 1
     tc = timecards[0]
-    # 1 shift × 7.5h effective = 7.5h, 7.5 - 35 = -27.5, prev balance 10, new = -17.5
+    # 1 shift x 7.5h effective = 7.5h, 7.5 - 35 = -27.5, prev balance 10, new = -17.5
     assert tc.balance == -17.5
 
 
@@ -350,7 +350,7 @@ def test_aggregate_violations_groups_by_skill(db_session):
 
     apo = next(m for m in result if m["skill"] == "Apotheker")
     assert apo["totalMissingShifts"] == 3
-    assert apo["totalMissingHours"] == 24  # 2×8h + 1×8h
+    assert apo["totalMissingHours"] == 24  # 2x8h + 1x8h
     assert apo["affectedDays"] == 2
     assert "24" in apo["message"]
     assert "Apotheker" in apo["message"]

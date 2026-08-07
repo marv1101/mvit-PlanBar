@@ -22,7 +22,7 @@ class UpdateSchedule(RoleRequired):
     role = AdminRoleCheck()
 
     @staticmethod
-    def execute(db: Session, data: dict[str, Any], user: User) -> dict[str, Any]:
+    def execute(db: Session, data: dict[str, Any], _user: User) -> dict[str, Any]:
         schedule_id = data.get("id")
         schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
         if not schedule:

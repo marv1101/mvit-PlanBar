@@ -12,7 +12,7 @@ class TestPasswordComplexity:
     def test_valid_password_accepted(self):
         """A password with all requirements should be accepted."""
         # Test fixture password, not a real credential.
-        user = UserCreate(username="testuser", email="test@example.com", password="StrongP@ss1")  # noqa: S105
+        user = UserCreate(username="testuser", email="test@example.com", password="StrongP@ss1")
         assert user.password == "StrongP@ss1"  # noqa: S105 - test fixture password
 
     def test_too_short_rejected(self):

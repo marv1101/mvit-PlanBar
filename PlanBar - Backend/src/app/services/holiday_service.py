@@ -58,10 +58,7 @@ def get_german_holidays(
 
     years = list(range(start_date.year, end_date.year + 1))
 
-    if subdivision:
-        de_holidays = holidays.DE(subdiv=subdivision, years=years)
-    else:
-        de_holidays = holidays.DE(years=years)
+    de_holidays = holidays.DE(subdiv=subdivision, years=years) if subdivision else holidays.DE(years=years)
 
     result: list[str] = []
     current = start_date

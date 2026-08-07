@@ -116,7 +116,8 @@ class TestDeleteShiftWish:
             employee_user,
         )
         r = DeleteShiftWish.execute(db_session, {"id": c["id"]}, employee_user)
-        assert r["id"] == c["id"] and r["deleted"] is True
+        assert r["id"] == c["id"]
+        assert r["deleted"] is True
         assert db_session.query(ShiftWish).filter(ShiftWish.id == c["id"]).first() is None
 
 

@@ -3,6 +3,7 @@ import logging
 import os
 import time
 import uuid
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 
 from fastapi import (
@@ -491,6 +492,7 @@ active_connections: dict[int, list[WebSocket]] = {}
 _user_connections: dict[int, int] = {}
 _ws_user_map: dict[int, int] = {}
 _ws_last_activity: dict[int, float] = {}
+_broadcast_tasks: set[asyncio.Task] = set()
 
 
 async def _connect_ws(websocket: WebSocket, thread_id: int, user_id: int):
@@ -513,10 +515,8 @@ async def _connect_ws(websocket: WebSocket, thread_id: int, user_id: int):
 def _disconnect_ws(websocket: WebSocket, thread_id: int):
     conn_id = id(websocket)
     if thread_id in active_connections:
-        try:
+        with suppress(ValueError):
             active_connections[thread_id].remove(websocket)
-        except ValueError:
-            pass
         if not active_connections[thread_id]:
             del active_connections[thread_id]
 
@@ -535,17 +535,15 @@ async def _broadcast(thread_id: int, message: dict):
     if thread_id not in active_connections:
         return
     for conn in active_connections[thread_id]:
-        try:
+        with suppress(Exception):
             await conn.send_json(message)
-        except Exception:  # noqa: S110
-            pass
 
 
 def _notify_clients(thread_id: int, message: MessageResponse):
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            asyncio.ensure_future(
+            task = asyncio.ensure_future(
                 _broadcast(
                     thread_id,
                     {
@@ -554,6 +552,10 @@ def _notify_clients(thread_id: int, message: MessageResponse):
                     },
                 )
             )
+            # Keep a strong reference so the task cannot be garbage collected;
+            # it removes itself from the set once finished.
+            _broadcast_tasks.add(task)
+            task.add_done_callback(_broadcast_tasks.discard)
     except RuntimeError:
         pass
 
@@ -639,8 +641,6 @@ async def websocket_endpoint(
         logger.error(f"WebSocket error user={user_id} thread={thread_id}: {e}")
     finally:
         heartbeat_task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await heartbeat_task
-        except asyncio.CancelledError:
-            pass
         _disconnect_ws(websocket, thread_id)

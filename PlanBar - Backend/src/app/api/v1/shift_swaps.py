@@ -78,7 +78,10 @@ def create_shift_swap(
             user_id=target_employee.user_id,
             notification_type=NotificationType.SWAP_REQUESTED.value,
             title="Schichttausch angefragt",
-            message=f"{current_user.employee.first_name} {current_user.employee.last_name} möchte mit dir die Schicht am {target_shift.date} tauschen.",
+            message=(
+                f"{current_user.employee.first_name} {current_user.employee.last_name} "
+                f"möchte mit dir die Schicht am {target_shift.date} tauschen."
+            ),
             data={"swap_id": swap.id},
         )
 
@@ -92,7 +95,7 @@ def get_my_shift_swaps(
 ):
     if not current_user.employee_id:
         return []
-    swaps = (
+    return (
         db.query(ShiftSwapRequest)
         .filter(
             (ShiftSwapRequest.employee_id == current_user.employee_id)
@@ -101,7 +104,6 @@ def get_my_shift_swaps(
         .order_by(ShiftSwapRequest.created_at.desc())
         .all()
     )
-    return swaps
 
 
 @router.put("/{swap_id}/approve", response_model=ShiftSwapResponse)

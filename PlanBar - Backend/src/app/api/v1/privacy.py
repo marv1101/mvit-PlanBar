@@ -30,7 +30,9 @@ PRIVACY_POLICY = {
                 "Zeitkonto",
             ],
             "purpose": "Dienstplanerstellung, Schichtwünsche, Arbeitszeiterfassung, Zeitkonto-Berechnung",
-            "legal_basis": "Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung), Art. 6 Abs. 1 lit. c DSGVO (Rechtliche Verpflichtung)",
+            "legal_basis": (
+                "Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung), Art. 6 Abs. 1 lit. c DSGVO (Rechtliche Verpflichtung)"
+            ),
             "retention": "Dauer des Beschäftigungsverhältnisses zzgl. gesetzlicher Aufbewahrungsfristen (3-10 Jahre)",
         },
         {
@@ -54,7 +56,9 @@ PRIVACY_POLICY = {
         "authority": "Der Landesdatenschutzbeauftragte, Postfach 12 34 56, 12345 Musterstadt",
         "email": "poststelle@datenschutz.example.com",
     },
-    "third_country_transfer": "Eine Übermittlung in Drittländer findet nicht statt. Verarbeitung ausschließlich auf Servern innerhalb der EU.",
+    "third_country_transfer": (
+        "Eine Übermittlung in Drittländer findet nicht statt. Verarbeitung ausschließlich auf Servern innerhalb der EU."
+    ),
     "contact": {
         "role": "Datenschutzbeauftragter",
         "name": "MVIT PlanBar",

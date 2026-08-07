@@ -60,8 +60,7 @@ def create_refresh_token(subject: str, expires_delta: timedelta | None = None) -
 
 def verify_token(token: str) -> dict[str, Any]:
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
-        return payload
+        return jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
     except jwt.PyJWTError as exc:
         raise ValueError("Invalid token") from exc
 

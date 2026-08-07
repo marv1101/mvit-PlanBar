@@ -18,7 +18,9 @@ _vapid_public_key: str | None = None
 
 
 def _load_or_generate_vapid_keys() -> tuple[str, str]:
-    global _vapid_private_key, _vapid_public_key
+    # Module-level VAPID key cache: keys are loaded/generated once and reused
+    # for every push; stored globally so all subscribers share the same pair.
+    global _vapid_private_key, _vapid_public_key  # noqa: PLW0603
     if _vapid_private_key and _vapid_public_key:
         return _vapid_private_key, _vapid_public_key
     private_key = settings.vapid_private_key

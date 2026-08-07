@@ -212,7 +212,7 @@ def test_build_tito_payload_week_type_none(db_session):
     db_session.add(schedule)
     db_session.commit()
     payload = _build_tito_payload(schedule, [], [], db=db_session)
-    # 14 days × 2 requirements = 28
+    # 14 days x 2 requirements = 28
     assert len(payload["requirements"]) == 28
 
 
@@ -229,7 +229,7 @@ def test_build_tito_payload_week_type_a(db_session):
     db_session.add(schedule)
     db_session.commit()
     payload = _build_tito_payload(schedule, [], [], db=db_session)
-    # Only week A dates (June 1-7) = 7 days × 2 = 14
+    # Only week A dates (June 1-7) = 7 days x 2 = 14
     assert len(payload["requirements"]) == 14
     for req in payload["requirements"]:
         d = date.fromisoformat(req["date"])
@@ -249,7 +249,7 @@ def test_build_tito_payload_week_type_b(db_session):
     db_session.add(schedule)
     db_session.commit()
     payload = _build_tito_payload(schedule, [], [], db=db_session)
-    # Only week B dates (June 8-14) = 7 days × 2 = 14
+    # Only week B dates (June 8-14) = 7 days x 2 = 14
     assert len(payload["requirements"]) == 14
     for req in payload["requirements"]:
         d = date.fromisoformat(req["date"])
@@ -439,8 +439,8 @@ def test_build_shift_templates_from_role_requirements(db_session):
     )
     templates = _build_shift_templates(schedule)
     assert len(templates) == 3
-    früh = next(t for t in templates if t["id"] == "früh")
-    assert früh["startTime"] == "06:00"
+    frueh = next(t for t in templates if t["id"] == "früh")
+    assert frueh["startTime"] == "06:00"
     nacht = next(t for t in templates if t["id"] == "nacht")
     assert nacht["startTime"] == "22:00"
     unknown = next(t for t in templates if t["id"] == "unknown")
