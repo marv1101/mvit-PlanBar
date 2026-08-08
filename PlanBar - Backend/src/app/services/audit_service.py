@@ -4,6 +4,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.models.audit_log import AuditLog
+from app.schemas.audit import AuditLogFilter
 
 
 def log(
@@ -116,6 +117,39 @@ def log_access(
     )
 
 
+def query_with_filter(
+    db: Session,
+    filters: AuditLogFilter,
+    offset: int = 0,
+    limit: int = 20,
+) -> tuple[list[AuditLog], dict]:
+    """Query audit logs using an AuditLogFilter schema.
+    
+    This is the preferred query function — it uses a Pydantic filter schema
+    instead of 6+ individual parameters, following the Filter-Schema-Pattern.
+    """
+    q = db.query(AuditLog)
+
+    if filters.user_id is not None:
+        q = q.filter(AuditLog.user_id == filters.user_id)
+    if filters.action is not None:
+        q = q.filter(AuditLog.action == filters.action)
+    if filters.resource_type is not None:
+        q = q.filter(AuditLog.resource_type == filters.resource_type)
+    if filters.resource_id is not None:
+        q = q.filter(AuditLog.resource_id == filters.resource_id)
+    if filters.start_date is not None:
+        q = q.filter(AuditLog.created_at >= filters.start_date)
+    if filters.end_date is not None:
+        q = q.filter(AuditLog.created_at <= filters.end_date)
+
+    total = q.count()
+    q = q.order_by(AuditLog.created_at.desc())
+    items = q.offset(offset).limit(limit).all()
+    pagination = {"total": total, "offset": offset, "limit": limit}
+    return items, pagination
+
+
 def query(
     db: Session,
     offset: int = 0,
@@ -127,26 +161,16 @@ def query(
     start_date: datetime | None = None,
     end_date: datetime | None = None,
 ) -> tuple[list[AuditLog], dict]:
-    q = db.query(AuditLog)
-
-    if user_id is not None:
-        q = q.filter(AuditLog.user_id == user_id)
-    if action is not None:
-        q = q.filter(AuditLog.action == action)
-    if resource_type is not None:
-        q = q.filter(AuditLog.resource_type == resource_type)
-    if resource_id is not None:
-        q = q.filter(AuditLog.resource_id == resource_id)
-    if start_date is not None:
-        q = q.filter(AuditLog.created_at >= start_date)
-    if end_date is not None:
-        q = q.filter(AuditLog.created_at <= end_date)
-
-    total = q.count()
-    q = q.order_by(AuditLog.created_at.desc())
-    items = q.offset(offset).limit(limit).all()
-    pagination = {"total": total, "offset": offset, "limit": limit}
-    return items, pagination
+    """Legacy query function — delegates to query_with_filter for backward compat."""
+    filters = AuditLogFilter(
+        user_id=user_id,
+        action=action,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return query_with_filter(db, filters, offset=offset, limit=limit)
 
 
 def get_suspicious_patterns(db: Session) -> list[dict]:
