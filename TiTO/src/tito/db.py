@@ -334,11 +334,14 @@ def enqueue_job(
         return job_id
 
 
-def fetch_job_by_id(connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int) -> dict | None:
-    """Fetch job details by job ID."""
+def fetch_job_by_id(connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int, tenant_id: str | None = None) -> dict | None:
+    """Fetch job details by job ID, optionally filtered by tenant."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
-        cursor.execute("SELECT * FROM job_queue WHERE job_id = %s", (job_id,))
+        if tenant_id:
+            cursor.execute("SELECT * FROM job_queue WHERE job_id = %s AND tenant_id = %s", (job_id, tenant_id))
+        else:
+            cursor.execute("SELECT * FROM job_queue WHERE job_id = %s", (job_id,))
         job = cursor.fetchone()
         cursor.close()
 
@@ -348,7 +351,10 @@ def fetch_job_by_id(connection: sqlite3.Connection | psycopg2.extensions.connect
         return dict(job)
     else:
         # SQLite
-        cursor = connection.execute("SELECT * FROM job_queue WHERE job_id = ?", (job_id,))
+        if tenant_id:
+            cursor = connection.execute("SELECT * FROM job_queue WHERE job_id = ? AND tenant_id = ?", (job_id, tenant_id))
+        else:
+            cursor = connection.execute("SELECT * FROM job_queue WHERE job_id = ?", (job_id,))
         job = cursor.fetchone()
 
         if job is None:
@@ -357,14 +363,20 @@ def fetch_job_by_id(connection: sqlite3.Connection | psycopg2.extensions.connect
         return dict(job)
 
 
-def fetch_job_status_by_id(connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int) -> dict | None:
-    """Fetch job status and details by job ID."""
+def fetch_job_status_by_id(connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int, tenant_id: str | None = None) -> dict | None:
+    """Fetch job status and details by job ID, optionally filtered by tenant."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
-        cursor.execute(
-            "SELECT job_id, status, result, attempts, max_retries, last_error FROM job_queue WHERE job_id = %s",
-            (job_id,),
-        )
+        if tenant_id:
+            cursor.execute(
+                "SELECT job_id, status, result, attempts, max_retries, last_error FROM job_queue WHERE job_id = %s AND tenant_id = %s",
+                (job_id, tenant_id),
+            )
+        else:
+            cursor.execute(
+                "SELECT job_id, status, result, attempts, max_retries, last_error FROM job_queue WHERE job_id = %s",
+                (job_id,),
+            )
         row = cursor.fetchone()
         cursor.close()
 
@@ -381,10 +393,16 @@ def fetch_job_status_by_id(connection: sqlite3.Connection | psycopg2.extensions.
         }
     else:
         # SQLite
-        cursor = connection.execute(
-            "SELECT job_id, status, result, attempts, max_retries, last_error FROM job_queue WHERE job_id = ?",
-            (job_id,),
-        )
+        if tenant_id:
+            cursor = connection.execute(
+                "SELECT job_id, status, result, attempts, max_retries, last_error FROM job_queue WHERE job_id = ? AND tenant_id = ?",
+                (job_id, tenant_id),
+            )
+        else:
+            cursor = connection.execute(
+                "SELECT job_id, status, result, attempts, max_retries, last_error FROM job_queue WHERE job_id = ?",
+                (job_id,),
+            )
         row = cursor.fetchone()
 
         if row is None:
@@ -524,6 +542,25 @@ def count_jobs(connection: sqlite3.Connection | psycopg2.extensions.connection, 
         cursor = connection.execute(f"SELECT COUNT(1) AS count FROM {queue_table}")
         row = cursor.fetchone()
         return int(row["count"])
+
+
+def list_jobs_by_tenant(connection: sqlite3.Connection | psycopg2.extensions.connection, queue_table: str, tenant_id: str) -> list[dict]:
+    """List all jobs for a specific tenant."""
+    if isinstance(connection, psycopg2.extensions.connection):
+        cursor = connection.cursor()
+        cursor.execute(
+            f"SELECT job_id, status, priority, created_at, updated_at FROM {queue_table} WHERE tenant_id = %s ORDER BY created_at DESC",
+            (tenant_id,),
+        )
+        jobs = [dict(row) for row in cursor.fetchall()]
+        cursor.close()
+        return jobs
+    else:
+        cursor = connection.execute(
+            f"SELECT job_id, status, priority, created_at, updated_at FROM {queue_table} WHERE tenant_id = ? ORDER BY created_at DESC",
+            (tenant_id,),
+        )
+        return [dict(row) for row in cursor.fetchall()]
 
 
 def register_worker(
@@ -1035,30 +1072,50 @@ def fetch_dlq_count(
         return int(row["count"])
 
 
-def fetch_dlq_jobs(connection: sqlite3.Connection | psycopg2.extensions.connection, limit: int = 10) -> list[dict]:
-    """Fetch jobs from Dead Letter Queue."""
+def fetch_dlq_jobs(connection: sqlite3.Connection | psycopg2.extensions.connection, limit: int = 10, tenant_id: str | None = None) -> list[dict]:
+    """Fetch jobs from Dead Letter Queue, optionally filtered by tenant."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
-        cursor.execute(
-            """SELECT dlq_id, job_id, original_payload, failure_reason, sent_to_dlq_at, attempts, tenant_id
-               FROM dead_letter_queue
-               ORDER BY sent_to_dlq_at DESC
-               LIMIT %s""",
-            (limit,),
-        )
+        if tenant_id:
+            cursor.execute(
+                """SELECT dlq_id, job_id, original_payload, failure_reason, sent_to_dlq_at, attempts, tenant_id
+                   FROM dead_letter_queue
+                   WHERE tenant_id = %s
+                   ORDER BY sent_to_dlq_at DESC
+                   LIMIT %s""",
+                (tenant_id, limit),
+            )
+        else:
+            cursor.execute(
+                """SELECT dlq_id, job_id, original_payload, failure_reason, sent_to_dlq_at, attempts, tenant_id
+                   FROM dead_letter_queue
+                   ORDER BY sent_to_dlq_at DESC
+                   LIMIT %s""",
+                (limit,),
+            )
         rows = cursor.fetchall()
         cursor.close()
 
         return [dict(row) for row in rows]
     else:
         # SQLite
-        cursor = connection.execute(
-            """SELECT dlq_id, job_id, original_payload, failure_reason, sent_to_dlq_at, attempts, tenant_id
-               FROM dead_letter_queue
-               ORDER BY sent_to_dlq_at DESC
-               LIMIT ?""",
-            (limit,),
-        )
+        if tenant_id:
+            cursor = connection.execute(
+                """SELECT dlq_id, job_id, original_payload, failure_reason, sent_to_dlq_at, attempts, tenant_id
+                   FROM dead_letter_queue
+                   WHERE tenant_id = ?
+                   ORDER BY sent_to_dlq_at DESC
+                   LIMIT ?""",
+                (tenant_id, limit),
+            )
+        else:
+            cursor = connection.execute(
+                """SELECT dlq_id, job_id, original_payload, failure_reason, sent_to_dlq_at, attempts, tenant_id
+                   FROM dead_letter_queue
+                   ORDER BY sent_to_dlq_at DESC
+                   LIMIT ?""",
+                (limit,),
+            )
         return [dict(row) for row in cursor.fetchall()]
 
 

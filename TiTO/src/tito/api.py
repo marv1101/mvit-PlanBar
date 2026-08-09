@@ -18,6 +18,7 @@ from .db import (
     fetch_job_status_by_id,
     fetch_pending_callbacks,
     get_connection,
+    list_jobs_by_tenant,
     register_worker,
     update_job,
     update_worker_heartbeat,
@@ -58,6 +59,8 @@ def create_app(settings: Settings | None = None) -> Flask:
     def require_auth(view):
         @wraps(view)
         def decorated(*args, **kwargs):
+            from flask import g
+
             token = None
             auth_header = request.headers.get("Authorization", "")
             if auth_header.startswith("Bearer "):
@@ -81,15 +84,17 @@ def create_app(settings: Settings | None = None) -> Flask:
                         "status_code": 401,
                     }
                 ), 401
-            if not authorize_access(
+            allowed, tenant_id = authorize_access(
                 token,
                 request.path,
                 settings.api_token_roles,
+                settings.api_token_tenants,
                 settings.jwt_secret,
                 settings.jwt_algorithms,
                 settings.jwt_audience,
                 settings.jwt_issuer,
-            ):
+            )
+            if not allowed:
                 logger.warning(f"Authorization failed for request to {request.path}")
                 return jsonify(
                     {
@@ -98,6 +103,8 @@ def create_app(settings: Settings | None = None) -> Flask:
                         "status_code": 403,
                     }
                 ), 403
+            # Tenant-Kontext für die Endpoint-Funktion verfügbar machen
+            g.tenant_id = tenant_id
             return view(*args, **kwargs)
 
         return decorated
@@ -386,10 +393,15 @@ def create_app(settings: Settings | None = None) -> Flask:
     @app.get("/jobs")
     @require_auth
     def list_jobs():
-        cursor = connection.execute(
-            f"SELECT job_id, status, priority, created_at, updated_at FROM {settings.queue_table} ORDER BY created_at DESC"
-        )
-        jobs = [dict(row) for row in cursor.fetchall()]
+        from flask import g
+
+        if g.tenant_id:
+            jobs = list_jobs_by_tenant(connection, settings.queue_table, g.tenant_id)
+        else:
+            cursor = connection.execute(
+                f"SELECT job_id, status, priority, created_at, updated_at FROM {settings.queue_table} ORDER BY created_at DESC"
+            )
+            jobs = [dict(row) for row in cursor.fetchall()]
         return jsonify(jobs)
 
     @app.post("/jobs")
@@ -506,7 +518,9 @@ def create_app(settings: Settings | None = None) -> Flask:
     @app.get("/dlq")
     @require_auth
     def get_dlq():
-        dlq_jobs = fetch_dlq_jobs(connection, limit=50)
+        from flask import g
+
+        dlq_jobs = fetch_dlq_jobs(connection, limit=50, tenant_id=g.tenant_id)
         return jsonify({"count": len(dlq_jobs), "jobs": dlq_jobs})
 
     @app.get("/callbacks/pending")
@@ -520,7 +534,9 @@ def create_app(settings: Settings | None = None) -> Flask:
     @require_auth
     def get_job_status(job_id):
         """Get detailed job status including retry attempts and callbacks"""
-        job = fetch_job_status_by_id(connection, job_id)
+        from flask import g
+
+        job = fetch_job_status_by_id(connection, job_id, tenant_id=g.tenant_id)
 
         if not job:
             logger.warning(f"Job {job_id} not found")
@@ -545,8 +561,9 @@ def create_app(settings: Settings | None = None) -> Flask:
     @require_auth
     def manual_retry_job(job_id):
         """Manually retry a failed job"""
+        from flask import g
 
-        job = fetch_job_by_id(connection, job_id)
+        job = fetch_job_by_id(connection, job_id, tenant_id=g.tenant_id)
 
         if not job:
             logger.warning(f"Attempted to retry non-existent job {job_id}")
