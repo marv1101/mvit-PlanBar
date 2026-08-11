@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDrag, useDrop } from 'react-dnd';
 import { useApp } from '../context/AppContext';
-import { Shift, Schedule, WeekType } from '../types';
+import { Shift, Schedule, WeekType, Request } from '../types';
 import { Button } from './ui/button';
 import { getWeekType } from '../lib/week';
 import { TIMEZONE } from '../lib/timezone';
@@ -11,34 +11,32 @@ import { Pencil, Trash2, Coffee } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Employee } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import {
+  ITEM_TYPE, EMPLOYEE_ITEM_TYPE, BREAK_START_ITEM_TYPE, BREAK_END_ITEM_TYPE,
+  START_HOUR, END_HOUR, SNAP_MINUTES_SHIFT, SNAP_MINUTES_BREAK,
+  HOURS, toMinutes, formatTime, snapMinutes,
+} from './schedule/shared/CalendarUtils';
+import type { DragItem, EmployeeDragItem, BreakDragItem } from './schedule/shared/CalendarUtils';
+import { BreakStartHandle, BreakEndHandle } from './schedule/shared/CalendarComponents';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import { useApprovedWishes } from '../hooks/useShiftWishes';
 
-const ITEM_TYPE = 'SHIFT';
-const EMPLOYEE_ITEM_TYPE = 'EMPLOYEE';
-const BREAK_START_ITEM_TYPE = 'BREAK_START';
-const BREAK_END_ITEM_TYPE = 'BREAK_END';
 const HOUR_WIDTH = 64;
-const START_HOUR = 6;
-const END_HOUR = 22;
 const EMPLOYEE_ROW_HEIGHT = 44;
-const SNAP_MINUTES_SHIFT = 30;
-const SNAP_MINUTES_BREAK = 15;
-
-const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
-
-function toMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
-}
-
-function formatTime(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-function getBreakStyle(shift: Shift) {
+const WISH_COLORS: Record<string, string> = {
+  'urlaubswunsch': '#3b82f6',
+  'bevorzugt': '#22c55e',
+  'nicht-verfügbar': '#ef4444',
+};
+const WISH_LABELS: Record<string, string> = {
+  'urlaubswunsch': 'Urlaub',
+  'bevorzugt': 'Bevorzugt',
+  'nicht-verfügbar': 'Nicht verfügbar',
+};
+function getBreakStyleHorizontal(shift: Shift) {
   if (!shift.breakStart || !shift.breakEnd) return null;
   const shiftStart = toMinutes(shift.startTime);
   const breakStart = toMinutes(shift.breakStart);
@@ -48,21 +46,6 @@ function getBreakStyle(shift: Shift) {
   const width = Math.max(((breakEnd - breakStart) / 60) * HOUR_WIDTH, 16);
   return { left, width };
 }
-
-interface DragItem {
-  shift: Shift;
-  fromDate: string;
-}
-
-interface EmployeeDragItem {
-  employeeId: string;
-}
-
-interface BreakDragItem {
-  shift: Shift;
-  breakType: 'start' | 'end';
-}
-
 type HoverInfo = {
   type: 'shift';
   minutes: number;
@@ -83,45 +66,7 @@ interface SwimlaneCalendarProps {
   onUpdateSchedule: (schedule: Schedule) => void;
 }
 
-function BreakStartHandle({ shift }: { shift: Shift }) {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: BREAK_START_ITEM_TYPE,
-    item: { shift, breakType: 'start' as const } as BreakDragItem,
-    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  }), [shift]);
 
-  return (
-    <div
-      ref={drag}
-      className="absolute top-0 left-0 right-0 h-2 cursor-ew-resize hover:bg-blue-400/30 active:bg-blue-400/50 flex items-center justify-center z-20 group/break"
-      style={{ opacity: isDragging ? 0.5 : 1 }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-    >
-      <div className="w-6 h-[2px] bg-gray-400 rounded opacity-0 group-hover/break:opacity-100 transition-opacity" />
-    </div>
-  );
-}
-
-function BreakEndHandle({ shift }: { shift: Shift }) {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: BREAK_END_ITEM_TYPE,
-    item: { shift, breakType: 'end' as const } as BreakDragItem,
-    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  }), [shift]);
-
-  return (
-    <div
-      ref={drag}
-      className="absolute bottom-0 left-0 right-0 h-2 cursor-ew-resize hover:bg-blue-400/30 active:bg-blue-400/50 flex items-center justify-center z-20 group/break"
-      style={{ opacity: isDragging ? 0.5 : 1 }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-    >
-      <div className="w-6 h-[2px] bg-gray-400 rounded opacity-0 group-hover/break:opacity-100 transition-opacity" />
-    </div>
-  );
-}
 
 function ShiftBar({
   shift,
@@ -151,11 +96,11 @@ function ShiftBar({
   const endMin = toMinutes(shift.endTime);
   const left = ((startMin - START_HOUR * 60) / 60) * HOUR_WIDTH;
   const width = Math.max(((endMin - startMin) / 60) * HOUR_WIDTH, 20);
-  const breakStyle = getBreakStyle(shift);
+  const breakStyle = getBreakStyleHorizontal(shift);
 
   return (
     <motion.div
-      ref={drag}
+      ref={(node: HTMLDivElement | null) => { drag(node); }}
       layout
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{
@@ -245,49 +190,7 @@ function ShiftBar({
   );
 }
 
-function EmployeeCard({ employee }: { employee: Employee }) {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: EMPLOYEE_ITEM_TYPE,
-    item: { employeeId: employee.id } as EmployeeDragItem,
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-  }), [employee.id]);
 
-  return (
-    <motion.div
-      ref={drag}
-      layout
-      animate={{
-        opacity: isDragging ? 0.3 : 1,
-        scale: isDragging ? 0.95 : 1,
-      }}
-      whileHover={{ scale: 1.03, y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-      whileTap={{ scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-      className="p-3 rounded-lg border-2 cursor-move"
-      style={{
-        backgroundColor: employee.color + '15',
-        borderColor: employee.color + '40'
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <div
-          className="w-3 h-3 rounded-full flex-shrink-0"
-          style={{ backgroundColor: employee.color }}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm truncate" style={{ color: employee.color }}>
-            {employee.name}
-          </div>
-          <div className="text-xs text-gray-500 truncate">
-            {employee.roles.length > 0 ? `${employee.roles.length} Rolle(n)` : 'Keine Rollen'}
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
 
 interface DayBlockProps {
   date: Date;
@@ -302,11 +205,14 @@ interface DayBlockProps {
   onClick: (date: Date) => void;
   onEdit: (shift: Shift) => void;
   onDelete: (shift: Shift) => void;
+  approvedWishes: Request[];
+  onWishClick: (employeeId: string, date: Date) => void;
 }
 
 function DayBlock({
   date, weekType, shifts, employees, onDrop, onDropInDay, onDropOnEmployee,
-  onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete
+  onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete,
+  approvedWishes, onWishClick
 }: DayBlockProps) {
   const dateStr = date.toISOString().split('T')[0];
   const dayShifts = shifts.filter(s => s.date === dateStr);
@@ -329,10 +235,6 @@ function DayBlock({
   onBreakUpdateRef.current = onBreakUpdate;
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
-
-  const snapMinutes = (rawMinutes: number, snap: number) => {
-    return Math.round(rawMinutes / snap) * snap;
-  };
 
   const [{ isOver }, drop] = useDrop(() => ({
     accept: [ITEM_TYPE, EMPLOYEE_ITEM_TYPE, BREAK_START_ITEM_TYPE, BREAK_END_ITEM_TYPE],
@@ -495,7 +397,9 @@ function DayBlock({
                 </div>
               ))}
             </div>
-            {sortedEmployees.map((emp, empIndex) => (
+            {sortedEmployees.map((emp, empIndex) => {
+              const empWish = approvedWishes.find(w => w.employeeId === emp.id && w.date === dateStr);
+              return (
               <div
                 key={emp.id}
                 className="relative border-b border-gray-100"
@@ -508,8 +412,38 @@ function DayBlock({
                     style={{ left: `${(hour - START_HOUR) * HOUR_WIDTH}px`, width: `${HOUR_WIDTH}px` }}
                   />
                 ))}
+                {empWish && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        className="absolute inset-0 cursor-pointer"
+                        style={{
+                          backgroundColor: WISH_COLORS[empWish.type] + '20',
+                          borderLeft: `3px solid ${WISH_COLORS[empWish.type]}`,
+                          zIndex: 5,
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onWishClick(emp.id, date);
+                        }}
+                      >
+                        <div className="flex items-center justify-center h-full pointer-events-none">
+                          <span className="text-[10px] font-medium text-gray-700 bg-white/80 px-1.5 py-0.5 rounded shadow-sm pointer-events-auto">
+                            {emp.name}: {WISH_LABELS[empWish.type] || empWish.type}
+                          </span>
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="font-semibold">{emp.name}</p>
+                      <p>Typ: {WISH_LABELS[empWish.type] || empWish.type}</p>
+                      {empWish.notes && <p>Notiz: {empWish.notes}</p>}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </div>
-            ))}
+              );
+            })}
             {hoverInfo && isOver && hoverInfo.type === 'shift' && (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -731,17 +665,19 @@ function AddShiftDialog({
   open,
   onClose,
   onSave,
+  prefilledEmployeeId,
 }: {
   date: Date | null;
   week: WeekType;
   open: boolean;
   onClose: () => void;
   onSave: (shift: Shift) => void;
+  prefilledEmployeeId?: string | null;
 }) {
   const { employees } = useApp();
   const [formData, setFormData] = useState<Shift>({
     id: Date.now().toString(),
-    employeeId: '',
+    employeeId: prefilledEmployeeId || '',
     date: date?.toISOString().split('T')[0] || '',
     week: week,
     startTime: '08:00',
@@ -756,9 +692,10 @@ function AddShiftDialog({
         ...prev,
         date: date.toISOString().split('T')[0],
         week: week,
+        ...(prefilledEmployeeId ? { employeeId: prefilledEmployeeId } : {}),
       }));
     }
-  }, [date, week]);
+  }, [date, week, prefilledEmployeeId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -770,7 +707,7 @@ function AddShiftDialog({
     onClose();
     setFormData({
       id: Date.now().toString(),
-      employeeId: '',
+      employeeId: prefilledEmployeeId || '',
       date: date?.toISOString().split('T')[0] || '',
       week: week,
       startTime: '08:00',
@@ -880,10 +817,20 @@ export function SwimlaneCalendar({
   onUpdateSchedule,
 }: SwimlaneCalendarProps) {
   const { employees } = useApp();
+  const { data: approvedWishes = [] } = useApprovedWishes(schedule.id ? Number(schedule.id) : null);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [shiftToDelete, setShiftToDelete] = useState<Shift | null>(null);
+  const [wishPrefilledEmployeeId, setWishPrefilledEmployeeId] = useState<string | null>(null);
+
+  const handleWishClick = (employeeId: string, date: Date) => {
+    setWishPrefilledEmployeeId(employeeId);
+    setSelectedDate(date);
+    setAddDialogOpen(true);
+  };
 
   const handleDrop = (shift: Shift, newDate: string) => {
     const newWeekType = getWeekType(new Date(newDate));
@@ -940,11 +887,17 @@ export function SwimlaneCalendar({
   };
 
   const handleDelete = (shift: Shift) => {
-    if (confirm('Möchten Sie diese Schicht wirklich löschen?')) {
-      const updatedShifts = schedule.shifts.filter(s => s.id !== shift.id);
-      onUpdateSchedule({ ...schedule, shifts: updatedShifts });
-      toast.success('Schicht gelöscht');
-    }
+    setShiftToDelete(shift);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteShift = () => {
+    if (!shiftToDelete) return;
+    const updatedShifts = schedule.shifts.filter(s => s.id !== shiftToDelete.id);
+    onUpdateSchedule({ ...schedule, shifts: updatedShifts });
+    toast.success('Schicht gelöscht');
+    setShiftToDelete(null);
+    setDeleteDialogOpen(false);
   };
 
   const handleDayClick = (date: Date) => {
@@ -1012,6 +965,8 @@ export function SwimlaneCalendar({
             onClick={handleDayClick}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            approvedWishes={approvedWishes}
+            onWishClick={handleWishClick}
           />
         ))}
       </div>
@@ -1033,9 +988,27 @@ export function SwimlaneCalendar({
         onClose={() => {
           setAddDialogOpen(false);
           setSelectedDate(null);
+          setWishPrefilledEmployeeId(null);
         }}
         onSave={handleAddShift}
+        prefilledEmployeeId={wishPrefilledEmployeeId}
       />
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Schicht löschen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchten Sie diese Schicht wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteShift} className="bg-red-600 text-white hover:bg-red-700">
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

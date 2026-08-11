@@ -1,3 +1,18 @@
+export interface ArbZgWarning {
+  rule: string;
+  message: string;
+  employee_id: number;
+  shift_date: string | null;
+  details?: unknown;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
 export type WeekType = 'A' | 'B';
 
 export interface Role {
@@ -44,6 +59,7 @@ export interface Employee {
   breakTime: BreakTime;
   color: string; // for calendar display
   maxWorkHours?: number; // maximum work hours per week
+  teamIds?: number[];
 }
 
 export type RequestType = 'urlaubswunsch' | 'bevorzugt' | 'nicht-verfügbar';
@@ -115,13 +131,24 @@ export interface TiTOMetrics {
   employeeFairness?: Record<string, EmployeeFairnessEntry>;
 }
 
+export interface Team {
+  id: string;
+  name: string;
+  color?: string;
+  description?: string;
+  employee_ids?: number[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AppUser {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'employee';
+  role: 'admin' | 'planer' | 'employee';
   mustChangePassword: boolean;
   lastLogin: string | null;
+  employeeId?: number | null;
 }
 
 export interface ShiftTemplateEntry {
@@ -156,6 +183,7 @@ export interface TimeAccountEntry {
   balance: number;
   manualAdjustment: number;
   adjustmentReason: string | null;
+  totalChange: number;
 }
 
 export interface TimeAccountProjected {
@@ -213,3 +241,28 @@ export interface PinboardThreadDetail {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface ShiftSwap {
+  id: string;
+  employeeId: string;
+  requesterShiftId: string;
+  targetEmployeeId: string;
+  targetShiftId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  note?: string;
+  rejectionReason?: string | null;
+  createdAt: string;
+}
+
+export interface AvailabilityEntry {
+  dayOfWeek: number;
+  available: boolean;
+  note?: string;
+}
+
+export interface AvailabilityRecord extends AvailabilityEntry {
+  id: string;
+  employeeId: string;
+}
+
+export type SelfServiceTab = 'schedule' | 'shift-swap' | 'vacation' | 'availability';

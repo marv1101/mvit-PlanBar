@@ -132,12 +132,15 @@ export function TimeAccountCard({ employeeId }: TimeAccountCardProps) {
                   <TableHead>Geplant</TableHead>
                   <TableHead>Soll</TableHead>
                   <TableHead>Delta</TableHead>
+                  <TableHead>Korrektur</TableHead>
+                  <TableHead>Änderung</TableHead>
                   <TableHead>Saldo</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {[...data.history].reverse().map(entry => {
                   const deltaColor = entry.delta > 0 ? 'text-green-600' : entry.delta < 0 ? 'text-red-600' : '';
+                  const totalColor = entry.totalChange > 0 ? 'text-green-600' : entry.totalChange < 0 ? 'text-red-600' : '';
                   return (
                     <TableRow key={`${entry.year}-${entry.week}`}>
                       <TableCell className="font-medium">{entry.week}/{entry.year}</TableCell>
@@ -145,6 +148,19 @@ export function TimeAccountCard({ employeeId }: TimeAccountCardProps) {
                       <TableCell>{entry.contractHours.toFixed(1)}h</TableCell>
                       <TableCell className={deltaColor}>
                         {entry.delta > 0 ? '+' : ''}{entry.delta.toFixed(1)}h
+                      </TableCell>
+                      <TableCell>
+                        {entry.manualAdjustment !== 0 ? (
+                          <span className="text-blue-600">
+                            {entry.manualAdjustment > 0 ? '+' : ''}{entry.manualAdjustment.toFixed(1)}h
+                            {entry.adjustmentReason && (
+                              <span className="text-xs text-gray-500 ml-1" title={entry.adjustmentReason}>ℹ</span>
+                            )}
+                          </span>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell className={totalColor}>
+                        {entry.totalChange > 0 ? '+' : ''}{entry.totalChange.toFixed(1)}h
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={balanceColor(entry.balance)}>

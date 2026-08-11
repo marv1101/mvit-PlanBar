@@ -1,4 +1,5 @@
 import api from '../lib/api';
+import type { PaginatedResponse } from '../types';
 
 export interface EmployeeCreateDTO {
   first_name: string;
@@ -10,6 +11,7 @@ export interface EmployeeCreateDTO {
   break_end?: string;
   max_work_hours?: number;
   role_ids?: number[];
+  team_ids?: number[];
 }
 
 export interface EmployeeUpdateDTO {
@@ -22,6 +24,7 @@ export interface EmployeeUpdateDTO {
   break_end?: string;
   max_work_hours?: number;
   role_ids?: number[];
+  team_ids?: number[];
 }
 
 export interface EmployeeResponseDTO {
@@ -36,12 +39,13 @@ export interface EmployeeResponseDTO {
   max_work_hours: number | null;
   user_id: number | null;
   role_ids: number[];
+  team_ids: number[];
   created_at: string;
   updated_at: string;
 }
 
-export async function getEmployees(): Promise<EmployeeResponseDTO[]> {
-  const { data } = await api.get('/employees');
+export async function getEmployees(offset?: number, limit?: number): Promise<PaginatedResponse<EmployeeResponseDTO>> {
+  const { data } = await api.get('/employees', { params: { offset, limit } });
   return data;
 }
 
@@ -73,6 +77,7 @@ export interface TimeAccountEntryDTO {
   balance: number;
   manual_adjustment: number;
   adjustment_reason: string | null;
+  total_change: number;
 }
 
 export interface TimeAccountProjectedDTO {
@@ -93,8 +98,8 @@ export async function getEmployeeTimeAccount(id: number): Promise<TimeAccountRes
   return data;
 }
 
-export async function getAllTimeAccounts(): Promise<TimeAccountResponseDTO[]> {
-  const { data } = await api.get('/employees/time-accounts');
+export async function getAllTimeAccounts(offset?: number, limit?: number): Promise<PaginatedResponse<TimeAccountResponseDTO>> {
+  const { data } = await api.get('/employees/time-accounts', { params: { offset, limit } });
   return data;
 }
 

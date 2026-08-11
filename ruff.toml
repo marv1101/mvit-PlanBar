@@ -1,0 +1,14 @@
+# Ruff configuration for PlanBar
+line-length = 120
+exclude = ["docs"]
+
+[lint]
+# B008: FastAPI standard pattern: Depends(), Query(), Header() in default arguments
+ignore = ["B008"]
+per-file-ignores."**/tests/conftest.py" = ["E402"]
+per-file-ignores."**/tests/*" = ["E402"]
+per-file-ignores."TiTO/main.py" = ["E402"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

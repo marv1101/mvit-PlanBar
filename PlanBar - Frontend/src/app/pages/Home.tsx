@@ -12,6 +12,9 @@ export function Home() {
   if (user.role === 'employee') {
     return <Navigate to="/employee-view" replace />;
   }
+  if (user.role === 'planer') {
+    return <Navigate to="/schedule" replace />;
+  }
 
   // Admin goes to dashboard
   return <Navigate to="/dashboard" replace />;

@@ -1,10 +1,9 @@
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.db.base import Base
 from app.db.models.schedule import Schedule
 from app.services.metrics_service import get_aggregated_metrics, get_robustness_metrics
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture
@@ -14,8 +13,16 @@ def db_session():
     TestSession = sessionmaker(bind=engine)
     session = TestSession()
 
-    s1 = Schedule(name="S1", status="completed", metrics_json={"solveTimeSeconds": 10.5, "wishFulfillmentRate": 0.85})
-    s2 = Schedule(name="S2", status="completed", metrics_json={"solveTimeSeconds": 5.2, "wishFulfillmentRate": 0.92})
+    s1 = Schedule(
+        name="S1",
+        status="completed",
+        metrics_json={"solveTimeSeconds": 10.5, "wishFulfillmentRate": 0.85},
+    )
+    s2 = Schedule(
+        name="S2",
+        status="completed",
+        metrics_json={"solveTimeSeconds": 5.2, "wishFulfillmentRate": 0.92},
+    )
     s3 = Schedule(name="S3", status="completed", metrics_json={"solveTimeSeconds": 8.0})
     s4 = Schedule(name="S4", status="failed")
     s5 = Schedule(name="S5", status="draft")

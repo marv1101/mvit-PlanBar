@@ -1,5 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { clearTokens } from './auth';
+import { syncManager } from './syncManager';
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -7,6 +8,28 @@ const api = axios.create({
   withCredentials: true,
   timeout: 15000,
 });
+
+// --- CSRF double-submit cookie helper ----------------------------------------
+
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+const CSRF_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+
+api.interceptors.request.use((config) => {
+  const method = (config.method || '').toLowerCase();
+  if (CSRF_METHODS.has(method)) {
+    const token = getCsrfToken();
+    if (token) {
+      config.headers.set('X-CSRF-Token', token);
+    }
+  }
+  return config;
+});
+
+// --- Existing interceptors -------------------------------------------------
 
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -32,6 +55,23 @@ api.interceptors.response.use(
       _retry?: boolean;
       _retryCount?: number;
     };
+
+    // Queue mutating requests for offline sync if we're offline
+    if (!error.response && error.code === 'ERR_NETWORK') {
+      const method = (originalRequest.method || '').toLowerCase();
+      if (['post', 'put', 'patch', 'delete'].includes(method)) {
+        const mutateMethods = new Set(['post', 'put', 'patch', 'delete']);
+        if (mutateMethods.has(method)) {
+          syncManager.enqueue(
+            originalRequest.url || '',
+            method,
+            originalRequest.data,
+            undefined
+          ).catch(() => {});
+          return Promise.reject(error);
+        }
+      }
+    }
 
     // Retry on network error or timeout (up to 3 times)
     if (!error.response) {
@@ -75,3 +115,43 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// --- ETag Store for optimistic concurrency control ---------------------------
+
+const etagStore = new Map<string, string>();
+
+export function getStoredEtag(url: string): string | undefined {
+  return etagStore.get(url);
+}
+
+export function setStoredEtag(url: string, etag: string): void {
+  etagStore.set(url, etag);
+}
+
+export function clearStoredEtag(url: string): void {
+  etagStore.delete(url);
+}
+
+// --- ETag interceptors -------------------------------------------------------
+
+const MUTATING_METHODS = new Set(['put', 'patch', 'delete']);
+const SINGLE_RESOURCE_RE = /\/\d+$/;
+
+api.interceptors.request.use((config) => {
+  const method = (config.method || '').toLowerCase();
+  if (MUTATING_METHODS.has(method) && SINGLE_RESOURCE_RE.test(config.url || '')) {
+    const etag = etagStore.get(config.url || '');
+    if (etag) {
+      config.headers.set('If-Match', etag);
+    }
+  }
+  return config;
+});
+
+api.interceptors.response.use((response) => {
+  const etag = response.headers['etag'];
+  if (etag) {
+    etagStore.set(response.config.url || '', etag);
+  }
+  return response;
+});

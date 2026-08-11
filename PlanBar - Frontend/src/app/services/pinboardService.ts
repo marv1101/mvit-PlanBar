@@ -1,4 +1,5 @@
 import api from '../lib/api';
+import type { PaginatedResponse } from '../types';
 
 export interface ThreadCreateDTO {
   title: string;
@@ -60,8 +61,8 @@ export interface ThreadDetailResponseDTO {
   updated_at: string;
 }
 
-export async function getThreads(): Promise<ThreadResponseDTO[]> {
-  const { data } = await api.get('/pinboard/threads');
+export async function getThreads(offset?: number, limit?: number): Promise<PaginatedResponse<ThreadResponseDTO>> {
+  const { data } = await api.get('/pinboard/threads', { params: { offset, limit } });
   return data;
 }
 
@@ -84,8 +85,8 @@ export async function deleteThread(id: number): Promise<void> {
   await api.delete(`/pinboard/threads/${id}`);
 }
 
-export async function getMessages(threadId: number): Promise<MessageResponseDTO[]> {
-  const { data } = await api.get(`/pinboard/threads/${threadId}/messages`);
+export async function getMessages(threadId: number, offset?: number, limit?: number): Promise<PaginatedResponse<MessageResponseDTO>> {
+  const { data } = await api.get(`/pinboard/threads/${threadId}/messages`, { params: { offset, limit } });
   return data;
 }
 
@@ -107,7 +108,7 @@ export async function uploadDocument(messageId: number, file: File): Promise<Doc
   const formData = new FormData();
   formData.append('file', file);
   const { data } = await api.post(`/pinboard/messages/${messageId}/documents`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: { 'Content-Type': null },
   });
   return data;
 }

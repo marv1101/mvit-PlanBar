@@ -1,0 +1,22 @@
+# .zap/rules.tsv
+# ZAP scan rules configuration.
+# Format: RULE_ID\tACTION\t(Description)
+# Actions: FAIL, WARN (default), IGNORE, INFO
+#
+# This file is used by both Baseline and Full scans.
+# Adjust rules as needed for your security policy.
+
+# Cookies without Secure flag — ignore for localhost/HTTP in CI
+10011	IGNORE	(Cookie Without Secure Flag)
+
+# Cache-control headers — informational, not a vulnerability
+10015	INFO	(Incomplete or No Cache-control and Pragma HTTP Header Set)
+
+# X-Frame-Options — SPA app uses SAMEORIGIN via nginx, low risk
+10020	INFO	(X-Frame-Options Header Not Set)
+
+# X-Content-Type-Options — nginx sets this, alert may be stale
+10021	INFO	(X-Content-Type-Options Header Missing)
+
+# Browser XSS Protection — deprecated header, not a real vulnerability
+10016	INFO	(Web Browser XSS Protection Not Enabled)

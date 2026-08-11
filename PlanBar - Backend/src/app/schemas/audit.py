@@ -1,7 +1,9 @@
 from datetime import datetime
+from typing import Generic, TypeVar
+
 from pydantic import BaseModel
 
-from app.schemas.common import PaginationResponse
+T = TypeVar("T")
 
 
 class AuditLogResponse(BaseModel):
@@ -18,9 +20,15 @@ class AuditLogResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class AuditLogListResponse(BaseModel):
-    items: list[AuditLogResponse]
-    pagination: PaginationResponse
+class PaginatedAuditLogResponse(BaseModel, Generic[T]):
+    items: list[T]
+    total: int
+    offset: int
+    limit: int
+
+
+class AuditLogListResponse(PaginatedAuditLogResponse[AuditLogResponse]):
+    pass
 
 
 class SuspiciousPatternResponse(BaseModel):

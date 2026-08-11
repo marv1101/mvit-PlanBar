@@ -1,24 +1,37 @@
 import asyncio
-import json
 import logging
 import os
 import time
 import uuid
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.api.v1.pinboard_ws import (
+    authenticate_websocket,
+    handle_websocket_message,
+)
 from app.config import settings
-from app.core.auth import verify_token, create_access_token
+from app.core.auth import create_access_token
 from app.core.exceptions import NotFoundException
-from app.dependencies import get_current_user, get_db
-from app.db.models.pinboard import PinboardThread, PinboardMessage, PinboardDocument
-from app.db.models.user import User
 from app.db.database import SessionLocal
+from app.db.models.pinboard import PinboardDocument, PinboardMessage, PinboardThread
+from app.db.models.user import User
+from app.dependencies import get_current_user, get_db
+from app.schemas.pagination import PaginatedResponse, PaginationParams
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +73,8 @@ class ThreadCreate(BaseModel):
 
 
 class ThreadUpdate(BaseModel):
-    title: Optional[str] = Field(None, min_length=1, max_length=255)
-    is_pinned: Optional[bool] = None
+    title: str | None = Field(None, min_length=1, max_length=255)
+    is_pinned: bool | None = None
 
 
 class MessageCreate(BaseModel):
@@ -69,7 +82,7 @@ class MessageCreate(BaseModel):
 
 
 class MessageUpdate(BaseModel):
-    content: Optional[str] = Field(None, min_length=1)
+    content: str | None = Field(None, min_length=1)
 
 
 class DocumentResponse(BaseModel):
@@ -103,7 +116,7 @@ class ThreadResponse(BaseModel):
     author_name: str = ""
     is_pinned: bool = False
     message_count: int = 0
-    last_message_at: Optional[datetime] = None
+    last_message_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -167,6 +180,9 @@ def _validate_magic_bytes(content: bytes, ext: str):
         ".gif": [(b"GIF87a", 0), (b"GIF89a", 0)],
         ".webp": [(b"RIFF", 0), (b"WEBP", 8)],
         ".pdf": [(b"%PDF", 0)],
+        ".docx": [(b"PK\x03\x04", 0)],
+        ".xlsx": [(b"PK\x03\x04", 0)],
+        ".doc": [(b"\xd0\xcf\x11\xe0", 0)],
     }
     if ext not in MAGIC_PATTERNS:
         return
@@ -191,17 +207,22 @@ def _thread_to_detail_response(thread: PinboardThread) -> ThreadDetailResponse:
     )
 
 
-@router.get("/threads", response_model=list[ThreadResponse])
+@router.get("/threads", response_model=PaginatedResponse[ThreadResponse])
 def list_threads(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
+    total = db.query(PinboardThread).count()
     threads = (
         db.query(PinboardThread)
         .order_by(PinboardThread.is_pinned.desc(), PinboardThread.updated_at.desc())
+        .offset(pagination.offset)
+        .limit(pagination.limit)
         .all()
     )
-    return [_thread_to_response(t) for t in threads]
+    items = [_thread_to_response(t) for t in threads]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
 @router.post("/threads", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED)
@@ -267,19 +288,29 @@ def delete_thread(
     db.commit()
 
 
-@router.get("/threads/{thread_id}/messages", response_model=list[MessageResponse])
+@router.get("/threads/{thread_id}/messages", response_model=PaginatedResponse[MessageResponse])
 def list_messages(
     thread_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    pagination: PaginationParams = Depends(),
 ):
     thread = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
     if not thread:
         raise NotFoundException(detail="Thread not found")
-    return [_message_to_response(msg) for msg in (thread.messages or [])]
+    all_messages = thread.messages or []
+    total = len(all_messages)
+    items = [
+        _message_to_response(msg) for msg in all_messages[pagination.offset : pagination.offset + pagination.limit]
+    ]
+    return PaginatedResponse(items=items, total=total, offset=pagination.offset, limit=pagination.limit)
 
 
-@router.post("/threads/{thread_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/threads/{thread_id}/messages",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_message(
     thread_id: int,
     data: MessageCreate,
@@ -295,7 +326,7 @@ def create_message(
         content=data.content,
     )
     db.add(message)
-    thread.updated_at = datetime.now()
+    thread.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(message)
     _notify_clients(thread_id, _message_to_response(message))
@@ -337,7 +368,11 @@ def delete_message(
     db.commit()
 
 
-@router.post("/messages/{message_id}/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/messages/{message_id}/documents",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_document(
     message_id: int,
     file: UploadFile = File(...),
@@ -352,9 +387,7 @@ async def upload_document(
     ext = os.path.splitext(file.filename or "file")[1].lower()
 
     if ext in BLOCKED_EXTENSIONS:
-        logger.warning(
-            f"Blocked upload attempt - user={current_user.id} file={file.filename} ext={ext}"
-        )
+        logger.warning(f"Blocked upload attempt - user={current_user.id} file={file.filename} ext={ext}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File type is not allowed.",
@@ -378,7 +411,7 @@ async def upload_document(
     stored_name = f"{uuid.uuid4().hex}{ext}"
     file_path = os.path.join(UPLOAD_DIR, stored_name)
 
-    with open(file_path, "wb") as f:
+    with open(file_path, "wb") as f:  # noqa: ASYNC230
         f.write(content)
 
     doc = PinboardDocument(
@@ -393,11 +426,14 @@ async def upload_document(
     db.refresh(doc)
 
     doc_response = DocumentResponse.model_validate(doc)
-    await _broadcast(message.thread_id, {
-        "type": "document_uploaded",
-        "message_id": message_id,
-        "document": doc_response.model_dump(mode="json"),
-    })
+    await _broadcast(
+        message.thread_id,
+        {
+            "type": "document_uploaded",
+            "message_id": message_id,
+            "document": doc_response.model_dump(mode="json"),
+        },
+    )
     return doc_response
 
 
@@ -501,7 +537,7 @@ async def _broadcast(thread_id: int, message: dict):
     for conn in active_connections[thread_id]:
         try:
             await conn.send_json(message)
-        except Exception:
+        except Exception:  # noqa: BLE001,S110
             pass
 
 
@@ -510,10 +546,13 @@ def _notify_clients(thread_id: int, message: MessageResponse):
         loop = asyncio.get_event_loop()
         if loop.is_running():
             asyncio.ensure_future(
-                _broadcast(thread_id, {
-                    "type": "new_message",
-                    "message": message.model_dump(mode="json"),
-                })
+                _broadcast(
+                    thread_id,
+                    {
+                        "type": "new_message",
+                        "message": message.model_dump(mode="json"),
+                    },
+                )
             )
     except RuntimeError:
         pass
@@ -540,7 +579,7 @@ async def _heartbeat_loop(websocket: WebSocket, thread_id: int):
                 return
 
             await websocket.send_json({"type": "ping"})
-    except Exception:
+    except Exception:  # noqa: BLE001
         _disconnect_ws(websocket, thread_id)
 
 
@@ -550,38 +589,30 @@ async def websocket_endpoint(
     thread_id: int,
     token: str = Query(""),
 ):
+    """Thin orchestrator: authenticate, connect, then loop over messages.
+
+    Heavy lifting lives in :mod:`app.api.v1.pinboard_ws`:
+    * :func:`authenticate_websocket` — thread + token + user validation
+    * :func:`handle_websocket_message` — per-frame dispatch (ping/pong/message)
+    """
     db = SessionLocal()
     try:
-        thread_exists = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
-        if not thread_exists:
-            logger.warning(f"WebSocket connection attempted to non-existent thread {thread_id}")
-            await websocket.close(code=4004, reason="Thread not found")
-            return
-
-        token_str = token
-        if not token_str:
-            token_str = websocket.cookies.get("access_token", "")
-        if not token_str:
-            logger.warning("WebSocket auth failed: no token provided")
-            await websocket.close(code=4001, reason="Missing token")
-            return
-
-        try:
-            payload = verify_token(token_str)
-            user_id = int(payload.get("sub", 0))
-        except (ValueError, Exception) as e:
-            logger.warning(f"WebSocket auth failed: invalid token - {e}")
-            await websocket.close(code=4001, reason="Invalid token")
-            return
-
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            logger.warning(f"WebSocket auth failed: user {user_id} not found in database")
-            await websocket.close(code=4001, reason="User not found")
-            return
+        auth = authenticate_websocket(
+            db=db,
+            thread_id=thread_id,
+            query_token=token,
+            cookies=websocket.cookies,
+        )
     finally:
         db.close()
 
+    if auth is None:
+        # We have to accept() before we can close() with a custom code in FastAPI.
+        await websocket.accept()
+        await websocket.close(code=4001, reason="Authentication failed")
+        return
+
+    _user, user_id = auth
     logger.info(f"WebSocket authenticated: user={user_id} thread={thread_id}")
 
     connected = await _connect_ws(websocket, thread_id, user_id)
@@ -595,51 +626,16 @@ async def websocket_endpoint(
     try:
         while True:
             data = await websocket.receive_text()
-            conn_id = id(websocket)
-            _ws_last_activity[conn_id] = time.time()
-
-            msg_data = json.loads(data)
-            msg_type = msg_data.get("type", "ping")
-
-            if msg_type == "ping":
-                await websocket.send_json({"type": "pong"})
-            elif msg_type == "pong":
-                pass
-            elif msg_type == "message":
-                content = msg_data.get("content", "").strip()
-                if not content:
-                    await websocket.send_json({"type": "error", "detail": "Content is required"})
-                    continue
-
-                db = SessionLocal()
-                try:
-                    message = PinboardMessage(
-                        thread_id=thread_id,
-                        author_id=user_id,
-                        content=content,
-                    )
-                    db.add(message)
-                    thread = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
-                    if thread:
-                        thread.updated_at = datetime.now()
-                    db.commit()
-                    db.refresh(message)
-
-                    msg_response = _message_to_response(message)
-                    await _broadcast(thread_id, {
-                        "type": "new_message",
-                        "message": msg_response.model_dump(mode="json"),
-                    })
-                finally:
-                    db.close()
-            else:
-                await websocket.send_json({"type": "error", "detail": f"Unknown message type: {msg_type}"})
+            _ws_last_activity[id(websocket)] = time.time()
+            await handle_websocket_message(
+                websocket=websocket,
+                thread_id=thread_id,
+                user_id=user_id,
+                raw=data,
+            )
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: user={user_id} thread={thread_id}")
-    except json.JSONDecodeError:
-        logger.warning(f"Invalid JSON from user={user_id}")
-        await websocket.send_json({"type": "error", "detail": "Invalid JSON"})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"WebSocket error user={user_id} thread={thread_id}: {e}")
     finally:
         heartbeat_task.cancel()

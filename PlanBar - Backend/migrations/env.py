@@ -1,15 +1,14 @@
-from logging.config import fileConfig
 import os
 import sys
+from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from app.config import settings
-from app.db.base import Base  # noqa: E402
-from app.db.models import AuditLog, User  # noqa: E402
+from app.db.base import Base
 
 config = context.config
 section = config.get_section(config.config_ini_section)

@@ -20,8 +20,9 @@ def test_list_employees(client, auth_headers):
     response = client.get("/api/v1/employees", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
-    assert len(data) >= 1
-    assert any(e["first_name"] == "Jane" for e in data)
+    assert "items" in data
+    assert len(data["items"]) >= 1
+    assert any(e["first_name"] == "Jane" for e in data["items"])
 
 
 def test_get_employee(client, auth_headers):
@@ -90,7 +91,11 @@ def test_get_contract_not_found(client, auth_headers):
 
 
 def test_update_contract_not_found(client, auth_headers):
-    response = client.put("/api/v1/contracts/99999", json={"weekly_working_hours": 35}, headers=auth_headers)
+    response = client.put(
+        "/api/v1/contracts/99999",
+        json={"weekly_working_hours": 35},
+        headers=auth_headers,
+    )
     assert response.status_code == 404
 
 
@@ -172,7 +177,9 @@ def test_create_contract(client, auth_headers):
 def test_list_contracts(client, auth_headers):
     response = client.get("/api/v1/contracts", headers=auth_headers)
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert "items" in data
+    assert isinstance(data["items"], list)
 
 
 def test_create_timecard(client, auth_headers):
@@ -198,4 +205,6 @@ def test_create_timecard(client, auth_headers):
 def test_list_timecards(client, auth_headers):
     response = client.get("/api/v1/timecards", headers=auth_headers)
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert "items" in data
+    assert isinstance(data["items"], list)

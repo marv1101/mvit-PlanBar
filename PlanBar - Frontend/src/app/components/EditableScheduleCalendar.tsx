@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useDrag, useDrop, DndProvider } from 'react-dnd';
 import { TouchBackend } from 'react-dnd-touch-backend';
 import { useApp } from '../context/AppContext';
-import { Shift, Schedule, WeekType } from '../types';
+import { Shift, Schedule, WeekType, Request } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
@@ -15,44 +16,28 @@ import { TIMEZONE } from '../lib/timezone';
 import { sanitizeLabel } from '../lib/sanitize';
 import { ShiftListView } from './ShiftListView';
 import { SwimlaneCalendar } from './SwimlaneCalendar';
-import { Pencil, Trash2, Users, Save, Loader2, Coffee, LayoutGrid, CalendarDays } from 'lucide-react';
+import { Pencil, Trash2, Users, Save, Loader2, LayoutGrid, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Employee } from '../types';
+import {
+  ITEM_TYPE, EMPLOYEE_ITEM_TYPE, BREAK_START_ITEM_TYPE, BREAK_END_ITEM_TYPE,
+  START_HOUR, END_HOUR, SNAP_MINUTES_SHIFT, SNAP_MINUTES_BREAK,
+  HOURS, toMinutes, formatTime, snapMinutes,
+} from './schedule/shared/CalendarUtils';
+import type { DragItem, EmployeeDragItem, BreakDragItem } from './schedule/shared/CalendarUtils';
+import { EmployeeCard, BreakStartHandle, BreakEndHandle } from './schedule/shared/CalendarComponents';
+import { WishOverlay } from './WishOverlay';
+import { useApprovedWishes } from '../hooks/useShiftWishes';
+import { assignLanes, getShiftStyle, getBreakStyle, HOUR_HEIGHT } from './schedule/calendarLayout';
 
-const ITEM_TYPE = 'SHIFT';
-const EMPLOYEE_ITEM_TYPE = 'EMPLOYEE';
-const BREAK_START_ITEM_TYPE = 'BREAK_START';
-const BREAK_END_ITEM_TYPE = 'BREAK_END';
-const HOUR_HEIGHT = 52;
-const START_HOUR = 6;
-const END_HOUR = 22;
-const SNAP_MINUTES_SHIFT = 30;
-const SNAP_MINUTES_BREAK = 15;
-
-const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
-
-interface DragItem {
-  shift: Shift;
-  fromDate: string;
-}
-
-interface EmployeeDragItem {
-  employeeId: string;
-}
-
-interface BreakDragItem {
-  shift: Shift;
-  breakType: 'start' | 'end';
-}
-
-type ShiftHoverInfo = {
+export type ShiftHoverInfo = {
   type: 'shift' | 'inDayShift';
   minutes: number;
   duration: number;
   color: string;
 };
 
-type BreakHoverInfo = {
+export type BreakHoverInfo = {
   type: 'break';
   minutes: number;
   shiftId: string;
@@ -60,80 +45,13 @@ type BreakHoverInfo = {
   color: string;
 };
 
-type HoverInfo = ShiftHoverInfo | BreakHoverInfo;
+export type HoverInfo = ShiftHoverInfo | BreakHoverInfo;
 
 interface EditableScheduleCalendarProps {
   schedule: Schedule;
   currentWeek: WeekType;
   onUpdateSchedule: (schedule: Schedule) => void;
   onSaveShifts?: (shifts: Shift[]) => Promise<void>;
-}
-
-function toMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
-}
-
-function formatTime(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-function assignLanes(shifts: Shift[]): { shift: Shift; lane: number; totalLanes: number }[] {
-  const sorted = [...shifts].sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
-  const lanes: number[] = [];
-  const result: { shift: Shift; lane: number }[] = [];
-
-  for (const shift of sorted) {
-    const start = toMinutes(shift.startTime);
-    const end = toMinutes(shift.endTime);
-    let assigned = false;
-
-    for (let i = 0; i < lanes.length; i++) {
-      if (lanes[i] <= start) {
-        lanes[i] = end;
-        result.push({ shift, lane: i });
-        assigned = true;
-        break;
-      }
-    }
-
-    if (!assigned) {
-      lanes.push(end);
-      result.push({ shift, lane: lanes.length - 1 });
-    }
-  }
-
-  return result.map(r => ({ ...r, totalLanes: lanes.length }));
-}
-
-function getShiftStyle(shift: Shift, lane: number, totalLanes: number) {
-  const startMin = toMinutes(shift.startTime);
-  const endMin = toMinutes(shift.endTime);
-  const rangeStart = START_HOUR * 60;
-  const top = ((startMin - rangeStart) / 60) * HOUR_HEIGHT;
-  const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 24);
-  const width = 100 / totalLanes;
-  const left = lane * width;
-
-  return {
-    top: `${top}px`,
-    height: `${height}px`,
-    left: `${left}%`,
-    width: `${width}%`,
-  };
-}
-
-function getBreakStyle(shift: Shift) {
-  if (!shift.breakStart || !shift.breakEnd) return null;
-  const shiftStart = toMinutes(shift.startTime);
-  const breakStart = toMinutes(shift.breakStart);
-  const breakEnd = toMinutes(shift.breakEnd);
-  if (breakStart <= shiftStart || breakEnd <= breakStart || breakEnd > toMinutes(shift.endTime)) return null;
-  const top = ((breakStart - shiftStart) / 60) * HOUR_HEIGHT;
-  const height = Math.max(((breakEnd - breakStart) / 60) * HOUR_HEIGHT, 16);
-  return { top, height };
 }
 
 interface ShiftBarProps {
@@ -144,45 +62,6 @@ interface ShiftBarProps {
   onDelete: (shift: Shift) => void;
 }
 
-function BreakStartHandle({ shift }: { shift: Shift }) {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: BREAK_START_ITEM_TYPE,
-    item: { shift, breakType: 'start' as const } as BreakDragItem,
-    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  }), [shift]);
-
-  return (
-    <div
-      ref={drag}
-      className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-blue-400/30 active:bg-blue-400/50 flex items-center justify-center z-20 group/break"
-      style={{ opacity: isDragging ? 0.5 : 1 }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-    >
-      <div className="w-6 h-[2px] bg-gray-400 rounded opacity-0 group-hover/break:opacity-100 transition-opacity" />
-    </div>
-  );
-}
-
-function BreakEndHandle({ shift }: { shift: Shift }) {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: BREAK_END_ITEM_TYPE,
-    item: { shift, breakType: 'end' as const } as BreakDragItem,
-    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  }), [shift]);
-
-  return (
-    <div
-      ref={drag}
-      className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-blue-400/30 active:bg-blue-400/50 flex items-center justify-center z-20 group/break"
-      style={{ opacity: isDragging ? 0.5 : 1 }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-    >
-      <div className="w-6 h-[2px] bg-gray-400 rounded opacity-0 group-hover/break:opacity-100 transition-opacity" />
-    </div>
-  );
-}
 
 function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) {
   const { employees } = useApp();
@@ -204,7 +83,7 @@ function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) 
 
   return (
     <motion.div
-      ref={drag}
+      ref={(node: HTMLDivElement | null) => { drag(node); }}
       layout
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{
@@ -283,54 +162,14 @@ function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) 
   );
 }
 
-function EmployeeCard({ employee }: { employee: Employee }) {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: EMPLOYEE_ITEM_TYPE,
-    item: { employeeId: employee.id } as EmployeeDragItem,
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-  }), [employee.id]);
 
-  return (
-    <motion.div
-      ref={drag}
-      layout
-      animate={{
-        opacity: isDragging ? 0.3 : 1,
-        scale: isDragging ? 0.95 : 1,
-      }}
-      whileHover={{ scale: 1.03, y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-      whileTap={{ scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-      className="p-3 rounded-lg border-2 cursor-move"
-      style={{
-        backgroundColor: employee.color + '15',
-        borderColor: employee.color + '40'
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <div
-          className="w-3 h-3 rounded-full flex-shrink-0"
-          style={{ backgroundColor: employee.color }}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm truncate" style={{ color: employee.color }}>
-            {employee.name}
-          </div>
-          <div className="text-xs text-gray-500 truncate">
-            {employee.roles.length > 0 ? `${employee.roles.length} Rolle(n)` : 'Keine Rollen'}
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
 
 interface DayColumnProps {
   date: Date;
   weekType: WeekType;
   shifts: Shift[];
+  approvedWishes: Request[];
+  employees: Employee[];
   onDrop: (shift: Shift, newDate: string) => void;
   onDropInDay: (shift: Shift, newStartTime: string, newEndTime: string) => void;
   onEmployeeDrop: (employeeId: string, date: string, weekType: WeekType) => void;
@@ -338,12 +177,12 @@ interface DayColumnProps {
   onClick: (date: Date) => void;
   onEdit: (shift: Shift) => void;
   onDelete: (shift: Shift) => void;
+  onWishClick?: (wish: Request) => void;
 }
 
 function DayColumn({
-  date, weekType, shifts, onDrop, onDropInDay, onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete
+  date, weekType, shifts, approvedWishes, employees, onDrop, onDropInDay, onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete, onWishClick
 }: DayColumnProps) {
-  const { employees } = useApp();
   const dateStr = date.toISOString().split('T')[0];
   const dayShifts = shifts.filter(s => s.date === dateStr);
   const lanes = useMemo(() => assignLanes(dayShifts), [dayShifts]);
@@ -364,9 +203,6 @@ function DayColumn({
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
 
-  const snapMinutes = (rawMinutes: number, snap: number) => {
-    return Math.round(rawMinutes / snap) * snap;
-  };
 
   const [{ isOver }, drop] = useDrop(() => ({
     accept: [ITEM_TYPE, EMPLOYEE_ITEM_TYPE, BREAK_START_ITEM_TYPE, BREAK_END_ITEM_TYPE],
@@ -560,6 +396,19 @@ function DayColumn({
             </span>
           </motion.div>
         )}
+
+        {/* Render approved wishes as overlays */}
+        {approvedWishes
+          .filter(wish => wish.date === dateStr)
+          .map(wish => (
+            <WishOverlay
+              key={wish.id}
+              wish={wish}
+              employee={employees.find(e => e.id === wish.employeeId)}
+              onClick={onWishClick}
+            />
+          ))}
+
         <AnimatePresence mode="popLayout">
           {lanes.map(({ shift, lane, totalLanes }) => (
             <ShiftBar
@@ -760,7 +609,7 @@ function AddShiftDialog({
 
   React.useEffect(() => {
     if (date) {
-      setFormData(prev => ({
+      setFormData((prev: Shift) => ({
         ...prev,
         date: date.toISOString().split('T')[0],
         week: week,
@@ -896,6 +745,8 @@ export function EditableScheduleCalendar({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [shiftToDelete, setShiftToDelete] = useState<Shift | null>(null);
   const [showSaturday, setShowSaturday] = useState(true);
   const [showSunday, setShowSunday] = useState(true);
   const [showEmployeePanel, setShowEmployeePanel] = useState(true);
@@ -903,9 +754,12 @@ export function EditableScheduleCalendar({
   const [viewMode, setViewMode] = useState<'timeline' | 'swimlane'>('swimlane');
   const isMobile = useMediaQuery('(max-width: 768px)');
 
+  // Fetch approved wishes for the current schedule
+  const { data: approvedWishes = [] } = useApprovedWishes(schedule.id ? Number(schedule.id) : null);
+
   const handleDrop = (shift: Shift, newDate: string) => {
     const newWeekType = getWeekType(new Date(newDate));
-    const updatedShifts = schedule.shifts.map(s =>
+    const updatedShifts = schedule.shifts.map((s: Shift) =>
       s.id === shift.id ? { ...s, date: newDate, week: newWeekType } : s
     );
     onUpdateSchedule({ ...schedule, shifts: updatedShifts });
@@ -914,7 +768,7 @@ export function EditableScheduleCalendar({
 
   const handleDropInDay = (shift: Shift, newStartTime: string, newEndTime: string) => {
     const startDiff = toMinutes(newStartTime) - toMinutes(shift.startTime);
-    const updatedShifts = schedule.shifts.map(s => {
+    const updatedShifts = schedule.shifts.map((s: Shift) => {
       if (s.id !== shift.id) return s;
       const updated = { ...s, startTime: newStartTime, endTime: newEndTime };
       if (s.breakStart) {
@@ -930,7 +784,7 @@ export function EditableScheduleCalendar({
   };
 
   const handleBreakUpdate = (shiftId: string, updatedShift: Shift) => {
-    const updatedShifts = schedule.shifts.map(s =>
+    const updatedShifts = schedule.shifts.map((s: Shift) =>
       s.id === shiftId ? updatedShift : s
     );
     onUpdateSchedule({ ...schedule, shifts: updatedShifts });
@@ -969,7 +823,7 @@ export function EditableScheduleCalendar({
   };
 
   const handleSaveEdit = (updatedShift: Shift) => {
-    const updatedShifts = schedule.shifts.map(s =>
+    const updatedShifts = schedule.shifts.map((s: Shift) =>
       s.id === updatedShift.id ? updatedShift : s
     );
     onUpdateSchedule({ ...schedule, shifts: updatedShifts });
@@ -977,11 +831,17 @@ export function EditableScheduleCalendar({
   };
 
   const handleDelete = (shift: Shift) => {
-    if (confirm('Möchten Sie diese Schicht wirklich löschen?')) {
-      const updatedShifts = schedule.shifts.filter(s => s.id !== shift.id);
-      onUpdateSchedule({ ...schedule, shifts: updatedShifts });
-      toast.success('Schicht gelöscht');
-    }
+    setShiftToDelete(shift);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteShift = () => {
+    if (!shiftToDelete) return;
+    const updatedShifts = schedule.shifts.filter((s: Shift) => s.id !== shiftToDelete.id);
+    onUpdateSchedule({ ...schedule, shifts: updatedShifts });
+    toast.success('Schicht gelöscht');
+    setShiftToDelete(null);
+    setDeleteDialogOpen(false);
   };
 
   const handleDayClick = (date: Date) => {
@@ -1037,7 +897,7 @@ export function EditableScheduleCalendar({
     <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
       {isMobile ? (
         <ShiftListView
-          shifts={schedule.shifts.filter(s => s.week === currentWeek)}
+          shifts={schedule.shifts.filter((s: Shift) => s.week === currentWeek)}
           employees={employees}
           weekLabel={weekLabel}
           onEdit={handleEdit}
@@ -1171,7 +1031,9 @@ export function EditableScheduleCalendar({
                         key={day.toISOString()}
                         date={day}
                         weekType={currentWeek}
-                        shifts={schedule.shifts.filter(s => s.week === currentWeek)}
+                        shifts={schedule.shifts.filter((s: Shift) => s.week === currentWeek)}
+                        approvedWishes={approvedWishes}
+                        employees={employees}
                         onDrop={handleDrop}
                         onDropInDay={handleDropInDay}
                         onEmployeeDrop={handleEmployeeDrop}
@@ -1216,6 +1078,22 @@ export function EditableScheduleCalendar({
         }}
         onSave={handleAddShift}
       />
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Schicht löschen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchten Sie diese Schicht wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteShift} className="bg-red-600 text-white hover:bg-red-700">
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DndProvider>
   );
 }

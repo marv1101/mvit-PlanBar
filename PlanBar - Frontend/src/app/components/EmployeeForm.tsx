@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Employee, WeekType, EmployeeRole } from '../types';
+import { Employee } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Switch } from './ui/switch';
 import { Checkbox } from './ui/checkbox';
+import * as teamService from '../services/teamService';
+import type { Team } from '../types';
 
 interface EmployeeFormProps {
   employee: Employee | null;
@@ -52,6 +54,7 @@ const colors = [
 
 export function EmployeeForm({ employee, onClose }: EmployeeFormProps) {
   const { addEmployee, updateEmployee, roles } = useApp();
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [formData, setFormData] = useState<Employee>(
     employee || {
       id: Date.now().toString(),
@@ -62,8 +65,13 @@ export function EmployeeForm({ employee, onClose }: EmployeeFormProps) {
       breakTime: { start: '12:00', end: '13:00', duration: 60 },
       color: colors[0],
       maxWorkHours: 40,
+      teamIds: [],
     }
   );
+
+  React.useEffect(() => {
+    teamService.getTeams().then(res => setAllTeams(res.items)).catch(() => {});
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,6 +109,14 @@ export function EmployeeForm({ employee, onClose }: EmployeeFormProps) {
       ? formData.roles.filter(r => r !== roleId)
       : [...formData.roles, roleId];
     setFormData({ ...formData, roles: newRoles });
+  };
+
+  const handleTeamToggle = (teamId: number) => {
+    const current = formData.teamIds ?? [];
+    const newTeamIds = current.includes(teamId)
+      ? current.filter(id => id !== teamId)
+      : [...current, teamId];
+    setFormData({ ...formData, teamIds: newTeamIds });
   };
 
   return (
@@ -148,6 +164,31 @@ export function EmployeeForm({ employee, onClose }: EmployeeFormProps) {
             ))}
             {roles.length === 0 && (
               <p className="text-sm text-gray-500">Keine Rollen verfügbar. Bitte erstellen Sie zuerst Rollen.</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <Label className="mb-3 block">Teams</Label>
+          <div className="space-y-2">
+            {allTeams.map((team) => (
+              <div key={team.id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`team-${team.id}`}
+                  checked={(formData.teamIds ?? []).includes(Number(team.id))}
+                  onCheckedChange={() => handleTeamToggle(Number(team.id))}
+                />
+                <Label htmlFor={`team-${team.id}`} className="font-normal cursor-pointer flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: team.color || '#9ca3af' }}
+                  />
+                  {team.name}
+                </Label>
+              </div>
+            ))}
+            {allTeams.length === 0 && (
+              <p className="text-sm text-gray-500">Keine Teams verfügbar. Bitte erstellen Sie zuerst Teams.</p>
             )}
           </div>
         </div>

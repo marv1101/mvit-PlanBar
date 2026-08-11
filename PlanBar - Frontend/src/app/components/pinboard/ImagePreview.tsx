@@ -14,10 +14,6 @@ export function ImagePreview({ document, allDocuments }: ImagePreviewProps) {
   const { url, loading } = useDocumentUrl(document.id);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  const images = allDocuments
-    .filter(d => d.mimeType.startsWith('image/'))
-    .map(d => ({ id: d.id, url: '', fileName: d.fileName }));
-
   if (loading) {
     return (
       <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-md">

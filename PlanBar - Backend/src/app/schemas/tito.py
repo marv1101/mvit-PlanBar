@@ -1,12 +1,12 @@
-from datetime import date
-from typing import Any, Optional
+from datetime import date as Date
+from typing import Any
 
 from pydantic import BaseModel
 
 
 class TiTOAssignment(BaseModel):
     employeeId: str
-    date: date
+    date: Date
     shiftId: str
     startTime: str
     endTime: str
@@ -21,16 +21,17 @@ class TiTOMetadata(BaseModel):
 
 class TiTORequestMetadata(BaseModel):
     """Metadata sent with job submission to TiTO"""
+
     callback_url: str
-    idempotency_key: Optional[str] = None
-    tenant_id: Optional[str] = None
+    idempotency_key: str | None = None
+    tenant_id: str | None = None
 
 
 class TiTOMetrics(BaseModel):
     wishFulfillmentRate: float
     totalObjectiveScore: float
     employeeUtilization: dict[str, float]
-    violations: Optional[list[dict[str, Any]]] = None
+    violations: list[dict[str, Any]] | None = None
 
 
 class TiTODiagnostics(BaseModel):
@@ -63,8 +64,8 @@ class TiTOJobRequest(BaseModel):
     employees: list[dict[str, Any]]
     shiftWishes: list[dict[str, Any]]
     requirements: list[dict[str, Any]]
-    constraints: Optional[dict[str, Any]] = None
-    metadata: Optional[TiTORequestMetadata] = None
+    constraints: dict[str, Any] | None = None
+    metadata: TiTORequestMetadata | None = None
 
 
 class TiTOCallbackPayload(BaseModel):

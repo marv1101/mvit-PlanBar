@@ -1,4 +1,5 @@
 import api from '../lib/api';
+import type { PaginatedResponse } from '../types';
 
 export interface RoleCreateDTO {
   name: string;
@@ -19,13 +20,18 @@ export interface RoleResponseDTO {
   permissions: string | null;
 }
 
-export async function getRoles(): Promise<RoleResponseDTO[]> {
-  const { data } = await api.get('/roles');
+export async function getRoles(offset?: number, limit?: number): Promise<PaginatedResponse<RoleResponseDTO>> {
+  const { data } = await api.get('/roles', { params: { offset, limit } });
   return data;
 }
 
 export async function createRole(dto: RoleCreateDTO): Promise<RoleResponseDTO> {
   const { data } = await api.post('/roles', dto);
+  return data;
+}
+
+export async function getRole(id: number): Promise<RoleResponseDTO> {
+  const { data } = await api.get(`/roles/${id}`);
   return data;
 }
 

@@ -1,0 +1,45 @@
+# docker-compose.ci.yml
+# CI-only Compose file for ZAP security scanning.
+# Spins up backend + frontend with SQLite — no external services needed.
+#
+# Usage:
+#   docker compose -f docker-compose.ci.yml up -d --build
+#   # wait for health, then run ZAP against http://localhost:80
+
+services:
+  backend:
+    build:
+      context: "PlanBar - Backend"
+      dockerfile: Dockerfile
+    environment:
+      SECRET_KEY: "ci-testing-zap-scan-key-do-not-use-in-production"
+      ENVIRONMENT: "development"
+      DATABASE_URL: "sqlite:///./planbar.db"
+      CORS_ORIGINS: "http://localhost:80"
+      TITO_API_URL: "http://localhost:5001"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/api/v1/health/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  frontend:
+    build:
+      context: "PlanBar - Frontend"
+      dockerfile: Dockerfile
+    environment:
+      BACKEND_URL: "http://backend:8000"
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:80/"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s

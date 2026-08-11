@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy import Index
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -10,7 +9,12 @@ from app.db.base import Base
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 
-    id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, index=True, autoincrement=True)
+    id = Column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        index=True,
+        autoincrement=True,
+    )
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     action = Column(String(50), nullable=False, index=True)
     resource_type = Column(String(50), nullable=False)

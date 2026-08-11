@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, Navigate } from 'react-router';
 import { Layout } from './components/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { FullPageSpinner } from './components/FullPageSpinner';
@@ -11,10 +11,13 @@ const Employees = lazy(() => import('./pages/Employees').then(m => ({ default: m
 const Requests = lazy(() => import('./pages/Requests').then(m => ({ default: m.Requests })));
 const Schedule = lazy(() => import('./pages/Schedule').then(m => ({ default: m.Schedule })));
 const Roles = lazy(() => import('./pages/Roles').then(m => ({ default: m.Roles })));
+const Teams = lazy(() => import('./pages/Teams').then(m => ({ default: m.Teams })));
 const Users = lazy(() => import('./pages/Users').then(m => ({ default: m.Users })));
 const EmployeeView = lazy(() => import('./pages/EmployeeView').then(m => ({ default: m.EmployeeView })));
 const PinboardPage = lazy(() => import('./pages/PinboardPage').then(m => ({ default: m.PinboardPage })));
 const TimeAccounts = lazy(() => import('./pages/TimeAccounts').then(m => ({ default: m.TimeAccounts })));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })));
+const SelfService = lazy(() => import('./pages/SelfService').then(m => ({ default: m.SelfService })));
 
 function LazyPage({ children }: { children: React.ReactNode }) {
   return (
@@ -42,18 +45,26 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: 'employees',
-        element: (
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPage><Employees /></LazyPage>
-          </ProtectedRoute>
-        ),
-      },
-      {
         path: 'roles',
         element: (
           <ProtectedRoute allowedRoles={['admin']}>
             <LazyPage><Roles /></LazyPage>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'teams',
+        element: (
+          <ProtectedRoute allowedRoles={['admin']}>
+            <LazyPage><Teams /></LazyPage>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'employees',
+        element: (
+          <ProtectedRoute allowedRoles={['admin', 'planer']}>
+            <LazyPage><Employees /></LazyPage>
           </ProtectedRoute>
         ),
       },
@@ -68,7 +79,7 @@ export const router = createBrowserRouter([
       {
         path: 'requests',
         element: (
-          <ProtectedRoute allowedRoles={['admin', 'employee']}>
+          <ProtectedRoute allowedRoles={['admin', 'planer', 'employee']}>
             <LazyPage><Requests /></LazyPage>
           </ProtectedRoute>
         ),
@@ -76,7 +87,7 @@ export const router = createBrowserRouter([
       {
         path: 'schedule',
         element: (
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin', 'planer']}>
             <LazyPage><Schedule /></LazyPage>
           </ProtectedRoute>
         ),
@@ -84,7 +95,7 @@ export const router = createBrowserRouter([
       {
         path: 'employee-view',
         element: (
-          <ProtectedRoute allowedRoles={['admin', 'employee']}>
+          <ProtectedRoute allowedRoles={['admin', 'planer', 'employee']}>
             <LazyPage><EmployeeView /></LazyPage>
           </ProtectedRoute>
         ),
@@ -104,6 +115,22 @@ export const router = createBrowserRouter([
             <LazyPage><TimeAccounts /></LazyPage>
           </ProtectedRoute>
         ),
+      },
+      {
+        path: 'self-service',
+        element: (
+          <ProtectedRoute allowedRoles={['admin', 'employee']}>
+            <LazyPage><SelfService /></LazyPage>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'privacy',
+        element: <LazyPage><PrivacyPolicy /></LazyPage>,
+      },
+      {
+        path: '*',
+        element: <Navigate to="/" replace />,
       },
     ],
   },

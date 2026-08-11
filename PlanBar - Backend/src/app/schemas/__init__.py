@@ -1,10 +1,7 @@
-from app.schemas.user import (
-    TokenRefreshRequest,
-    TokenResponse,
-    UserCreate,
-    UserLogin,
-    UserResponse,
-    UserUpdate,
+from app.schemas.availability import (
+    AvailabilityEntry,
+    AvailabilityResponse,
+    AvailabilityUpdate,
 )
 from app.schemas.common import ErrorResponse, PaginationResponse
 from app.schemas.employee import (
@@ -27,34 +24,58 @@ from app.schemas.schedule import (
     ShiftplanResponse,
     ShiftplanUpdate,
 )
-from app.schemas.tito import TiTOJobResponse, TiTOJobStatus, TiTOCallbackPayload
+from app.schemas.self_service import MyOvertimeResponse, MyShiftResponse
+from app.schemas.shift_swap import (
+    ShiftSwapCreate,
+    ShiftSwapReject,
+    ShiftSwapResponse,
+    ShiftSwapUpdate,
+)
+from app.schemas.tito import TiTOCallbackPayload, TiTOJobResponse, TiTOJobStatus
+from app.schemas.user import (
+    TokenRefreshRequest,
+    TokenResponse,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    UserUpdate,
+)
 
 __all__ = [
-    "UserCreate",
-    "UserLogin",
-    "UserUpdate",
-    "UserResponse",
-    "TokenResponse",
-    "TokenRefreshRequest",
-    "ErrorResponse",
-    "PaginationResponse",
-    "EmployeeCreate",
-    "EmployeeUpdate",
-    "EmployeeResponse",
+    "AvailabilityEntry",
+    "AvailabilityResponse",
+    "AvailabilityUpdate",
     "ContractCreate",
-    "ContractUpdate",
     "ContractResponse",
-    "TimecardCreate",
-    "TimecardUpdate",
-    "TimecardResponse",
+    "ContractUpdate",
+    "EmployeeCreate",
+    "EmployeeResponse",
+    "EmployeeUpdate",
+    "ErrorResponse",
+    "MyOvertimeResponse",
+    "MyShiftResponse",
+    "PaginationResponse",
     "ScheduleCreate",
-    "ScheduleUpdate",
     "ScheduleResponse",
     "ScheduleSummary",
+    "ScheduleUpdate",
+    "ShiftSwapCreate",
+    "ShiftSwapReject",
+    "ShiftSwapResponse",
+    "ShiftSwapUpdate",
     "ShiftplanCreate",
-    "ShiftplanUpdate",
     "ShiftplanResponse",
+    "ShiftplanUpdate",
+    "TiTOCallbackPayload",
     "TiTOJobResponse",
     "TiTOJobStatus",
-    "TiTOCallbackPayload",
+    "TimecardCreate",
+    "TimecardResponse",
+    "TimecardUpdate",
+    "TokenRefreshRequest",
+    "TokenResponse",
+    "UserCreate",
+    "UserLogin",
+    "UserResponse",
+    "UserUpdate",
 ]

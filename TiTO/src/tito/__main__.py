@@ -1,7 +1,8 @@
 import argparse
-from .config import Settings
+
 from .api import create_app
-from .db import get_connection, enqueue_job
+from .config import Settings
+from .db import enqueue_job, get_connection
 from .worker import run_worker
 
 
@@ -44,7 +45,7 @@ def _seed_example_job(connection, queue_table: str) -> str:
                 "date": "2026-01-02",
                 "shiftId": "S_SPAET",
                 "neededSkills": {"Apotheker": 1},
-            }
+            },
         ],
         "employees": [
             {
@@ -70,7 +71,7 @@ def _seed_example_job(connection, queue_table: str) -> str:
                 "skills": ["Apotheker"],
                 "forbiddenDates": ["2026-01-02"],
                 "breakMinutes": 45,  # Längere Pause für diesen Employee
-            }
+            },
         ],
         "wishes": [
             {
@@ -90,6 +91,7 @@ def _seed_example_job(connection, queue_table: str) -> str:
 def get_app():
     """Initialisiert die Flask-App für Gunicorn."""
     from .config import Settings
+
     settings = Settings.from_env()
     return create_app(settings)
 

@@ -1,9 +1,23 @@
-import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { DndProvider } from 'react-dnd';
-import { TouchBackend } from 'react-dnd-touch-backend';
-import { AppContext } from '../app/context/AppContext';
-import { Employee, Schedule, WeekType } from '../types';
+import React from 'react'
+import { render, screen, type RenderOptions } from '@testing-library/react'
+import { MemoryRouter, createMemoryRouter } from 'react-router'
+import { DndProvider } from 'react-dnd'
+import { TouchBackend } from 'react-dnd-touch-backend'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { AuthContext } from '../app/context/AuthContext'
+import { AppContext } from '../app/context/AppContext'
+import type { Employee, Schedule, WeekType } from '../app/types'
+
+const testQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Mock data
+// ---------------------------------------------------------------------------
+
 
 export const mockEmployees: Employee[] = [
   {
@@ -62,48 +76,70 @@ export const mockEmployees: Employee[] = [
     breakTime: { start: '12:00', end: '12:30', duration: 30 },
     color: '#ef4444',
   },
-];
+]
 
 export const mockSchedule: Schedule = {
-  id: 'sched-1',
+  id: '1',
   name: 'Test Woche',
   status: 'draft',
   startDate: '2026-06-15',
   endDate: '2026-06-21',
   shifts: [
     {
-      id: 'shift-1',
-      employeeId: '1',
-      date: '2026-06-15',
-      week: 'A',
-      startTime: '08:00',
-      endTime: '18:00',
-      breakStart: '12:00',
-      breakEnd: '13:00',
-      label: 'Backoffice',
+      id: 'shift-1', employeeId: '1', date: '2026-06-15', week: 'A',
+      startTime: '08:00', endTime: '18:00', breakStart: '12:00', breakEnd: '13:00', label: 'Backoffice',
     },
     {
-      id: 'shift-2',
-      employeeId: '2',
-      date: '2026-06-15',
-      week: 'A',
-      startTime: '09:00',
-      endTime: '17:00',
-      breakStart: '12:00',
-      breakEnd: '12:30',
-    },
-    {
-      id: 'shift-3',
-      employeeId: '1',
-      date: '2026-06-16',
-      week: 'A',
-      startTime: '10:00',
-      endTime: '16:00',
+      id: 'shift-2', employeeId: '2', date: '2026-06-15', week: 'A',
+      startTime: '09:00', endTime: '17:00', breakStart: '12:00', breakEnd: '12:30',
     },
   ],
-};
+}
 
-const mockAppContext = {
+// ---------------------------------------------------------------------------
+// Mock users
+// ---------------------------------------------------------------------------
+
+export const mockAdminUser = {
+  id: '1',
+  name: 'admin',
+  email: 'admin@planbar.test',
+  role: 'admin' as const,
+  employeeId: undefined,
+}
+
+export const mockEmployeeUser = {
+  id: '2',
+  name: 'Max Müller',
+  email: 'max@example.com',
+  role: 'employee' as const,
+  employeeId: '1',
+}
+
+export const mockPlanerUser = {
+  id: '3',
+  name: 'Erika Planer',
+  email: 'planer@example.com',
+  role: 'planer' as const,
+  employeeId: '2',
+}
+
+export const mockUser = mockAdminUser
+
+// ---------------------------------------------------------------------------
+// Mock context values
+// ---------------------------------------------------------------------------
+
+export const mockAuthContext = {
+  user: mockUser,
+  login: vi.fn().mockResolvedValue({ success: true, mustChangePassword: false }),
+  logout: vi.fn(),
+  isLoading: false,
+  mustChangePassword: false,
+  changePassword: vi.fn().mockResolvedValue(true),
+}
+
+export const mockAppContext = {
   employees: mockEmployees,
   addEmployee: vi.fn(),
   updateEmployee: vi.fn(),
@@ -125,15 +161,86 @@ const mockAppContext = {
   updateRole: vi.fn(),
   deleteRole: vi.fn(),
   loading: false,
-  refresh: vi.fn(),
+  refresh: vi.fn().mockResolvedValue(undefined),
 };
 
-export function TestWrapper({ children }: { children: React.ReactNode }) {
+// ---------------------------------------------------------------------------
+// Wrappers
+// ---------------------------------------------------------------------------
+
+export function AuthTestWrapper({ children }: { children: React.ReactNode }) {
   return (
-    <AppContext.Provider value={mockAppContext as any}>
-      <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
-        {children}
-      </DndProvider>
-    </AppContext.Provider>
-  );
+    <MemoryRouter>
+      <QueryClientProvider client={testQueryClient}>
+        <AuthContext.Provider value={mockAuthContext as any}>
+          {children}
+        </AuthContext.Provider>
+      </QueryClientProvider>
+    </MemoryRouter>
+  )
 }
+
+export function AppAndAuthTestWrapper({
+  children,
+  initialEntries = ['/'],
+}: {
+  children: React.ReactNode
+  initialEntries?: string[]
+}) {
+  return (
+    <MemoryRouter initialEntries={initialEntries}>
+      <QueryClientProvider client={testQueryClient}>
+        <AuthContext.Provider value={mockAuthContext as any}>
+          <AppContext.Provider value={mockAppContext as any}>
+            <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
+              {children}
+            </DndProvider>
+          </AppContext.Provider>
+        </AuthContext.Provider>
+      </QueryClientProvider>
+    </MemoryRouter>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Router helper
+// ---------------------------------------------------------------------------
+
+export function createMockRouter(entries: string[] = ['/']) {
+  return createMemoryRouter([{ path: '*', element: null }], { initialEntries: entries })
+}
+
+// @deprecated Use AppAndAuthTestWrapper instead
+export const TestWrapper = AppAndAuthTestWrapper
+
+// ---------------------------------------------------------------------------
+// Render helpers
+// ---------------------------------------------------------------------------
+
+export function renderWithProviders(
+  ui: React.ReactElement,
+  options?: Omit<RenderOptions, 'wrapper'> & { initialEntries?: string[] },
+) {
+  const { initialEntries = ['/'], ...renderOptions } = options ?? {}
+
+  function Wrapper({ children }: { children: React.ReactNode }) {
+    return <AppAndAuthTestWrapper initialEntries={initialEntries}>{children}</AppAndAuthTestWrapper>
+  }
+
+  return { ...render(ui, { wrapper: Wrapper, ...renderOptions }) }
+}
+
+export function renderWithAuth(
+  ui: React.ReactElement,
+  options?: Omit<RenderOptions, 'wrapper'> & { initialEntries?: string[] },
+) {
+  const { initialEntries = ['/'], ...renderOptions } = options ?? {}
+
+  function Wrapper({ children }: { children: React.ReactNode }) {
+    return <AuthTestWrapper>{children}</AuthTestWrapper>
+  }
+
+  return { ...render(ui, { wrapper: Wrapper, ...renderOptions }) }
+}
+
+export * from '@testing-library/react'

@@ -217,11 +217,12 @@ async def delete_role(id: int, db: Session = Depends(get_db), admin: User = Depe
 **Lösung:**
 - Backend: Set-Cookie-Header bei Login/Refresh:
   ```python
+  secure = settings.environment == "production"
   response.set_cookie(
       key="access_token",
       value=access_token,
       httponly=True,
-      secure=False,     # true in Production (HTTPS)
+      secure=secure,
       samesite="lax",
       max_age=900       # 15 Minuten
   )

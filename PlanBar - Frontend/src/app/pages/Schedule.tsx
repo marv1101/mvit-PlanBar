@@ -1,40 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
+import { useAuth } from '../context/AuthContext';
+import { useTeams } from '../context/TeamContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Calendar, Sparkles, Download, Eye, Trash2, CalendarDays, Loader2, Send, RotateCcw, Pen, X } from 'lucide-react';
-import { Schedule as ScheduleType, WeekType, ShiftTemplateEntry } from '../types';
-import { ScheduleCalendar } from '../components/ScheduleCalendar';
-import { EditableScheduleCalendar } from '../components/EditableScheduleCalendar';
-import { Badge } from '../components/ui/badge';
+import { Sparkles, CalendarDays, Building2 } from 'lucide-react';
+import { Schedule as ScheduleType } from '../types';
+import { WishReviewDialog } from '../components/WishReviewDialog';
+import { ScheduleCreateForm } from '../components/schedule/ScheduleCreateForm';
+import { ScheduleManageList } from '../components/schedule/ScheduleManageList';
 import { toast } from 'sonner';
 import * as scheduleService from '../services/scheduleService';
-import * as requestService from '../services/requestService';
-import { scheduleFromResponse, shiftplanToShift } from '../lib/mappers';
-import { TIMEZONE } from '../lib/timezone';
-import { FairnessMeter } from '../components/FairnessMeter';
-import { WishReviewDialog } from '../components/WishReviewDialog';
-
-const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  draft: { label: 'Entwurf', variant: 'secondary' },
-  review: { label: 'In Prüfung', variant: 'default' },
-  submitted: { label: 'Wird berechnet...', variant: 'default' },
-  completed: { label: 'Abgeschlossen', variant: 'outline' },
-  failed: { label: 'Fehlgeschlagen', variant: 'destructive' },
-};
-
-function StatusBadge({ status }: { status: string }) {
-  const config = STATUS_LABELS[status] || { label: status, variant: 'secondary' as const };
-  return <Badge variant={config.variant}>{config.label}</Badge>;
-}
+import { scheduleFromResponse } from '../lib/mappers';
 
 export function Schedule() {
   const {
     employees,
-    requests,
     schedules,
     addSchedule,
     updateSchedule,
@@ -46,34 +26,27 @@ export function Schedule() {
     refresh,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
-  const [selectedSchedule, setSelectedSchedule] = useState<ScheduleType | null>(null);
+  const { user } = useAuth();
+  const { teams, selectedTeamId } = useTeams();
+  const activeTeam = teams.find(t => t.id === selectedTeamId);
 
-  const [scheduleName, setScheduleName] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplateEntry[]>([]);
+  const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
+  const [wishReviewScheduleId, setWishReviewScheduleId] = useState<number | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [currentScheduleId, setCurrentScheduleId] = useState<string | null>(null);
   const [currentScheduleStatus, setCurrentScheduleStatus] = useState<string | null>(null);
   const [pollResult, setPollResult] = useState<ScheduleType | null>(null);
 
-  const [creationMode, setCreationMode] = useState<'tito' | 'manual'>('tito');
-  const [titoWeekType, setTitoWeekType] = useState<WeekType | ''>('A');
-  const [manualName, setManualName] = useState('');
-  const [manualStartDate, setManualStartDate] = useState('');
-  const [manualEndDate, setManualEndDate] = useState('');
-  const [manualWeekType, setManualWeekType] = useState<WeekType | ''>('A');
-  const [manuallyCreatedSchedule, setManuallyCreatedSchedule] = useState<ScheduleType | null>(null);
-
-  const [wishReviewScheduleId, setWishReviewScheduleId] = useState<number | null>(null);
-
+  // Polling effect for TiTO submission status
   useEffect(() => {
     if (!currentScheduleId || currentScheduleStatus !== 'submitted') return;
 
+    let mounted = true;
     const interval = setInterval(async () => {
       try {
         const res = await scheduleService.getSchedule(Number(currentScheduleId));
+        if (!mounted) return;
         setCurrentScheduleStatus(res.status);
         if (res.status === 'completed') {
           clearInterval(interval);
@@ -92,198 +65,27 @@ export function Schedule() {
         }
       } catch {
         clearInterval(interval);
+        if (!mounted) return;
         setSubmitting(false);
         toast.error('Fehler beim Abrufen des Status');
       }
     }, 3000);
 
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [currentScheduleId, currentScheduleStatus, refresh]);
-
-  const addShiftTemplate = () => {
-    const id = `shift_${Date.now()}`;
-    setShiftTemplates(prev => [...prev, {
-      id,
-      name: '',
-      startTime: '06:00',
-      endTime: '14:00',
-      requirements: {},
-    }]);
-  };
-
-  const removeShiftTemplate = (index: number) => {
-    setShiftTemplates(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const updateShiftTemplate = (index: number, field: string, value: string | Record<string, number>) => {
-    setShiftTemplates(prev => prev.map((st, i) =>
-      i === index ? { ...st, [field]: value } : st
-    ));
-  };
-
-  const updateRequirement = (templateIndex: number, roleId: string, count: number) => {
-    setShiftTemplates(prev => prev.map((st, i) =>
-      i === templateIndex
-        ? { ...st, requirements: { ...st.requirements, [roleId]: count } }
-        : st
-    ));
-  };
-
-  const createAndSubmit = async () => {
-    if (!scheduleName || !startDate || !endDate) {
-      toast.error('Bitte Name, Start- und Enddatum eingeben');
-      return;
-    }
-
-    if (shiftTemplates.length === 0 || shiftTemplates.some(st => !st.name || !st.startTime || !st.endTime)) {
-      toast.error('Bitte mindestens ein vollständiges Schicht-Template definieren');
-      return;
-    }
-
-    setSubmitting(true);
-    setPollResult(null);
-    setCurrentScheduleId(null);
-    setCurrentScheduleStatus(null);
-
-    try {
-      const created = await scheduleService.createSchedule({
-        name: scheduleName,
-        start_date: startDate,
-        end_date: endDate,
-        week_type: titoWeekType || undefined,
-        shift_templates: shiftTemplates.map(st => ({
-          ...st,
-          requirements: Object.fromEntries(
-            Object.entries(st.requirements).filter(([_, count]) => count > 0)
-          ),
-        })),
-        shiftplans: [],
-      });
-
-      const mapped = scheduleFromResponse(created);
-      addSchedule(mapped);
-
-      // Check for pending wishes
-      try {
-        const pending = await requestService.getPendingShiftWishes(created.id);
-        if (pending.length > 0) {
-          setWishReviewScheduleId(created.id);
-          return;
-        }
-      } catch {
-        // If the endpoint fails, just proceed
-      }
-
-      // No pending wishes, submit directly
-      setCurrentScheduleId(mapped.id);
-      setCurrentScheduleStatus('submitted');
-
-      const submitted = await scheduleService.submitScheduleToTito(created.id);
-      setCurrentScheduleStatus(submitted.status);
-
-      toast.success('Schichtplan an TiTO übermittelt');
-    } catch {
-      setSubmitting(false);
-      setCurrentScheduleId(null);
-      setCurrentScheduleStatus(null);
-      toast.error('Fehler beim Erstellen oder Übermitteln des Schichtplans');
-    }
-  };
-
-  const createManual = async () => {
-    if (!manualName || !manualStartDate || !manualEndDate) {
-      toast.error('Bitte Name, Start- und Enddatum eingeben');
-      return;
-    }
-
-    try {
-      const created = await scheduleService.createSchedule({
-        name: manualName,
-        start_date: manualStartDate,
-        end_date: manualEndDate,
-        week_type: manualWeekType || undefined,
-        shiftplans: [],
-      });
-
-      const mapped = scheduleFromResponse(created);
-      addSchedule(mapped);
-      setManuallyCreatedSchedule(mapped);
-      toast.success('Schichtplan erstellt');
-    } catch {
-      toast.error('Fehler beim Erstellen des Schichtplans');
-    }
-  };
-
-  const handleManualSave = async (shifts: ScheduleType['shifts']): Promise<void> => {
-    if (!manuallyCreatedSchedule) return;
-
-    const shiftplans = shifts.map(s => ({
-      employee_id: Number(s.employeeId),
-      date: s.date,
-      shift_id: s.id,
-      start_time: s.startTime,
-      end_time: s.endTime,
-      week: s.week,
-      break_start: s.breakStart,
-      break_end: s.breakEnd,
-    }));
-
-    await scheduleService.replaceAllShifts(Number(manuallyCreatedSchedule.id), shiftplans);
-    await refresh();
-    setManuallyCreatedSchedule(null);
-    setManualName('');
-    setManualStartDate('');
-    setManualEndDate('');
-    setManualWeekType('A');
-    setCreationMode('tito');
-    toast.success('Schichtplan gespeichert');
-  };
-
-  const handleViewSchedule = async (schedule: ScheduleType) => {
-    try {
-      const res = await scheduleService.getSchedule(Number(schedule.id));
-      setSelectedSchedule(scheduleFromResponse(res));
-    } catch {
-      setSelectedSchedule(schedule);
-    }
-  };
-
-  const handleSubmitExisting = async (schedule: ScheduleType) => {
-    // Check for pending wishes first
-    try {
-      const pending = await requestService.getPendingShiftWishes(Number(schedule.id));
-      if (pending.length > 0) {
-        setWishReviewScheduleId(Number(schedule.id));
-        return;
-      }
-    } catch {
-      // If the endpoint fails, just proceed
-    }
-
-    doSubmitExisting(schedule);
-  };
-
-  const doSubmitExisting = async (schedule: ScheduleType) => {
-    try {
-      await scheduleService.submitScheduleToTito(Number(schedule.id));
-      toast.success('Schichtplan an TiTO übermittelt');
-      refresh();
-      setCurrentScheduleId(schedule.id);
-      setCurrentScheduleStatus('submitted');
-    } catch {
-      toast.error('Fehler beim Übermitteln an TiTO');
-    }
-  };
 
   const handleWishReviewComplete = () => {
     const scheduleId = wishReviewScheduleId;
     setWishReviewScheduleId(null);
     if (scheduleId) {
+      setSubmitting(true);
       refresh();
-      setCurrentScheduleId(String(scheduleId));
-      setCurrentScheduleStatus('submitted');
       scheduleService.submitScheduleToTito(scheduleId)
         .then(res => {
+          setCurrentScheduleId(String(scheduleId));
           setCurrentScheduleStatus(res.status);
           toast.success('Schichtplan an TiTO übermittelt');
         })
@@ -302,97 +104,17 @@ export function Schedule() {
     toast.info('Submit abgebrochen – bitte alle ausstehenden Wünsche prüfen');
   };
 
-  const handleRetry = async (schedule: ScheduleType) => {
-    try {
-      await scheduleService.retrySchedule(Number(schedule.id));
-      toast.success('Schichtplan wird erneut an TiTO gesendet');
-      refresh();
-      setCurrentScheduleId(schedule.id);
-      setCurrentScheduleStatus('submitted');
-    } catch {
-      toast.error('Fehler beim erneuten Senden');
-    }
-  };
-
-  const handleDeleteSchedule = (schedule: ScheduleType) => {
-    if (confirm(`Möchten Sie den Schichtplan "${schedule.name}" wirklich löschen?`)) {
-      deleteSchedule(schedule.id);
-      if (selectedSchedule?.id === schedule.id) {
-        setSelectedSchedule(null);
-      }
-    }
-  };
-
-  const handleManageSave = async (shifts: ScheduleType['shifts']): Promise<void> => {
-    if (!selectedSchedule) return;
-
-    const shiftplans = shifts.map(s => ({
-      employee_id: Number(s.employeeId),
-      date: s.date,
-      shift_id: s.id,
-      start_time: s.startTime,
-      end_time: s.endTime,
-      week: s.week,
-      break_start: s.breakStart,
-      break_end: s.breakEnd,
-    }));
-
-    await scheduleService.replaceAllShifts(Number(selectedSchedule.id), shiftplans);
-    await refresh();
-    setSelectedSchedule(prev => prev ? { ...prev, shifts } : null);
-    toast.success('Schichtplan gespeichert');
-  };
-
-  const handleUpdateSchedule = (updatedSchedule: ScheduleType) => {
-    updateSchedule(updatedSchedule.id, updatedSchedule);
-    setSelectedSchedule(updatedSchedule);
-  };
-
-  const handleChangeStatus = (schedule: ScheduleType, newStatus: string) => {
-    const updated = { ...schedule, status: newStatus };
-    updateSchedule(schedule.id, updated);
-    setSelectedSchedule(updated);
-    if (manuallyCreatedSchedule?.id === schedule.id) {
-      setManuallyCreatedSchedule(updated);
-    }
-  };
-
-  const exportShifts = (shifts: ScheduleType['shifts'], name: string) => {
-    if (shifts.length === 0) {
-      toast.error('Keine Schichten zum Exportieren');
-      return;
-    }
-
-    const headers = ['Datum', 'Woche', 'Mitarbeiter', 'Start', 'Ende', 'Pause Start', 'Pause Ende'];
-    const rows = shifts.map(shift => {
-      const employee = employees.find(e => e.id === shift.employeeId);
-      return [
-        new Date(shift.date).toLocaleDateString('de-DE', { timeZone: TIMEZONE }),
-        shift.week,
-        employee?.name || '',
-        shift.startTime,
-        shift.endTime,
-        shift.breakStart || '',
-        shift.breakEnd || '',
-      ];
-    });
-
-    const csvContent = [headers, ...rows].map(row => row.join(';')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `schichtplan-${name}.csv`;
-    link.click();
-    toast.success('Schichtplan exportiert');
-  };
-
-  const displayShifts = pollResult?.shifts || [];
-
   return (
     <div className="space-y-6">
       <div>
         <h2 className="font-semibold text-2xl mb-2">Schichtplanung</h2>
         <p className="text-gray-600">Erstellen und verwalten Sie Ihre Schichtpläne</p>
+        {activeTeam && (
+          <div className="flex items-center gap-2 mt-2">
+            <Building2 className="h-4 w-4 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">Team: {activeTeam.name}</span>
+          </div>
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'create' | 'manage')}>
@@ -408,717 +130,43 @@ export function Schedule() {
         </TabsList>
 
         <TabsContent value="create" className="space-y-6">
-          {!currentScheduleId && !manuallyCreatedSchedule && (
-            <>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex gap-2">
-                    <Button
-                      variant={creationMode === 'tito' ? 'default' : 'outline'}
-                      onClick={() => setCreationMode('tito')}
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      Über TiTO
-                    </Button>
-                    <Button
-                      variant={creationMode === 'manual' ? 'default' : 'outline'}
-                      onClick={() => setCreationMode('manual')}
-                    >
-                      <Pen className="h-4 w-4 mr-2" />
-                      Manuell
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {creationMode === 'tito' && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Schichtplan-Einstellungen</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="scheduleName">Plan-Name</Label>
-                      <Input
-                        id="scheduleName"
-                        value={scheduleName}
-                        onChange={(e) => setScheduleName(e.target.value)}
-                        placeholder="z.B. April 2026"
-                        disabled={submitting}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="startDate">Startdatum</Label>
-                        <Input
-                          id="startDate"
-                          type="date"
-                          value={startDate}
-                          onChange={(e) => setStartDate(e.target.value)}
-                          disabled={submitting}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="endDate">Enddatum</Label>
-                        <Input
-                          id="endDate"
-                          type="date"
-                          value={endDate}
-                          onChange={(e) => setEndDate(e.target.value)}
-                          disabled={submitting}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label>Schicht-Templates</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={addShiftTemplate}
-                          disabled={submitting}
-                        >
-                          <Calendar className="h-4 w-4 mr-1" />
-                          Schicht hinzufügen
-                        </Button>
-                      </div>
-
-                      {shiftTemplates.length === 0 && (
-                        <p className="text-sm text-gray-500">
-                          Keine Schichten definiert. Klicken Sie auf "Schicht hinzufügen", um eine zu erstellen.
-                        </p>
-                      )}
-
-                      <div className="space-y-3">
-                        {shiftTemplates.map((st, index) => (
-                          <div key={st.id} className="border rounded-lg p-4 space-y-3">
-                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                              <div>
-                                <Label className="text-xs">Name</Label>
-                                <Input
-                                  value={st.name}
-                                  onChange={(e) => updateShiftTemplate(index, 'name', e.target.value)}
-                                  placeholder="z.B. Frühschicht"
-                                  disabled={submitting}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs">Startzeit</Label>
-                                <Input
-                                  type="time"
-                                  value={st.startTime}
-                                  onChange={(e) => updateShiftTemplate(index, 'startTime', e.target.value)}
-                                  disabled={submitting}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs">Endzeit</Label>
-                                <Input
-                                  type="time"
-                                  value={st.endTime}
-                                  onChange={(e) => updateShiftTemplate(index, 'endTime', e.target.value)}
-                                  disabled={submitting}
-                                />
-                              </div>
-                              <div className="flex items-end">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeShiftTemplate(index)}
-                                  disabled={submitting}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div>
-                              <Label className="text-xs">Rollen-Anforderungen pro Tag</Label>
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
-                                {roles.map(role => (
-                                  <div key={role.id} className="flex items-center gap-2">
-                                    <div
-                                      className="w-2 h-2 rounded-full shrink-0"
-                                      style={{ backgroundColor: role.color }}
-                                    />
-                                    <span className="text-xs truncate">{role.name}</span>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      value={st.requirements[role.id] || 0}
-                                      onChange={(e) => updateRequirement(index, role.id, parseInt(e.target.value) || 0)}
-                                      className="w-16 h-8 text-xs"
-                                      disabled={submitting}
-                                    />
-                                  </div>
-                                ))}
-                                {roles.length === 0 && (
-                                  <p className="text-xs text-gray-500 col-span-full">
-                                    Keine Rollen vorhanden. Erstellen Sie zuerst Rollen.
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="titoWeekType">Wochen-Typ</Label>
-                      <select
-                        id="titoWeekType"
-                        className="w-full border rounded-md px-3 py-2"
-                        value={titoWeekType}
-                        onChange={(e) => setTitoWeekType(e.target.value as WeekType | '')}
-                        disabled={submitting}
-                      >
-                        <option value="A">Nur Woche A</option>
-                        <option value="B">Nur Woche B</option>
-                        <option value="">Beide (A & B)</option>
-                      </select>
-                    </div>
-
-                    <Button onClick={createAndSubmit} disabled={submitting || loading} className="w-full">
-                      {submitting ? (
-                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Wird erstellt...</>
-                      ) : (
-                        <><Send className="h-4 w-4 mr-2" />Schichtplan erstellen & an TiTO senden</>
-                      )}
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-
-              {creationMode === 'manual' && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Manuelle Schichtplan-Erstellung</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="manualName">Plan-Name</Label>
-                      <Input
-                        id="manualName"
-                        value={manualName}
-                        onChange={(e) => setManualName(e.target.value)}
-                        placeholder="z.B. April 2026 (manuell)"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="manualStartDate">Startdatum</Label>
-                        <Input
-                          id="manualStartDate"
-                          type="date"
-                          value={manualStartDate}
-                          onChange={(e) => setManualStartDate(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="manualEndDate">Enddatum</Label>
-                        <Input
-                          id="manualEndDate"
-                          type="date"
-                          value={manualEndDate}
-                          onChange={(e) => setManualEndDate(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="manualWeekType">Wochen-Typ</Label>
-                      <select
-                        id="manualWeekType"
-                        className="w-full border rounded-md px-3 py-2"
-                        value={manualWeekType}
-                        onChange={(e) => setManualWeekType(e.target.value as WeekType | '')}
-                      >
-                        <option value="A">Nur Woche A</option>
-                        <option value="B">Nur Woche B</option>
-                        <option value="">Beide (A & B)</option>
-                      </select>
-                    </div>
-
-                    <Button onClick={createManual} className="w-full">
-                      <Pen className="h-4 w-4 mr-2" />
-                      Schichtplan manuell erstellen
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-            </>
-          )}
-
-          {currentScheduleId && submitting && currentScheduleStatus === 'submitted' && (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Loader2 className="h-12 w-12 mx-auto text-blue-600 mb-4 animate-spin" />
-                <p className="text-gray-600 mb-2">Schichtplan wird an TiTO übermittelt</p>
-                <p className="text-sm text-gray-500">Die Berechnung kann einige Sekunden dauern...</p>
-                <Badge variant="default" className="mt-4">Wird berechnet...</Badge>
-              </CardContent>
-            </Card>
-          )}
-
-          {currentScheduleId && currentScheduleStatus === 'completed' && pollResult && (
-            <>
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <CardTitle>{pollResult.name}</CardTitle>
-                      <StatusBadge status="completed" />
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => exportShifts(pollResult.shifts, pollResult.name)}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Exportieren
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setCurrentScheduleId(null);
-                          setCurrentScheduleStatus(null);
-                          setPollResult(null);
-                          setScheduleName('');
-                          setStartDate('');
-                          setEndDate('');
-                          setShiftTemplates([]);
-                          setTitoWeekType('A');
-                        }}
-                      >
-                        Neu erstellen
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <div className="flex justify-between items-center">
-                    <CardTitle>Ergebnis</CardTitle>
-                    <Tabs value={currentWeek} onValueChange={(v) => setCurrentWeek(v as WeekType)}>
-                      <TabsList>
-                        <TabsTrigger value="A">Woche A</TabsTrigger>
-                        <TabsTrigger value="B">Woche B</TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <ScheduleCalendar
-                    shifts={pollResult.shifts}
-                    startDate={pollResult.startDate}
-                    endDate={pollResult.endDate}
-                    currentWeek={currentWeek}
-                  />
-                </CardContent>
-              </Card>
-
-              {pollResult.metrics?.employeeFairness && (
-                <FairnessMeter
-                  employees={employees}
-                  roles={roles}
-                  employeeFairness={pollResult.metrics.employeeFairness}
-                />
-              )}
-            </>
-          )}
-
-          {currentScheduleId && currentScheduleStatus === 'failed' && pollResult && (
-            <Card>
-              <CardHeader>
-                <div className="flex flex-wrap items-start gap-2">
-                  <CardTitle>{pollResult.name}</CardTitle>
-                  <StatusBadge status="failed" />
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
-                  <div className="flex items-center gap-2 text-red-800 font-medium">
-                    <span className="text-lg">⚠️</span>
-                    <span>Berechnung fehlgeschlagen</span>
-                  </div>
-                  {pollResult.diagnostics && (
-                    <p className="text-red-700 text-sm">{pollResult.diagnostics.info}</p>
-                  )}
-                  {pollResult.diagnostics?.aggregatedMessages && pollResult.diagnostics.aggregatedMessages.length > 0 && (
-                    <div className="space-y-1">
-                      {pollResult.diagnostics.aggregatedMessages.map((m, i) => (
-                        <p key={i} className="text-red-700 text-sm font-medium">
-                          🔴 {m.message}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                  {pollResult.metrics?.violations && pollResult.metrics.violations.length > 0 && (
-                    <details className="mt-2">
-                      <summary className="text-red-600 text-sm cursor-pointer hover:underline">
-                        Details ({pollResult.metrics.violations.length} Verletzungen)
-                      </summary>
-                      <ul className="mt-2 space-y-1">
-                        {pollResult.metrics.violations.map((v, i) => (
-                          <li key={i} className="text-red-600 text-xs flex items-start gap-1">
-                            <span className="mt-0.5 shrink-0">
-                              {v.severity === 'HARD' ? '🔴' : '🟡'}
-                            </span>
-                            <span>{v.message}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => handleRetry(pollResult)}>
-                    <RotateCcw className="h-4 w-4 mr-1" />
-                    Erneut an TiTO senden
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setCurrentScheduleId(null);
-                      setCurrentScheduleStatus(null);
-                      setPollResult(null);
-                      setScheduleName('');
-                      setStartDate('');
-                      setEndDate('');
-                      setShiftTemplates([]);
-                    }}
-                  >
-                    Neu erstellen
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {manuallyCreatedSchedule && !currentScheduleId && (
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <CardTitle>{manuallyCreatedSchedule.name}</CardTitle>
-                    <StatusBadge status={manuallyCreatedSchedule.status} />
-                    {manuallyCreatedSchedule.status === 'draft' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleChangeStatus(manuallyCreatedSchedule, 'review')}
-                      >
-                        In Prüfung geben
-                      </Button>
-                    )}
-                    {manuallyCreatedSchedule.status === 'review' && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleChangeStatus(manuallyCreatedSchedule, 'draft')}
-                        >
-                          Bearbeiten
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleChangeStatus(manuallyCreatedSchedule, 'completed')}
-                        >
-                          Abschließen
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setManuallyCreatedSchedule(null);
-                      setManualName('');
-                      setManualStartDate('');
-                      setManualEndDate('');
-                      setManualWeekType('A');
-                    }}
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Verwerfen
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {manuallyCreatedSchedule.status === 'draft' ? (
-                  <EditableScheduleCalendar
-                    schedule={manuallyCreatedSchedule}
-                    currentWeek={currentWeek}
-                    onUpdateSchedule={(updated) => setManuallyCreatedSchedule(updated)}
-                    onSaveShifts={handleManualSave}
-                  />
-                ) : (
-                  <ScheduleCalendar
-                    shifts={manuallyCreatedSchedule.shifts}
-                    startDate={manuallyCreatedSchedule.startDate}
-                    endDate={manuallyCreatedSchedule.endDate}
-                    currentWeek={currentWeek}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {!currentScheduleId && !submitting && !manuallyCreatedSchedule && creationMode === 'tito' && (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-600 mb-2">Noch kein Schichtplan erstellt</p>
-                <p className="text-sm text-gray-500">
-                  Geben Sie die Einstellungen ein und klicken Sie auf "Schichtplan erstellen & an TiTO senden"
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          <ScheduleCreateForm
+            roles={roles}
+            employees={employees}
+            loading={loading}
+            addSchedule={addSchedule}
+            refresh={refresh}
+            currentWeek={currentWeek}
+            setCurrentWeek={setCurrentWeek}
+            submitting={submitting}
+            pollResult={pollResult}
+            currentScheduleId={currentScheduleId}
+            currentScheduleStatus={currentScheduleStatus}
+            setSubmitting={setSubmitting}
+            setCurrentScheduleId={setCurrentScheduleId}
+            setCurrentScheduleStatus={setCurrentScheduleStatus}
+            setPollResult={setPollResult}
+            onWishReview={(id) => setWishReviewScheduleId(id)}
+          />
         </TabsContent>
 
         <TabsContent value="manage" className="space-y-6">
-          {loading ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Loader2 className="h-8 w-8 mx-auto text-blue-600 mb-4 animate-spin" />
-                <p className="text-gray-600">Lade Schichtpläne...</p>
-              </CardContent>
-            </Card>
-          ) : schedules.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <CalendarDays className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-600 mb-2">Keine gespeicherten Schichtpläne</p>
-                <p className="text-sm text-gray-500 mb-4">
-                  Erstellen Sie Ihren ersten Schichtplan im Tab "Neu erstellen"
-                </p>
-                <Button onClick={() => setActiveTab('create')}>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Schichtplan erstellen
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {schedules.map((schedule) => (
-                  <Card
-                    key={schedule.id}
-                    className={`transition-all ${
-                      selectedSchedule?.id === schedule.id
-                        ? 'ring-2 ring-blue-500 shadow-lg'
-                        : 'hover:shadow-md'
-                    }`}
-                  >
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Calendar className="h-5 w-5 text-blue-600" />
-                        {schedule.name}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 text-sm text-gray-600 mb-4">
-                        <p>
-                          {schedule.startDate ? new Date(schedule.startDate).toLocaleDateString('de-DE', { timeZone: TIMEZONE }) : '-'}
-                          {' - '}
-                          {schedule.endDate ? new Date(schedule.endDate).toLocaleDateString('de-DE', { timeZone: TIMEZONE }) : '-'}
-                        </p>
-                        <p>{schedule.shifts.length} Schichten</p>
-                        <StatusBadge status={schedule.status || 'draft'} />
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant={selectedSchedule?.id === schedule.id ? "default" : "outline"}
-                          onClick={() => handleViewSchedule(schedule)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          {selectedSchedule?.id === schedule.id ? 'Ausgewählt' : 'Ansehen'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleSubmitExisting(schedule)}
-                          disabled={submitting}
-                        >
-                          <Send className="h-4 w-4 mr-1" />
-                          TiTO
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => exportShifts(schedule.shifts, schedule.name)}
-                          aria-label="Schichtplan exportieren"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleDeleteSchedule(schedule)}
-                          aria-label="Schichtplan löschen"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              {selectedSchedule && (
-                <Card>
-                  <CardHeader>
-                    <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <CardTitle>{selectedSchedule.name}</CardTitle>
-                        <StatusBadge status={selectedSchedule.status} />
-                        {selectedSchedule.status === 'draft' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleChangeStatus(selectedSchedule, 'review')}
-                          >
-                            In Prüfung geben
-                          </Button>
-                        )}
-                        {selectedSchedule.status === 'review' && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleChangeStatus(selectedSchedule, 'draft')}
-                            >
-                              Bearbeiten
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleChangeStatus(selectedSchedule, 'completed')}
-                            >
-                              Abschließen
-                            </Button>
-                          </>
-                        )}
-                        {selectedSchedule.status === 'completed' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleChangeStatus(selectedSchedule, 'draft')}
-                          >
-                            Bearbeiten
-                          </Button>
-                        )}
-                        {selectedSchedule.status === 'failed' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleChangeStatus(selectedSchedule, 'draft')}
-                          >
-                            Wieder öffnen
-                          </Button>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {selectedSchedule.status === 'failed' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleRetry(selectedSchedule)}
-                          >
-                            <RotateCcw className="h-4 w-4 mr-1" />
-                            Erneut senden
-                          </Button>
-                        )}
-                        <Tabs value={currentWeek} onValueChange={(v) => setCurrentWeek(v as WeekType)}>
-                          <TabsList>
-                            <TabsTrigger value="A">Woche A</TabsTrigger>
-                            <TabsTrigger value="B">Woche B</TabsTrigger>
-                          </TabsList>
-                        </Tabs>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {selectedSchedule.status === 'failed' && selectedSchedule.diagnostics && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
-                        <div className="flex items-center gap-2 text-red-800 font-medium">
-                          <span className="text-lg">⚠️</span>
-                          <span>Berechnung fehlgeschlagen</span>
-                        </div>
-                        <p className="text-red-700 text-sm">{selectedSchedule.diagnostics.info}</p>
-                        {selectedSchedule.diagnostics.aggregatedMessages && selectedSchedule.diagnostics.aggregatedMessages.length > 0 && (
-                          <div className="space-y-1">
-                            {selectedSchedule.diagnostics.aggregatedMessages.map((m, i) => (
-                              <p key={i} className="text-red-700 text-sm font-medium">
-                                🔴 {m.message}
-                              </p>
-                            ))}
-                          </div>
-                        )}
-                        {selectedSchedule.metrics?.violations && selectedSchedule.metrics.violations.length > 0 && (
-                          <details className="mt-2">
-                            <summary className="text-red-600 text-sm cursor-pointer hover:underline">
-                              Details ({selectedSchedule.metrics.violations.length} Verletzungen)
-                            </summary>
-                            <ul className="mt-2 space-y-1">
-                              {selectedSchedule.metrics.violations.map((v, i) => (
-                                <li key={i} className="text-red-600 text-xs flex items-start gap-1">
-                                  <span className="mt-0.5 shrink-0">
-                                    {v.severity === 'HARD' ? '🔴' : '🟡'}
-                                  </span>
-                                  <span>{v.message}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </details>
-                        )}
-                      </div>
-                    )}
-                    {selectedSchedule.status === 'draft' ? (
-                      <EditableScheduleCalendar
-                        schedule={selectedSchedule}
-                        currentWeek={currentWeek}
-                        onUpdateSchedule={handleUpdateSchedule}
-                        onSaveShifts={handleManageSave}
-                      />
-                    ) : (
-                      <>
-                        <ScheduleCalendar
-                          shifts={selectedSchedule.shifts}
-                          startDate={selectedSchedule.startDate}
-                          endDate={selectedSchedule.endDate}
-                          currentWeek={currentWeek}
-                        />
-                        {selectedSchedule.metrics?.employeeFairness && (
-                          <div className="mt-4">
-                            <FairnessMeter
-                              employees={employees}
-                              roles={roles}
-                              employeeFairness={selectedSchedule.metrics.employeeFairness}
-                            />
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </>
-          )}
+          <ScheduleManageList
+            schedules={schedules}
+            loading={loading}
+            employees={employees}
+            roles={roles}
+            currentWeek={currentWeek}
+            setCurrentWeek={setCurrentWeek}
+            refresh={refresh}
+            submitting={submitting}
+            deleteSchedule={deleteSchedule}
+            updateSchedule={updateSchedule}
+            onWishReview={(id) => setWishReviewScheduleId(id)}
+            setCurrentScheduleId={setCurrentScheduleId}
+            setCurrentScheduleStatus={setCurrentScheduleStatus}
+            onCreateTab={() => setActiveTab('create')}
+          />
         </TabsContent>
       </Tabs>
 

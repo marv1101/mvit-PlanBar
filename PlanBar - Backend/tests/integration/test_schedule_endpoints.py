@@ -14,7 +14,9 @@ def test_create_schedule(client, auth_headers):
 def test_list_schedules(client, auth_headers):
     response = client.get("/api/v1/schedules", headers=auth_headers)
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert "items" in data
+    assert isinstance(data["items"], list)
 
 
 def test_get_schedule(client, auth_headers):
@@ -84,7 +86,9 @@ def test_get_schedule_shifts(client, auth_headers):
 
     response = client.get(f"/api/v1/schedules/{schedule_id}/shifts", headers=auth_headers)
     assert response.status_code == 200
-    assert response.json() == []
+    data = response.json()
+    assert data["items"] == []
+    assert data["total"] == 0
 
 
 def test_get_schedule_not_found(client, auth_headers):
@@ -125,16 +129,28 @@ def test_get_shifts_not_found(client, auth_headers):
 def test_update_shiftplan(client, auth_headers):
     create_resp = client.post(
         "/api/v1/schedules",
-        json={"name": "Shiftplan Test", "start_date": "2026-06-01", "end_date": "2026-06-07"},
+        json={
+            "name": "Shiftplan Test",
+            "start_date": "2026-06-01",
+            "end_date": "2026-06-07",
+        },
         headers=auth_headers,
     )
     schedule_id = create_resp.json()["id"]
 
     response = client.put(
         f"/api/v1/schedules/{schedule_id}/shifts",
-        json={"shiftplans": [
-            {"employee_id": 1, "date": "2026-06-01", "shift_id": "früh", "start_time": "06:00", "end_time": "14:00"},
-        ]},
+        json={
+            "shiftplans": [
+                {
+                    "employee_id": 1,
+                    "date": "2026-06-01",
+                    "shift_id": "früh",
+                    "start_time": "06:00",
+                    "end_time": "14:00",
+                },
+            ]
+        },
         headers=auth_headers,
     )
     assert response.status_code == 200

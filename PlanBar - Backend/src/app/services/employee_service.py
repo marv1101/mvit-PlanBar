@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.role import Role
 from app.db.models.shift_wish import ShiftWish
+from app.db.models.team import Team
+from app.db.models.user import User
 from app.schemas.employee import (
     ContractCreate,
     ContractUpdate,
@@ -12,6 +14,22 @@ from app.schemas.employee import (
     TimecardUpdate,
 )
 from app.services import audit_service
+
+
+def _set_employee_teams(db: Session, employee: Employee, team_ids: list[int]) -> None:
+    """Replace the employee's team memberships with the given set of team ids."""
+    current_ids = {t.id for t in employee.teams}
+    target_ids = set(team_ids)
+
+    to_add = target_ids - current_ids
+    to_remove = current_ids - target_ids
+
+    if to_add:
+        teams_to_add = db.query(Team).filter(Team.id.in_(to_add)).all()
+        employee.teams.extend(teams_to_add)
+
+    if to_remove:
+        employee.teams = [t for t in employee.teams if t.id not in to_remove]
 
 
 def create_employee(db: Session, data: EmployeeCreate, actor_id: int | None = None) -> Employee:
@@ -30,6 +48,14 @@ def create_employee(db: Session, data: EmployeeCreate, actor_id: int | None = No
         roles = db.query(Role).filter(Role.id.in_(data.role_ids)).all()
         employee.roles = roles
     db.add(employee)
+    db.flush()
+    if data.user_id:
+        user = db.query(User).filter(User.id == data.user_id).first()
+        if user and user.employee_id != employee.id:
+            user.employee_id = employee.id
+            db.add(user)
+    if data.team_ids:
+        _set_employee_teams(db, employee, data.team_ids)
     db.commit()
     db.refresh(employee)
     audit_service.log_create(db, user_id=actor_id, resource_type="employee", resource_id=str(employee.id))
@@ -40,8 +66,11 @@ def get_employee_by_id(db: Session, employee_id: int) -> Employee | None:
     return db.query(Employee).filter(Employee.id == employee_id).first()
 
 
-def list_employees(db: Session) -> list[Employee]:
-    return db.query(Employee).order_by(Employee.last_name, Employee.first_name).all()
+def list_employees(db: Session, offset: int = 0, limit: int | None = None) -> list[Employee]:
+    query = db.query(Employee).order_by(Employee.last_name, Employee.first_name)
+    if limit is not None:
+        query = query.offset(offset).limit(limit)
+    return query.all()
 
 
 def update_employee(db: Session, employee: Employee, data: EmployeeUpdate, actor_id: int | None = None) -> Employee:
@@ -62,10 +91,22 @@ def update_employee(db: Session, employee: Employee, data: EmployeeUpdate, actor
     if data.max_work_hours is not None:
         employee.max_work_hours = data.max_work_hours
     if data.user_id is not None:
+        if employee.user_id is not None and employee.user_id != data.user_id:
+            old_user = db.query(User).filter(User.id == employee.user_id).first()
+            if old_user and old_user.employee_id == employee.id:
+                old_user.employee_id = None
+                db.add(old_user)
         employee.user_id = data.user_id
+        if data.user_id:
+            new_user = db.query(User).filter(User.id == data.user_id).first()
+            if new_user and new_user.employee_id != employee.id:
+                new_user.employee_id = employee.id
+                db.add(new_user)
     if data.role_ids is not None:
         roles = db.query(Role).filter(Role.id.in_(data.role_ids)).all()
         employee.roles = roles
+    if data.team_ids is not None:
+        _set_employee_teams(db, employee, data.team_ids)
     db.add(employee)
     db.commit()
     db.refresh(employee)
@@ -100,8 +141,11 @@ def get_contract_by_id(db: Session, contract_id: int) -> Contract | None:
     return db.query(Contract).filter(Contract.id == contract_id).first()
 
 
-def list_contracts(db: Session) -> list[Contract]:
-    return db.query(Contract).order_by(Contract.id).all()
+def list_contracts(db: Session, offset: int = 0, limit: int | None = None) -> list[Contract]:
+    query = db.query(Contract).order_by(Contract.id)
+    if limit is not None:
+        query = query.offset(offset).limit(limit)
+    return query.all()
 
 
 def update_contract(db: Session, contract: Contract, data: ContractUpdate, actor_id: int | None = None) -> Contract:
@@ -139,8 +183,11 @@ def get_timecard_by_id(db: Session, timecard_id: int) -> Timecard | None:
     return db.query(Timecard).filter(Timecard.id == timecard_id).first()
 
 
-def list_timecards(db: Session) -> list[Timecard]:
-    return db.query(Timecard).order_by(Timecard.year.desc(), Timecard.week.desc()).all()
+def list_timecards(db: Session, offset: int = 0, limit: int | None = None) -> list[Timecard]:
+    query = db.query(Timecard).order_by(Timecard.year.desc(), Timecard.week.desc())
+    if limit is not None:
+        query = query.offset(offset).limit(limit)
+    return query.all()
 
 
 def update_timecard(db: Session, timecard: Timecard, data: TimecardUpdate, actor_id: int | None = None) -> Timecard:

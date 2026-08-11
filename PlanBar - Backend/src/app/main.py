@@ -1,3 +1,8 @@
+import logging
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -5,39 +10,51 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.rate_limit import limiter
-
 from app.api.v1.router import api_router
+from app.config import settings
 from app.core.logging import configure_logging
+from app.core.rate_limit import limiter
 from app.db.base import Base
 from app.db.database import SessionLocal, engine
-from app.config import settings
-from app.middleware.error_handler import http_error_handler, validation_exception_handler
+from app.db.models.user import User
+from app.middleware.cache_control import CacheControlMiddleware
+from app.middleware.csrf import CsrfMiddleware
+from app.middleware.error_handler import (
+    http_error_handler,
+    validation_exception_handler,
+)
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
+from app.middleware.security_headers import (
+    HttpsRedirectMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.schemas.user import UserCreate
 from app.services.user_service import create_user
-from alembic.config import Config
-from alembic import command
-
-from app.db.models.user import User
-import logging
-import uuid
 
 logger = logging.getLogger(__name__)
+
+
+def _write_credentials_to_file(email: str, password: str) -> None:
+    """Write initial credentials to a one-time file (production only).
+
+    The file is meant to be read once during initial setup and then deleted.
+    Passwords are never written to logs or stdout in production.
+    """
+    creds_path = Path("initial-credentials.txt")
+    with open(creds_path, "a") as f:
+        f.write(f"{email}: {password}\n")
 
 
 def _verify_production_settings():
     if settings.environment in ("production", "demo", "staging"):
         if settings.secret_key in ("change-me-in-production", "", None):
             raise RuntimeError(
-                "SECRET_KEY must be set to a secure value in production. "
-                "Generate one with: openssl rand -hex 32"
+                "SECRET_KEY must be set to a secure value in production. Generate one with: openssl rand -hex 32"
             )
         if "sqlite" in settings.database_url:
             raise RuntimeError(
-                "SQLite is not supported in production. "
-                "Set DATABASE_URL to a PostgreSQL connection string."
+                "SQLite is not supported in production. Set DATABASE_URL to a PostgreSQL connection string."
             )
 
 
@@ -47,21 +64,33 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="PlanBar Backend",
         description="Backend API für PlanBar mit TiTO-Integration",
-        version="0.1.0"
+        version="0.1.0",
     )
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(HttpsRedirectMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins.split(",") if settings.cors_origins else ["http://localhost:5173"],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "Origin",
+            "X-Requested-With",
+            "X-CSRF-Token",
+        ],
     )
+    app.add_middleware(CsrfMiddleware)
+    app.add_middleware(CacheControlMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware, max_size=10 * 1024 * 1024)
     app.include_router(api_router, prefix="/api/v1")
     run_database_setup()
+    _repair_one_sided_user_employee_links()
     seed_initial_users()
     app.add_exception_handler(StarletteHTTPException, http_error_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -73,16 +102,63 @@ def run_database_setup() -> None:
         alembic_cfg = Config("alembic.ini")
         command.upgrade(alembic_cfg, "head")
         logger.info("Alembic migrations applied successfully")
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning("Alembic migration failed, falling back to create_all")
         Base.metadata.create_all(bind=engine)
 
 
+def _repair_one_sided_user_employee_links() -> None:
+    """Backfill users.employee_id from employees.user_id (idempotent).
+
+    Legacy data only set the reverse FK (employees.user_id), leaving
+    users.employee_id NULL, which broke planer team-scope. Runs only in
+    development/test environments; production relies on migration 0014.
+    """
+    if settings.environment not in ("development", "test"):
+        return
+    try:
+        db = SessionLocal()
+        from app.services.user_service import backfill_user_employee_ids
+
+        repaired = backfill_user_employee_ids(db)
+        if repaired:
+            logger.info("Backfilled users.employee_id for %s user(s) from employee.user_id", repaired)
+        db.close()
+    except Exception:
+        logger.warning("Failed to backfill one-sided user/employee links", exc_info=True)
+
+
+def _generate_complex_password() -> str:
+    """Generate a password that meets complexity requirements.
+
+    Returns a 16-character password with:
+    - At least 1 uppercase letter
+    - At least 1 lowercase letter
+    - At least 1 digit
+    - At least 1 special character
+    """
+    import random
+    import string
+
+    # Ensure at least one of each required character type
+    uppercase = random.choice(string.ascii_uppercase)
+    lowercase = random.choice(string.ascii_lowercase)
+    digit = random.choice(string.digits)
+    special = random.choice("!@#$%^&*")
+    # Fill the rest with random characters from all categories
+    rest = "".join(random.choices(string.ascii_letters + string.digits + "!@#$%^&*", k=12))
+    # Combine and shuffle
+    password = list(uppercase + lowercase + digit + special + rest)
+    random.shuffle(password)
+    return "".join(password)
+
+
 def seed_initial_users() -> None:
+    env = settings.environment
     db = SessionLocal()
     try:
         if db.query(User).filter(User.email == "admin@mphion.de").first() is None:
-            admin_password = uuid.uuid4().hex[:12]
+            admin_password = _generate_complex_password()
             create_user(
                 db,
                 UserCreate(
@@ -92,12 +168,16 @@ def seed_initial_users() -> None:
                 ),
                 role="admin",
             )
-            logger.info("=" * 60)
-            logger.info("Initial-Passwort fuer admin@mphion.de: %s", admin_password)
-            logger.info("=" * 60)
+            if env == "development":
+                print(f"\n{'=' * 60}")
+                print(f"Initial-Passwort fuer admin@mphion.de: {admin_password}")
+                print(f"{'=' * 60}\n")
+            elif env in ("production", "demo", "staging"):
+                _write_credentials_to_file("admin@mphion.de", admin_password)
+                logger.warning("Initial credentials for admin@mphion.de written to initial-credentials.txt")
 
         if db.query(User).filter(User.email == "testuser@mphion.de").first() is None:
-            test_password = uuid.uuid4().hex[:12]
+            test_password = _generate_complex_password()
             create_user(
                 db,
                 UserCreate(
@@ -106,9 +186,13 @@ def seed_initial_users() -> None:
                     password=test_password,
                 ),
             )
-            logger.info("=" * 60)
-            logger.info("Initial-Passwort fuer testuser@mphion.de: %s", test_password)
-            logger.info("=" * 60)
+            if env == "development":
+                print(f"\n{'=' * 60}")
+                print(f"Initial-Passwort fuer testuser@mphion.de: {test_password}")
+                print(f"{'=' * 60}\n")
+            elif env in ("production", "demo", "staging"):
+                _write_credentials_to_file("testuser@mphion.de", test_password)
+                logger.warning("Initial credentials for testuser@mphion.de written to initial-credentials.txt")
     finally:
         db.close()
 

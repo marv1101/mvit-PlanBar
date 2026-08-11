@@ -4,6 +4,7 @@ from enum import Enum
 class UserRole(str, Enum):
     USER = "user"
     ADMIN = "admin"
+    PLANNER = "planer"
 
 
 class ScheduleStatus(str, Enum):
@@ -29,3 +30,24 @@ class WishStatus(str, Enum):
 class WeekType(str, Enum):
     A = "A"
     B = "B"
+
+
+class NotificationType(str, Enum):
+    WISH_APPROVED = "wish_approved"
+    WISH_REJECTED = "wish_rejected"
+    SCHEDULE_PUBLISHED = "schedule_published"
+    SHIFT_CHANGED = "shift_changed"
+
+
+class PushDeviceType(str, Enum):
+    WEB = "web"
+    MOBILE = "mobile"
+    SWAP_REQUESTED = "swap_requested"
+    SWAP_APPROVED = "swap_approved"
+    SWAP_REJECTED = "swap_rejected"
+
+
+class ShiftSwapStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
