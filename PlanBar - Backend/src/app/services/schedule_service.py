@@ -506,7 +506,8 @@ def _build_tito_payload(
                             "skills": [skill_name],
                         }
                         if max_count and int(max_count) > 0:
-                            req["maxCount"] = int(max_count)
+                            max_count_int = max(int(max_count), int(count))
+                            req["maxCount"] = max_count_int
                         requirements.append(req)
             current += timedelta(days=1)
 

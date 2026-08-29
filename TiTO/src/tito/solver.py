@@ -140,6 +140,10 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             if qualified > count:
                 max_count = qualified
 
+        # Defensive guard: maxCount must be >= count
+        if max_count is not None and max_count < count:
+            max_count = count
+
         total_slots = max_count if max_count and max_count > count else count
         for i in range(total_slots):
             expanded = dict(req)
@@ -672,10 +676,11 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
 
             if not assigned:
                 unassigned_requirements.append(requirement)
+                is_mandatory = requirement.get("mandatory", True)
                 violations.append(
                     {
                         "type": "UNASSIGNED_REQUIREMENT",
-                        "severity": "HARD",
+                        "severity": "HARD" if is_mandatory else "SOFT",
                         "message": f"Requirement on {requirement.get('date')} with shift {requirement.get('shiftId')} could not be assigned",
                         "details": requirement,
                     }

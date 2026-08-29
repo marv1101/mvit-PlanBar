@@ -1158,3 +1158,69 @@ def test_solver_maximizeStaffing_without_maxCount_auto_expands():
 
     assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
     assert len(result["solution"]["assignments"]) > 1
+
+
+def test_solver_optional_unassigned_slot_reported_as_SOFT():
+    """Optional (non-mandatory) unfilled slots should have SOFT severity, not HARD."""
+    # count=1, maxCount=3, but only 1 employee available → 2 optional slots unfilled
+    payload = {
+        "metadata": {"jobId": "job-opt-soft"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 1,
+                "maxCount": 3,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    violations = result["metrics"]["violations"]
+    soft_violations = [v for v in violations if v["severity"] == "SOFT"]
+    hard_unassigned = [
+        v for v in violations
+        if v["type"] == "UNASSIGNED_REQUIREMENT" and v["severity"] == "HARD"
+    ]
+    # The mandatory slot is filled, optional slots unfilled → SOFT violations
+    assert len(soft_violations) > 0
+    assert all(v["type"] == "UNASSIGNED_REQUIREMENT" for v in soft_violations)
+    assert len(hard_unassigned) == 0
+
+
+def test_solver_maxCount_clamped_when_less_than_count():
+    """maxCount < count is silently clamped to count (defensive guard)."""
+    # maxCount=2 < count=3 → should be clamped to 3 mandatory slots
+    payload = {
+        "metadata": {"jobId": "job-clamp"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 3,
+                "maxCount": 2,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    # All 3 employees assigned despite maxCount < count
+    assert len(result["solution"]["assignments"]) == 3

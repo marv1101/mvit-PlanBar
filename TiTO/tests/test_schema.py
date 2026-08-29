@@ -339,3 +339,18 @@ def test_config_maximizeStaffing_defaults_false():
     }
     result = validate_job_payload(payload)
     assert result.config.maximizeStaffing is False
+
+
+def test_requirement_rejects_maxCount_below_count():
+    """Requirement with maxCount < count should be rejected."""
+    payload = {
+        "metadata": {"tenantId": 1},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [{"id": "S1", "name": "Früh", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {"shiftTemplateId": "S1", "date": "2026-01-02", "count": 3, "maxCount": 2}
+        ],
+        "employees": [],
+    }
+    with pytest.raises(Exception, match="maxCount .* must be >= count"):
+        validate_job_payload(payload)
