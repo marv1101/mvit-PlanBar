@@ -11,6 +11,9 @@ interface TitoScheduleFormProps {
   removeShiftTemplate: (index: number) => void;
   updateShiftTemplate: (index: number, field: string, value: string | Record<string, number>) => void;
   updateRequirement: (templateIndex: number, roleId: string, count: number) => void;
+  updateMaxRequirement: (templateIndex: number, roleId: string, count: number) => void;
+  maximizeStaffing: boolean;
+  setMaximizeStaffing: (v: boolean) => void;
   scheduleName: string;
   setScheduleName: (v: string) => void;
   startDate: string;
@@ -30,6 +33,9 @@ export function TitoScheduleForm({
   removeShiftTemplate,
   updateShiftTemplate,
   updateRequirement,
+  updateMaxRequirement,
+  maximizeStaffing,
+  setMaximizeStaffing,
   scheduleName,
   setScheduleName,
   startDate,
@@ -86,8 +92,23 @@ export function TitoScheduleForm({
         removeShiftTemplate={removeShiftTemplate}
         updateShiftTemplate={updateShiftTemplate}
         updateRequirement={updateRequirement}
+        updateMaxRequirement={updateMaxRequirement}
         submitting={submitting}
       />
+
+      <div className="flex items-center gap-2 mt-2">
+        <input
+          type="checkbox"
+          id="maximizeStaffing"
+          checked={maximizeStaffing}
+          onChange={(e) => setMaximizeStaffing(e.target.checked)}
+          disabled={submitting}
+          className="rounded"
+        />
+        <Label htmlFor="maximizeStaffing" className="text-sm cursor-pointer">
+          Alle Mitarbeiter maximal einplanen
+        </Label>
+      </div>
 
       <div>
         <Label htmlFor="titoWeekType">Wochen-Typ</Label>
@@ -97,20 +118,13 @@ export function TitoScheduleForm({
           onChange={(e) => setTitoWeekType(e.target.value)}
           disabled={submitting}
           className="w-full border rounded-md px-3 py-2"
+          defaultValue=""
         >
           <option value="A">Nur Woche A</option>
           <option value="B">Nur Woche B</option>
           <option value="">Beide (A & B)</option>
         </select>
       </div>
-
-      <button
-        type="button"
-        disabled={submitting || creating}
-        className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
-      >
-        {submitting ? 'Wird erstellt...' : 'Schichtplan erstellen & an TiTO senden'}
-      </button>
     </div>
   );
 }

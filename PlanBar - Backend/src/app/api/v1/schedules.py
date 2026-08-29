@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.v1.requests import ShiftWishResponse
@@ -36,6 +37,11 @@ from app.services.schedule_service import (
     submit_schedule_to_tito,
     update_schedule,
 )
+
+
+class SubmitRequest(BaseModel):
+    maximize_staffing: bool = False
+
 
 router = APIRouter()
 
@@ -187,6 +193,7 @@ def delete_schedule_endpoint(
 @router.post("/{schedule_id}/submit", response_model=ScheduleResponse)
 async def submit_schedule_endpoint(
     schedule_id: int,
+    body: SubmitRequest = SubmitRequest(),
     db: Session = Depends(get_db),
     user: User = Depends(require_admin_or_planer),
 ):
@@ -198,7 +205,7 @@ async def submit_schedule_endpoint(
             detail="Schedule is not in your team scope",
         )
     try:
-        return await submit_schedule_to_tito(db, schedule, user=user)
+        return await submit_schedule_to_tito(db, schedule, user=user, maximize_staffing=body.maximize_staffing)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 

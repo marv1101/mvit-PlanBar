@@ -133,6 +133,10 @@ def assert_team_write_on_shiftplans(
 
 
 def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = None) -> Schedule:
+    metadata = {}
+    if data.maximize_staffing:
+        metadata["maximizeStaffing"] = True
+
     schedule = Schedule(
         name=data.name,
         week_type=data.week_type,
@@ -141,6 +145,7 @@ def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = Non
         role_requirements=data.role_requirements,
         shift_templates=data.shift_templates,
         status="draft",
+        metadata_json=metadata if metadata else None,
     )
     db.add(schedule)
     db.commit()
@@ -223,7 +228,7 @@ def delete_schedule(db: Session, schedule: Schedule, actor_id: int | None = None
 
 
 async def submit_schedule_to_tito(
-    db: Session, schedule: Schedule, callback_url: str | None = None, user=None
+    db: Session, schedule: Schedule, callback_url: str | None = None, user=None, maximize_staffing: bool = False,
 ) -> Schedule:
     if user and user.role != "admin":
         team_ids = team_service.get_team_ids_for_user(db, user)
@@ -259,7 +264,7 @@ async def submit_schedule_to_tito(
 
     approved_wishes = [w for w in shift_wishes if w.status == "approved"]
 
-    payload = _build_tito_payload(schedule, employees, approved_wishes, callback_url=callback_url, db=db)
+    payload = _build_tito_payload(schedule, employees, approved_wishes, callback_url=callback_url, db=db, maximize_staffing=maximize_staffing)
 
     try:
         result = await tito_proxy.submit_job(payload)
@@ -302,7 +307,8 @@ async def retry_schedule(db: Session, schedule: Schedule, actor_id: int | None =
             db.commit()
             db.refresh(schedule)
     else:
-        await submit_schedule_to_tito(db, schedule)
+        maximize_staffing = (schedule.metadata_json or {}).get("maximizeStaffing", False)
+        await submit_schedule_to_tito(db, schedule, maximize_staffing=maximize_staffing)
 
     audit_service.log_update(
         db,
@@ -404,6 +410,7 @@ def _build_tito_payload(
     shift_wishes: list[ShiftWish],
     callback_url: str | None = None,
     db: Session | None = None,
+    maximize_staffing: bool = False,
 ) -> dict[str, Any]:
     """Build a payload matching the TiTO JobPayload schema."""
     if not schedule.start_date or not schedule.end_date:
@@ -484,15 +491,17 @@ def _build_tito_payload(
                     if int(count) > 0:
                         role_id = int(role_id_str)
                         skill_name = role_name_by_id.get(role_id) or f"ROLE_{role_id_str}"
-                        requirements.append(
-                            {
-                                "shiftTemplateId": st["id"],
-                                "shiftId": st["id"],
-                                "date": current.isoformat(),
-                                "count": int(count),
-                                "skills": [skill_name],
-                            }
-                        )
+                        max_count = st.get("maxRequirements", {}).get(role_id_str)
+                        req = {
+                            "shiftTemplateId": st["id"],
+                            "shiftId": st["id"],
+                            "date": current.isoformat(),
+                            "count": int(count),
+                            "skills": [skill_name],
+                        }
+                        if max_count and int(max_count) > 0:
+                            req["maxCount"] = int(max_count)
+                        requirements.append(req)
             current += timedelta(days=1)
 
     elif schedule.role_requirements:
@@ -522,6 +531,8 @@ def _build_tito_payload(
 
     holiday_dates = get_german_holidays(schedule.start_date, schedule.end_date)
 
+    effective_maximize = maximize_staffing or (schedule.metadata_json or {}).get("maximizeStaffing", False)
+
     return {
         "metadata": {
             "tenantId": 1,
@@ -533,6 +544,7 @@ def _build_tito_payload(
             "startDate": schedule.start_date.isoformat(),
             "endDate": schedule.end_date.isoformat(),
             "holidayDates": holiday_dates,
+            "maximizeStaffing": effective_maximize,
         },
         "shiftTemplates": shift_templates,
         "requirements": requirements,

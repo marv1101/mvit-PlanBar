@@ -757,3 +757,93 @@ async def test_submit_tito_planer_no_team_raises(db_session):
         pytest.raises(ValueError, match="not assigned to any team"),
     ):
         await submit_schedule_to_tito(db_session, schedule, user=planer)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# maxCount / maximizeStaffing features
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_build_tito_payload_with_maxCount(db_session):
+    """shift_templates with maxRequirements must produce requirements with maxCount."""
+    schedule = Schedule(
+        name="MaxCount Test",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 3),
+        status="draft",
+        shift_templates=[
+            {
+                "id": "frueh",
+                "name": "Frühschicht",
+                "startTime": "06:00",
+                "endTime": "14:00",
+                "requirements": {"1": 2},
+                "maxRequirements": {"1": 3},
+            },
+        ],
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [], db=db_session)
+    reqs = payload["requirements"]
+    assert len(reqs) == 3
+    assert all(r.get("maxCount") == 3 for r in reqs)
+    assert all(r["count"] == 2 for r in reqs)
+
+
+def test_build_tito_payload_without_maxCount(db_session):
+    """shift_templates without maxRequirements must not set maxCount."""
+    schedule = Schedule(
+        name="No MaxCount Test",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 3),
+        status="draft",
+        shift_templates=[
+            {
+                "id": "frueh",
+                "name": "Frühschicht",
+                "startTime": "06:00",
+                "endTime": "14:00",
+                "requirements": {"1": 2},
+            },
+        ],
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [], db=db_session)
+    reqs = payload["requirements"]
+    assert len(reqs) == 3
+    assert all(r.get("maxCount") is None for r in reqs)
+
+
+def test_build_tito_payload_maximizeStaffing_in_config(db_session):
+    """maximizeStaffing in metadata_json must appear as maximizeStaffing in config."""
+    schedule = Schedule(
+        name="MaxStaffing On",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+        metadata_json={"maximizeStaffing": True},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [])
+    assert payload["config"]["maximizeStaffing"] is True
+
+
+def test_build_tito_payload_maximizeStaffing_false_by_default(db_session):
+    """maximizeStaffing must default to False when not explicitly set."""
+    schedule = Schedule(
+        name="MaxStaffing Default",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [])
+    assert payload["config"]["maximizeStaffing"] is False

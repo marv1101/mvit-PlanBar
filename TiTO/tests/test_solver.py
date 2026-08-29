@@ -1015,3 +1015,146 @@ def test_holiday_rest_constraint():
             f"Employee {emp_id} must not work S_SPAET on Jan 1 (holiday, ends 22:00) "
             f"and S_FRUEH on Jan 2 (starts 06:00) — only 8h rest, violates 11h minimum"
         )
+
+
+def test_solver_maxCount_expands_optional_slots():
+    """count=1, maxCount=3 with maximizeStaffing=False: only mandatory (1) filled."""
+    payload = {
+        "metadata": {"jobId": "job-maxcount-1"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 1,
+                "maxCount": 3,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    # Without maximizeStaffing, only mandatory slots (count=1) are filled
+    assert len(result["solution"]["assignments"]) == 1
+
+
+def test_solver_maxCount_fills_mandatory_only_when_not_enough_employees():
+    """count=2, maxCount=5 with maximizeStaffing=True and 3 employees: should fill 3."""
+    payload = {
+        "metadata": {"jobId": "job-maxcount-2"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07", "maximizeStaffing": True},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 2,
+                "maxCount": 5,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    # maxCount=5 but only 3 qualified employees, so max 3 assignments
+    assert len(result["solution"]["assignments"]) == 3
+
+
+def test_solver_maximizeStaffing_fills_optional_slots():
+    """maximizeStaffing=True with maxCount set should fill optional slots."""
+    payload = {
+        "metadata": {"jobId": "job-maxstaff-1"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07", "maximizeStaffing": True},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 1,
+                "maxCount": 3,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    assert len(result["solution"]["assignments"]) > 1
+
+
+def test_solver_maximizeStaffing_false_does_not_fill_optional():
+    """maximizeStaffing=False with maxCount set should assign approximately count (mandatory only)."""
+    payload = {
+        "metadata": {"jobId": "job-maxstaff-2"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07", "maximizeStaffing": False},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 1,
+                "maxCount": 3,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    assert len(result["solution"]["assignments"]) == 1
+
+
+def test_solver_maximizeStaffing_without_maxCount_auto_expands():
+    """maximizeStaffing=True without maxCount should auto-expand optional slots to number of qualified employees."""
+    payload = {
+        "metadata": {"jobId": "job-maxstaff-3"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07", "maximizeStaffing": True},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 1,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_004", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_005", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    assert len(result["solution"]["assignments"]) > 1

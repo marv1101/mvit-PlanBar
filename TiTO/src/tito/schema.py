@@ -51,7 +51,8 @@ class Requirement(BaseModel):
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Date in YYYY-MM-DD format")
     startTime: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$", description="Start time override")
     endTime: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$", description="End time override")
-    count: int | None = Field(default=None, ge=1, description="Number of employees needed (new)")
+    count: int | None = Field(default=None, ge=1, description="Number of employees needed (min, new)")
+    maxCount: int | None = Field(default=None, ge=1, description="Maximum employees allowed (max)")
     neededSkills: dict[str, int] | None = Field(default=None, description="Required skills with counts (old)")
     skills: list[str] | None = Field(default=None, description="Required skills (new)")
 
@@ -176,6 +177,7 @@ class Config(BaseModel):
         description="Max consecutive days with same shift type (0 = disabled)",
     )
     solverTimeoutSeconds: int | None = Field(default=300, gt=0, description="Solver timeout in seconds")
+    maximizeStaffing: bool = Field(default=False, description="Maximize employee utilization by filling optional slots")
 
 
 # ============================================================================

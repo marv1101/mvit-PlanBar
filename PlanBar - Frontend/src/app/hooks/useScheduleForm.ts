@@ -24,6 +24,9 @@ export interface UseScheduleFormReturn {
   removeShiftTemplate: (index: number) => void;
   updateShiftTemplate: (index: number, field: string, value: string | Record<string, number>) => void;
   updateRequirement: (templateIndex: number, roleId: string, count: number) => void;
+  updateMaxRequirement: (templateIndex: number, roleId: string, count: number) => void;
+  maximizeStaffing: boolean;
+  setMaximizeStaffing: (v: boolean) => void;
   validateForm: () => boolean;
   reset: () => void;
   submit: () => Promise<ScheduleType | null>;
@@ -39,6 +42,7 @@ export function useScheduleForm(): UseScheduleFormReturn {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [maximizeStaffing, setMaximizeStaffing] = useState(false);
 
   const addShiftTemplate = useCallback(() => {
     const id = `shift_${Date.now()}`;
@@ -69,6 +73,14 @@ export function useScheduleForm(): UseScheduleFormReturn {
     ));
   }, []);
 
+  const updateMaxRequirement = useCallback((templateIndex: number, roleId: string, count: number) => {
+    setShiftTemplates(prev => prev.map((st, i) =>
+      i === templateIndex
+        ? { ...st, maxRequirements: { ...st.maxRequirements, [roleId]: count } }
+        : st
+    ));
+  }, []);
+
   const validateForm = useCallback((): boolean => {
     const formData: TitoScheduleFormData = {
       scheduleName,
@@ -93,6 +105,7 @@ export function useScheduleForm(): UseScheduleFormReturn {
     setEndDate('');
     setShiftTemplates([]);
     setTitoWeekType('A');
+    setMaximizeStaffing(false);
     setError(null);
   }, []);
 
@@ -116,8 +129,12 @@ export function useScheduleForm(): UseScheduleFormReturn {
           requirements: Object.fromEntries(
             Object.entries(st.requirements).filter(([, count]) => count > 0)
           ),
+          maxRequirements: st.maxRequirements ? Object.fromEntries(
+            Object.entries(st.maxRequirements).filter(([, count]) => count > 0)
+          ) : undefined,
         })),
         shiftplans: [],
+        maximize_staffing: maximizeStaffing,
       });
 
       return scheduleFromResponse(result);
@@ -129,7 +146,7 @@ export function useScheduleForm(): UseScheduleFormReturn {
       setSubmitting(false);
       setLoading(false);
     }
-  }, [scheduleName, startDate, endDate, shiftTemplates, titoWeekType, validateForm]);
+  }, [scheduleName, startDate, endDate, shiftTemplates, titoWeekType, maximizeStaffing, validateForm]);
 
   const canSubmit = !!scheduleName && !!startDate && !!endDate && shiftTemplates.length > 0 &&
     shiftTemplates.every(st => st.name && st.startTime && st.endTime);
@@ -154,6 +171,9 @@ export function useScheduleForm(): UseScheduleFormReturn {
     removeShiftTemplate,
     updateShiftTemplate,
     updateRequirement,
+    updateMaxRequirement,
+    maximizeStaffing,
+    setMaximizeStaffing,
     validateForm,
     reset,
     submit,

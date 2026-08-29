@@ -40,6 +40,7 @@ export interface ShiftTemplateEntryDTO {
   startTime: string;
   endTime: string;
   requirements: Record<string, number>;
+  maxRequirements?: Record<string, number>;
 }
 
 export interface ScheduleCreateDTO {
@@ -50,6 +51,7 @@ export interface ScheduleCreateDTO {
   role_requirements?: Record<string, number>;
   shift_templates?: ShiftTemplateEntryDTO[];
   shiftplans: ShiftplanCreateDTO[];
+  maximize_staffing?: boolean;
 }
 
 export interface ScheduleUpdateDTO {
@@ -113,8 +115,8 @@ export async function deleteSchedule(id: number): Promise<void> {
   await api.delete(`/schedules/${id}`);
 }
 
-export async function submitScheduleToTito(id: number): Promise<ScheduleResponseDTO> {
-  const { data } = await api.post(`/schedules/${id}/submit`);
+export async function submitScheduleToTito(id: number, maximizeStaffing: boolean = false): Promise<ScheduleResponseDTO> {
+  const { data } = await api.post(`/schedules/${id}/submit`, { maximize_staffing: maximizeStaffing });
   return data;
 }
 

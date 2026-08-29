@@ -431,6 +431,9 @@ export function ScheduleCreateForm({
               removeShiftTemplate={titoForm.removeShiftTemplate}
               updateShiftTemplate={titoForm.updateShiftTemplate}
               updateRequirement={titoForm.updateRequirement}
+              updateMaxRequirement={titoForm.updateMaxRequirement}
+              maximizeStaffing={titoForm.maximizeStaffing}
+              setMaximizeStaffing={titoForm.setMaximizeStaffing}
               scheduleName={titoForm.scheduleName}
               setScheduleName={titoForm.setScheduleName}
               startDate={titoForm.startDate}

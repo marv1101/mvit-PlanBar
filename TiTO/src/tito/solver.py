@@ -107,15 +107,44 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     min_free_sundays_per_year = config.get("minFreeSundaysPerYear", 15)
     default_weekly_hours = config.get("defaultWeeklyHours", 40.0)
     max_same_shift_consecutive = config.get("maxSameShiftConsecutive", 0)
+    maximize_staffing = config.get("maximizeStaffing", False)
     holiday_dates_raw = config.get("holidayDates") or []
 
-    # Expand requirements by count (jedes Count > 1 wird in mehrere Slots aufgeteilt)
+    # Expand requirements by count
     expanded_requirements = []
     for req in requirements:
         count = req.get("count", 1)
-        for _ in range(count):
+        max_count = req.get("maxCount")
+
+        # Auto-expand for maximizeStaffing without explicit maxCount
+        if maximize_staffing and not max_count:
+            # Count qualified employees for this requirement
+            needed_skills = req.get("neededSkills") or {}
+            if not needed_skills:
+                skills_list = req.get("skills") or []
+                needed_skills = {s: 1 for s in skills_list}
+            qualified = 0
+            for emp in employees:
+                emp_skills = set(emp.get("skills") or [])
+                has_required = all(s in emp_skills for s in needed_skills)
+                if has_required:
+                    # Check role constraint
+                    role_required = None
+                    for skill in needed_skills:
+                        if skill.startswith("ROLE_"):
+                            role_required = skill.replace("ROLE_", "")
+                            break
+                    if role_required and emp.get("role") != role_required:
+                        continue
+                    qualified += 1
+            if qualified > count:
+                max_count = qualified
+
+        total_slots = max_count if max_count and max_count > count else count
+        for i in range(total_slots):
             expanded = dict(req)
             expanded["count"] = 1
+            expanded["mandatory"] = (i < count)
             expanded_requirements.append(expanded)
     requirements = expanded_requirements
 
@@ -221,7 +250,10 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
 
         requirement_assignments = [assignments[(ei, req_idx)] for ei in valid_employees]
         if requirement_assignments:
-            cp_model.add(LinearExpr.sum(requirement_assignments) == 1)
+            if requirement.get("mandatory", True):
+                cp_model.add(LinearExpr.sum(requirement_assignments) == 1)
+            else:
+                cp_model.add(LinearExpr.sum(requirement_assignments) <= 1)
 
     # Constraint 1b: Verhindere Doppelbesetzung bei count > 1
     # Gleicher Mitarbeiter darf nicht zwei expandierte Slots derselben Schicht am selben Tag besetzen
@@ -256,7 +288,8 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         group_req_indices = [
             i
             for i, req in enumerate(requirements)
-            if skill in (req.get("neededSkills") or {}) or skill in (req.get("skills") or [])
+            if (skill in (req.get("neededSkills") or {}) or skill in (req.get("skills") or []))
+            and req.get("mandatory", True)
         ]
         if not group_req_indices:
             continue
@@ -272,6 +305,8 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         total_group_minutes = 0
         for req_idx in group_req_indices:
             requirement = requirements[req_idx]
+            if not requirement.get("mandatory", True):
+                continue
             shift = shift_templates.get(requirement.get("shiftId"), {})
             total_group_minutes += _effective_shift_minutes(shift, {})
 
@@ -319,8 +354,10 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             fairness_deviation_vars.append(under)
 
     # --- b) Globale Fairness mit Balance-Adjustment (immer aktiv) ---
+    mandatory_indices = [i for i, r in enumerate(requirements) if r.get("mandatory", True)]
     total_all_minutes = sum(
-        _effective_shift_minutes(shift_templates.get(req.get("shiftId"), {}), {}) for req in requirements
+        _effective_shift_minutes(shift_templates.get(requirements[i].get("shiftId"), {}), {})
+        for i in mandatory_indices
     )
 
     total_contract_minutes = sum(
@@ -352,7 +389,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
                         shift_templates.get(requirements[req_idx].get("shiftId"), {}),
                         employee,
                     )
-                    for req_idx in range(len(requirements))
+                    for req_idx in mandatory_indices
                 ]
             )
 
@@ -561,7 +598,13 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     objective_terms = []
 
     for (emp_idx, req_idx), value in assignments.items():
-        objective_terms.append(value * 10000)
+        req = requirements[req_idx]
+        if req.get("mandatory", True):
+            objective_terms.append(value * 10000)
+        elif maximize_staffing:
+            shift = shift_templates.get(req.get("shiftId"), {})
+            minutes = _effective_shift_minutes(shift, {})
+            objective_terms.append(value * minutes * 10)
 
     for wish_var, weight in wish_penalty_vars:
         objective_terms.append(wish_var * weight * 100)
@@ -765,8 +808,9 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             * 60
             for e in employees
         )
+        mandatory_reqs_for_fairness = [r for r in requirements if r.get("mandatory", True)]
         total_requirement_minutes = sum(
-            _effective_shift_minutes(shift_templates.get(req.get("shiftId"), {}), {}) for req in requirements
+            _effective_shift_minutes(shift_templates.get(req.get("shiftId"), {}), {}) for req in mandatory_reqs_for_fairness
         )
 
         if total_contract_minutes > 0:
