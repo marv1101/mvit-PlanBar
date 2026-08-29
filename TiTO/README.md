@@ -45,10 +45,45 @@ TiTO ist bewusst als Queue-basierter Worker gebaut. Die Entkopplung über Postgr
 
 ### Multi-Tenancy und Mandantenbetrieb
 
-- `tenantId` ist Pflicht, um Mandanten sauber zu trennen.
+- `tenantId` ist Pflicht im Job-Metadata, um Mandanten sauber zu trennen.
 - Mandantenspezifische Parameter wie Arbeitszeitmodelle, Pausenregeln, Skills oder Sondervereinbarungen müssen konfigurierbar sein.
 - Mandanten-Isolation gilt nicht nur für Input, sondern auch für Monitoring, Logs und Fehlerberichte.
-- TiTO stellt dabei nur die verarbeitende Schicht dar -> diese muss nicht Mandantenspezifisch sein, aber sicherstellen, dass keine Daten zwischen den Mandanten ausgetauscht werden können
+- TiTO stellt dabei nur die verarbeitende Schicht dar -> diese muss nicht Mandantenspezifisch sein, aber sicherstellen, dass keine Daten zwischen den Mandanten ausgetauscht werden können.
+
+#### Implementierte Tenant-Isolation
+
+TiTO implementiert eine logische Mandantentrennung auf Code-Ebene (Defense-in-Depth), die sowohl im Database-per-Tenant-Betrieb als auch im Shared-Instance-Betrieb sicher ist:
+
+- **Schema-Validierung beim Enqueue**: `POST /jobs` validiert das Payload gegen das Pydantic-Schema; `tenantId` (≥1) ist Pflicht. Ungültige Jobs werden mit `400` abgelehnt und erreichen nie die Queue.
+- **IDOR-Schutz**: Mandanten-scoped Tokens (via `API_TOKEN_TENANTS` oder JWT `tenant_id`) dürfen nur für ihren eigenen Tenant einreichen. Ein Mismatch zwischen Token-Tenant und Payload-Tenant liefert `403`.
+- **Tenant-scoped Lesezugriffe**: `/jobs`, `/jobs/{id}`, `/dlq`, `/callbacks/pending` filtern Ergebnisse nach dem authentifizierten Tenant. Cross-Tenant-Abfragen liefern `404` bzw. leere Listen.
+- **Mandanten-isolierte Metrics**: `/metrics`, `/metrics/robustness`, `/metrics/prometheus` aggregieren nur Jobs des authentifizierten Tenants.
+- **Mandanten-scoped Idempotenz**: Composite-Unique-Index `(tenant_id, idempotency_key)` — derselbe Key darf pro Tenant unabhängig existieren, Kollisionen zwischen Mandanten sind ausgeschlossen.
+- **Typkonsistenz**: `tenant_id` wird überall als `str` normalisiert (DB-Spalte ist `TEXT`), um Typ-Mismatch-bedingte Filterfehler zu vermeiden.
+
+#### Rollen-Modell
+
+TiTO unterscheidet vier Token-Rollen (via `API_TOKEN_ROLES` oder JWT `role`):
+
+| Rolle | Erlaubte Endpunkte | Tenant-Kontext |
+|-------|-------------------|----------------|
+| `admin` | Alle | Ja (aus `API_TOKEN_TENANTS` oder JWT) |
+| `worker` | `/workers/*` | Kein (Worker verarbeitet alle Jobs) |
+| `metrics` | `/metrics` | Ja |
+| `jobs` | `/jobs` | Ja |
+
+#### Umgebungsvariablen für Tenant-Isolation
+
+| Variable | Beschreibung |
+|----------|-------------|
+| `API_TOKEN` / `API_TOKENS` | Kommaseparierte API-Tokens (Default-Rolle: `admin`) |
+| `API_TOKEN_ROLES` | Mapping `token=role,token=role` (z. B. `key1=admin,key2=worker`) |
+| `API_TOKEN_TENANTS` | Mapping `token=tenant_id` für mandanten-scoped Tokens |
+| `WORKER_API_TOKEN` | Dediziertes Worker-Token (bevorzugt über `API_TOKENS[0]`) |
+| `JWT_SECRET` | JWT-Signierschlüssel |
+| `JWT_ALGORITHMS` | Erlaubte JWT-Algorithmen (Default: `HS256`) |
+| `JWT_AUDIENCE` | Optional: erwartete JWT-Audience |
+| `JWT_ISSUER` | Optional: erwarteter JWT-Issuer |
 
 ### Monitoring & Betrieb
 
@@ -61,6 +96,10 @@ TiTO ist bewusst als Queue-basierter Worker gebaut. Die Entkopplung über Postgr
 
 - Sensible Planungsdaten im Payload sollten geschützt werden.
 - Zugriff auf die Queue und auf die Status-API muss authentifiziert und autorisiert werden.
+- Token-basierte Authentifizierung via API-Key (`Authorization: Bearer` oder `X-API-Key`) oder JWT.
+- Rollen-Modell (`admin`, `worker`, `metrics`, `jobs`) steuert ressourcenspezifische Berechtigungen.
+- Mandanten-scoped Tokens begrenzen Lese-/Schreibzugriff auf den eigenen Tenant.
+- Worker verwenden ein dediziertes `WORKER_API_TOKEN` mit Rolle `worker` (kein Admin-Zugriff).
 - Ebenso ist Verschlüsselung der Daten im Transit und bei Bedarf im Ruhezustand sinnvoll aber nicht Teil des MVP.
 
 ### Erweiterungen für das Datenmodell

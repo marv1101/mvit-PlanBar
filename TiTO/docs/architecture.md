@@ -7,8 +7,47 @@ TiTO ist als Queue-basierter Worker für Schichtplanung ausgelegt. Die Architekt
 - `src/tito/schema.py`: Pydantic-basierte Validierung für eingehende Jobpayloads mit Typsicherheit.
 - `src/tito/solver.py`: Übersetzung in ein OR-Tools-Modell und Solver-Ausführung.
 - `src/tito/api.py`: Flask-API für Health-Checks und Monitoring.
-- `src/tito/auth.py`: Platzhalter für Authentifizierung und Autorisierung.
+- `src/tito/auth.py`: Authentifizierung (API-Token / JWT) und autorisierung (Rollen-Modell, Tenant-Mapping).
 - `src/tito/monitoring.py`: Erfassung von Metriken wie Jobdauer und Fehlerquote.
+- `src/tito/config.py`: Umgebungsvariablen und Token-Konfiguration.
+
+## Tenant-Isolation
+
+TiTO implementiert eine logische Mandantentrennung auf Code-Ebene (Defense-in-Depth), die sowohl im Database-per-Tenant-Betrieb (physische Isolation) als auch im Shared-Instance-Betrieb (eine TiTO-Instanz, mehrere Mandanten) sicher ist.
+
+### Mechanismen
+
+1. **Schema-Validierung beim Enqueue** (`api.py`): `POST /jobs` validiert das Payload gegen das Pydantic-Schema. `metadata.tenantId` (int ≥1) ist Pflicht. Ungültige Jobs werden mit `400` abgelehnt und erreichen nie die Queue oder den Worker.
+
+2. **IDOR-Schutz** (`api.py`): Mandanten-scoped Tokens (via `API_TOKEN_TENANTS` oder JWT `tenant_id`) dürfen nur für ihren eigenen Tenant einreichen. Ein Mismatch zwischen Token-Tenant und Payload-Tenant liefert `403`.
+
+3. **Tenant-scoped Lesezugriffe** (`api.py`, `db.py`): `/jobs`, `/jobs/{id}`, `/dlq`, `/callbacks/pending` filtern Ergebnisse nach dem authentifizierten Tenant. Cross-Tenant-Abfragen liefern `404` bzw. leere Listen.
+
+4. **Mandanten-isolierte Metrics** (`monitoring.py`, `db.py`): `/metrics`, `/metrics/robustness`, `/metrics/prometheus` aggregieren nur Jobs des authentifizierten Tenants. Worker-Metriken sind nur für Admins ohne Tenant-Mapping sichtbar.
+
+5. **Mandanten-scoped Idempotenz** (`db.py`): Composite-Unique-Index `(tenant_id, idempotency_key)` — derselbe Key darf pro Tenant unabhängig existieren. `tenant_id` ist `NOT NULL` in der `job_queue`-Tabelle.
+
+6. **Typkonsistenz** (`schema.py`, `auth.py`, `db.py`): `tenant_id` wird überall als `str` normalisiert (DB-Spalte ist `TEXT`), um Typ-Mismatch-bedingte Filterfehler zu vermeiden. Die Helper-Funktion `extract_tenant_id()` akzeptiert sowohl `tenantId` (camelCase, schema-konform) als auch `tenant_id` (snake_case, vom Backend gesendet).
+
+### Rollen-Modell (`auth.py`)
+
+| Rolle | Erlaubte Endpunkte | Tenant-Kontext |
+|-------|-------------------|----------------|
+| `admin` | Alle | Ja (aus `API_TOKEN_TENANTS` oder JWT) |
+| `worker` | `/workers/*` | Kein (Worker verarbeitet alle Jobs) |
+| `metrics` | `/metrics` | Ja |
+| `jobs` | `/jobs` | Ja |
+
+### Umgebungsvariablen
+
+| Variable | Beschreibung |
+|----------|-------------|
+| `API_TOKEN` / `API_TOKENS` | Kommaseparierte API-Tokens (Default-Rolle: `admin`) |
+| `API_TOKEN_ROLES` | Mapping `token=role,token=role` |
+| `API_TOKEN_TENANTS` | Mapping `token=tenant_id` für mandanten-scoped Tokens |
+| `WORKER_API_TOKEN` | Dediziertes Worker-Token (Rolle `worker`) |
+| `JWT_SECRET` | JWT-Signierschlüssel |
+| `JWT_ALGORITHMS` | Erlaubte JWT-Algorithmen (Default: `HS256`) |
 
 ## Datenfluss
 

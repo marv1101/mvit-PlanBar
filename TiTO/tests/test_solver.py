@@ -612,9 +612,7 @@ def test_vacation_wish_blocks_assignment():
     assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
     for assignment in result["solution"]["assignments"]:
         if assignment["employeeId"] == "emp_001":
-            assert assignment["date"] != "2026-01-02", (
-                "emp_001 should NOT be assigned on 2026-01-02 (vacation wish)"
-            )
+            assert assignment["date"] != "2026-01-02", "emp_001 should NOT be assigned on 2026-01-02 (vacation wish)"
 
 
 def test_unavailable_wish_blocks_assignment():
@@ -643,9 +641,7 @@ def test_unavailable_wish_blocks_assignment():
     assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
     for assignment in result["solution"]["assignments"]:
         if assignment["employeeId"] == "emp_001":
-            assert assignment["date"] != "2026-01-02", (
-                "emp_001 should NOT be assigned on 2026-01-02 (unavailable wish)"
-            )
+            assert assignment["date"] != "2026-01-02", "emp_001 should NOT be assigned on 2026-01-02 (unavailable wish)"
 
 
 def test_preferred_wish_without_shift_id_influences_assignment():
@@ -674,12 +670,9 @@ def test_preferred_wish_without_shift_id_influences_assignment():
 
     assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
     emp_001_assignments = [
-        a for a in result["solution"]["assignments"]
-        if a["employeeId"] == "emp_001" and a["date"] == "2026-01-02"
+        a for a in result["solution"]["assignments"] if a["employeeId"] == "emp_001" and a["date"] == "2026-01-02"
     ]
-    assert len(emp_001_assignments) > 0, (
-        "emp_001 should be assigned on 2026-01-02 due to preferred wish"
-    )
+    assert len(emp_001_assignments) > 0, "emp_001 should be assigned on 2026-01-02 due to preferred wish"
 
 
 def test_vacation_wish_fulfillment_rate_not_always_100():
@@ -890,8 +883,7 @@ def test_off_wish_vs_prefer_shift():
     for assignment in result["solution"]["assignments"]:
         if assignment["employeeId"] == "emp_001":
             assert assignment["date"] != "2026-01-02", (
-                "OFF wish should take priority over PREFER_SHIFT, "
-                "but emp_001 was assigned on 2026-01-02"
+                "OFF wish should take priority over PREFER_SHIFT, but emp_001 was assigned on 2026-01-02"
             )
 
 
@@ -1003,14 +995,8 @@ def test_holiday_rest_constraint():
     assignments = result["solution"]["assignments"]
     for emp_id in ["emp_001", "emp_002"]:
         emp_assignments = [a for a in assignments if a["employeeId"] == emp_id]
-        works_late_jan1 = any(
-            a["date"] == "2026-01-01" and a["shiftId"] == "S_SPAET"
-            for a in emp_assignments
-        )
-        works_early_jan2 = any(
-            a["date"] == "2026-01-02" and a["shiftId"] == "S_FRUEH"
-            for a in emp_assignments
-        )
+        works_late_jan1 = any(a["date"] == "2026-01-01" and a["shiftId"] == "S_SPAET" for a in emp_assignments)
+        works_early_jan2 = any(a["date"] == "2026-01-02" and a["shiftId"] == "S_FRUEH" for a in emp_assignments)
         assert not (works_late_jan1 and works_early_jan2), (
             f"Employee {emp_id} must not work S_SPAET on Jan 1 (holiday, ends 22:00) "
             f"and S_FRUEH on Jan 2 (starts 06:00) — only 8h rest, violates 11h minimum"

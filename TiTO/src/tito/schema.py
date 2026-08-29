@@ -173,7 +173,9 @@ class Config(BaseModel):
     minRestTimeHours: float | None = Field(default=11, gt=0, description="Minimum rest time between shifts in hours")
     maxDailyWorkHours: float | None = Field(default=10, gt=0, description="Maximum daily working hours")
     minFreeSundaysPerYear: int | None = Field(default=15, ge=0, le=52, description="Minimum free Sundays per year")
-    holidayDates: list[str] | None = Field(default=None, description="List of public holiday dates (YYYY-MM-DD) treated like Sundays per ArbZG §9")
+    holidayDates: list[str] | None = Field(
+        default=None, description="List of public holiday dates (YYYY-MM-DD) treated like Sundays per ArbZG §9"
+    )
     defaultWeeklyHours: float | None = Field(default=40.0, gt=0, description="Default weekly contract hours")
     maxSameShiftConsecutive: int | None = Field(
         default=0,
@@ -265,6 +267,28 @@ def validate_job_payload(payload: dict) -> JobPayload:
         raise
     except ValidationError as e:
         raise ValueError(f"Validation failed: {e}")
+
+
+def extract_tenant_id(metadata: dict | None) -> str | None:
+    """Extrahiert die Tenant-ID aus einem Metadata-Dict.
+
+    Akzeptiert sowohl den schema-konformen camelCase-Key ``tenantId`` als
+    auch den snake_case-Key ``tenant_id`` (wie er vom PlanBar-Backend
+    gesendet wird). Der Wert wird normalisiert auf ``str`` zurückgegeben,
+    damit Vergleiche gegen die ``TEXT``-Spalte ``tenant_id`` in der DB
+    typstabil bleiben (B2/B10).
+
+    Returns:
+        Tenant-ID als ``str`` oder ``None``, wenn keine vorhanden.
+    """
+    if not metadata:
+        return None
+    raw = metadata.get("tenantId")
+    if raw is None:
+        raw = metadata.get("tenant_id")
+    if raw is None:
+        return None
+    return str(raw)
 
 
 # ============================================================================

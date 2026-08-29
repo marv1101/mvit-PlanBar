@@ -20,7 +20,7 @@ from .db import (
     store_callback_result,
     store_result,
 )
-from .schema import JobPayload, validate_job_payload
+from .schema import JobPayload, extract_tenant_id, validate_job_payload
 from .solver import build_model, solve_model
 
 
@@ -60,10 +60,13 @@ def run_worker(settings: Settings) -> None:
     cpu = psutil.cpu_percent(interval=1)
     ram = psutil.virtual_memory().percent
 
+    # B9: Dediziertes Worker-Token bevorzugen (Rolle 'worker'), Fallback auf API-Tokens.
+    worker_token = settings.worker_api_token or (settings.api_tokens[0] if settings.api_tokens else None)
+
     # Registriere bei der API
     headers = {}
-    if settings.api_tokens:
-        headers["Authorization"] = f"Bearer {settings.api_tokens[0]}"
+    if worker_token:
+        headers["Authorization"] = f"Bearer {worker_token}"
 
     try:
         requests.post(
@@ -140,7 +143,7 @@ def run_worker(settings: Settings) -> None:
                             db_job_id,
                             callback_url,
                             result,
-                            tenant_id=job.get("metadata", {}).get("tenant_id"),
+                            tenant_id=extract_tenant_id(job.get("metadata")),
                         )
                         logger.info(f"Job {db_job_id}: Callback enqueued")
                     except Exception:
@@ -172,7 +175,7 @@ def run_worker(settings: Settings) -> None:
                             job,
                             f"Max retries exceeded: {exc}",
                             attempts=3,
-                            tenant_id=job.get("metadata", {}).get("tenant_id"),
+                            tenant_id=extract_tenant_id(job.get("metadata")),
                         )
                         logger.warning(f"Job {db_job_id}: Moved to Dead Letter Queue")
                     else:

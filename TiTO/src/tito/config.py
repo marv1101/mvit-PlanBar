@@ -18,6 +18,8 @@ class Settings:
     api_url: str = "http://localhost:5001"
     api_tokens: list[str] = field(default_factory=list)
     api_token_roles: dict[str, str] = field(default_factory=dict)
+    api_token_tenants: dict[str, str] = field(default_factory=dict)
+    worker_api_token: str | None = None
     jwt_secret: str | None = None
     jwt_algorithms: list[str] = field(default_factory=lambda: ["HS256"])
     jwt_audience: str | None = None
@@ -51,6 +53,16 @@ class Settings:
         elif roles and not tokens:
             tokens = list(roles.keys())
 
+        tenants_string = env_dict.get("API_TOKEN_TENANTS", "")
+        tenants: dict[str, str] = {}
+        for item in tenants_string.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            if "=" in item:
+                token, tenant = item.split("=", 1)
+                tenants[token.strip()] = tenant.strip()
+
         algorithms_string = env_dict.get("JWT_ALGORITHMS", "HS256")
         algorithms = [alg.strip() for alg in algorithms_string.split(",") if alg.strip()]
 
@@ -65,6 +77,8 @@ class Settings:
             api_url=env_dict.get("API_URL", "http://localhost:5001"),
             api_tokens=tokens,
             api_token_roles=roles,
+            api_token_tenants=tenants,
+            worker_api_token=env_dict.get("WORKER_API_TOKEN"),
             jwt_secret=env_dict.get("JWT_SECRET"),
             jwt_algorithms=algorithms,
             jwt_audience=env_dict.get("JWT_AUDIENCE"),
