@@ -64,6 +64,7 @@ class ScheduleCreate(ScheduleBase):
     role_requirements: Any | None = None
     shift_templates: Any | None = None
     shiftplans: list[ShiftplanCreate] = []
+    maximize_staffing: bool = False
 
 
 class ScheduleUpdate(BaseModel):

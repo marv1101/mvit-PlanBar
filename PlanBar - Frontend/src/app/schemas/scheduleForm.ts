@@ -19,6 +19,7 @@ export interface ShiftTemplateEntry {
   startTime: string;
   endTime: string;
   requirements: Record<string, number>;
+  maxRequirements?: Record<string, number>;
 }
 
 export interface ValidationError {
@@ -50,6 +51,17 @@ export function validateTitoSchedule(data: TitoScheduleFormData): ValidationErro
     }
     if (!st.endTime) {
       errors.push({ field: `shiftTemplates[${i}].endTime`, message: 'Endzeit ist erforderlich' });
+    }
+    if (st.maxRequirements) {
+      for (const [roleId, maxVal] of Object.entries(st.maxRequirements)) {
+        const minVal = st.requirements[roleId] || 0;
+        if (maxVal > 0 && maxVal < minVal) {
+          errors.push({
+            field: `shiftTemplates[${i}].maxRequirements.${roleId}`,
+            message: `Max. Belegung (${maxVal}) muss >= Min. Belegung (${minVal}) sein`,
+          });
+        }
+      }
     }
   });
 

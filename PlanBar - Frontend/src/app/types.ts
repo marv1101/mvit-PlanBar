@@ -157,6 +157,7 @@ export interface ShiftTemplateEntry {
   startTime: string;
   endTime: string;
   requirements: Record<string, number>;
+  maxRequirements?: Record<string, number>;
 }
 
 export interface Schedule {
