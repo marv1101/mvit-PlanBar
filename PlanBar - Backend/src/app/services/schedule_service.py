@@ -228,7 +228,11 @@ def delete_schedule(db: Session, schedule: Schedule, actor_id: int | None = None
 
 
 async def submit_schedule_to_tito(
-    db: Session, schedule: Schedule, callback_url: str | None = None, user=None, maximize_staffing: bool = False,
+    db: Session,
+    schedule: Schedule,
+    callback_url: str | None = None,
+    user=None,
+    maximize_staffing: bool = False,
 ) -> Schedule:
     if user and user.role != "admin":
         team_ids = team_service.get_team_ids_for_user(db, user)
@@ -264,7 +268,9 @@ async def submit_schedule_to_tito(
 
     approved_wishes = [w for w in shift_wishes if w.status == "approved"]
 
-    payload = _build_tito_payload(schedule, employees, approved_wishes, callback_url=callback_url, db=db, maximize_staffing=maximize_staffing)
+    payload = _build_tito_payload(
+        schedule, employees, approved_wishes, callback_url=callback_url, db=db, maximize_staffing=maximize_staffing
+    )
 
     try:
         result = await tito_proxy.submit_job(payload)
