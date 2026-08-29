@@ -19,6 +19,7 @@ class Settings:
     api_tokens: list[str] = field(default_factory=list)
     api_token_roles: dict[str, str] = field(default_factory=dict)
     api_token_tenants: dict[str, str] = field(default_factory=dict)
+    worker_api_token: str | None = None
     jwt_secret: str | None = None
     jwt_algorithms: list[str] = field(default_factory=lambda: ["HS256"])
     jwt_audience: str | None = None
@@ -77,6 +78,7 @@ class Settings:
             api_tokens=tokens,
             api_token_roles=roles,
             api_token_tenants=tenants,
+            worker_api_token=env_dict.get("WORKER_API_TOKEN"),
             jwt_secret=env_dict.get("JWT_SECRET"),
             jwt_algorithms=algorithms,
             jwt_audience=env_dict.get("JWT_AUDIENCE"),

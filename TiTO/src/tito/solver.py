@@ -499,10 +499,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         employee_id = wish.get("employeeId")
         off_date = wish.get("date")
 
-        emp_idx = next(
-            (i for i, e in enumerate(employees) if e.get("id") == employee_id),
-            None
-        )
+        emp_idx = next((i for i, e in enumerate(employees) if e.get("id") == employee_id), None)
         if emp_idx is None:
             continue
 
@@ -543,9 +540,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
             # an diesem Tag zu arbeiten, unabhängig von der konkreten Schicht.
             date = wish.get("date")
             day_reqs = [
-                assignments[(emp_idx, req_idx)]
-                for req_idx, req in enumerate(requirements)
-                if req.get("date") == date
+                assignments[(emp_idx, req_idx)] for req_idx, req in enumerate(requirements) if req.get("date") == date
             ]
 
             if day_reqs:
@@ -677,11 +672,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
 
             elif wish_type == "preferred":
                 date = wish.get("date")
-                day_reqs = [
-                    req_idx
-                    for req_idx, req in enumerate(requirements)
-                    if req.get("date") == date
-                ]
+                day_reqs = [req_idx for req_idx, req in enumerate(requirements) if req.get("date") == date]
                 if day_reqs and not any(solver.Value(assignments[(emp_idx, req_idx)]) == 1 for req_idx in day_reqs):
                     violations.append(
                         {

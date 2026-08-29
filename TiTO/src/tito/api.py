@@ -23,7 +23,7 @@ from .db import (
     update_job,
     update_worker_heartbeat,
 )
-from .schema import JobPayload
+from .schema import JobPayload, extract_tenant_id, validate_job_payload
 
 
 def cleanup_worker_thread(database_url: str, interval_minutes: int = 5):
@@ -84,7 +84,7 @@ def create_app(settings: Settings | None = None) -> Flask:
                         "status_code": 401,
                     }
                 ), 401
-            allowed, tenant_id = authorize_access(
+            allowed, tenant_id, role = authorize_access(
                 token,
                 request.path,
                 settings.api_token_roles,
@@ -103,8 +103,9 @@ def create_app(settings: Settings | None = None) -> Flask:
                         "status_code": 403,
                     }
                 ), 403
-            # Tenant-Kontext für die Endpoint-Funktion verfügbar machen
+            # Tenant- und Rollen-Kontext für die Endpoint-Funktion verfügbar machen
             g.tenant_id = tenant_id
+            g.role = role
             return view(*args, **kwargs)
 
         return decorated
@@ -387,7 +388,11 @@ def create_app(settings: Settings | None = None) -> Flask:
     @app.get("/metrics")
     @require_auth
     def metrics():
-        metrics_data = monitoring.get_metrics(connection, settings.queue_table, settings.timeout_seconds)
+        from flask import g
+
+        metrics_data = monitoring.get_metrics(
+            connection, settings.queue_table, settings.timeout_seconds, tenant_id=g.tenant_id
+        )
         return jsonify(metrics_data)
 
     @app.get("/jobs")
@@ -397,16 +402,21 @@ def create_app(settings: Settings | None = None) -> Flask:
 
         if g.tenant_id:
             jobs = list_jobs_by_tenant(connection, settings.queue_table, g.tenant_id)
-        else:
+        elif g.role == "admin":
+            # B7: Full-Listing nur für Admins ohne Tenant-Mapping; andere Rollen sehen nichts
             cursor = connection.execute(
                 f"SELECT job_id, status, priority, created_at, updated_at FROM {settings.queue_table} ORDER BY created_at DESC"
             )
             jobs = [dict(row) for row in cursor.fetchall()]
+        else:
+            jobs = []
         return jsonify(jobs)
 
     @app.post("/jobs")
     @require_auth
     def post_job():
+        from flask import g
+
         payload = request.get_json(silent=True)
         if not payload:
             logger.warning("Invalid JSON payload received")
@@ -418,12 +428,40 @@ def create_app(settings: Settings | None = None) -> Flask:
                 }
             ), 400
 
+        # B3: Schema-Validierung an der API-Grenze — tenantId Pflicht, Referenzen, Datumswerte.
+        # Ungültige Jobs erreichen nie Queue/Worker (verhindert DLQ-Vergiftung & verschwendete Solver-Zyklen).
+        try:
+            validate_job_payload(payload)
+        except ValueError as e:
+            logger.warning(f"Job payload validation failed: {e}")
+            return jsonify(
+                {
+                    "error": "Invalid request",
+                    "message": str(e),
+                    "status_code": 400,
+                }
+            ), 400
+
         # Extract parameters from metadata
         metadata = payload.get("metadata", {})
         idempotency_key = metadata.get("idempotency_key")
         callback_url = metadata.get("callback_url")
         max_retries = int(metadata.get("max_retries", settings.max_retries))
-        tenant_id = metadata.get("tenant_id")
+        tenant_id = extract_tenant_id(metadata)
+
+        # B1: Tenant-Isolation — authentifizierten Tenant durchsetzen (IDOR-Schutz).
+        # Ein mandanten-scoped Token darf nur für seinen eigenen Tenant einreichen;
+        # der Client-Wert wird nie vertraut, sondern gegen g.tenant_id geprüft.
+        if g.tenant_id and tenant_id != g.tenant_id:
+            logger.warning(f"Tenant mismatch on /jobs: token tenant={g.tenant_id}, payload tenant={tenant_id}")
+            return jsonify(
+                {
+                    "error": "Forbidden",
+                    "message": "tenant_id does not match authenticated tenant",
+                    "status_code": 403,
+                }
+            ), 403
+        # g.tenant_id is None → Admin ohne Tenant-Mapping: tenant_id aus Payload (validiert) wird verwendet.
 
         job_id = enqueue_job(
             connection,
@@ -526,8 +564,10 @@ def create_app(settings: Settings | None = None) -> Flask:
     @app.get("/callbacks/pending")
     @require_auth
     def get_pending_callbacks():
-        """Get pending callbacks to be sent"""
-        callbacks = fetch_pending_callbacks(connection, limit=50)
+        """Get pending callbacks to be sent, scoped to authenticated tenant (B4)."""
+        from flask import g
+
+        callbacks = fetch_pending_callbacks(connection, limit=50, tenant_id=g.tenant_id)
         return jsonify({"count": len(callbacks), "callbacks": callbacks})
 
     @app.get("/jobs/<int:job_id>")
@@ -550,8 +590,8 @@ def create_app(settings: Settings | None = None) -> Flask:
 
         job_data = dict(job)
 
-        # Get callback status if exists
-        callback = fetch_callback_status_by_job_id(connection, job_id)
+        # Get callback status if exists (mandanten-scoped, B8)
+        callback = fetch_callback_status_by_job_id(connection, job_id, tenant_id=g.tenant_id)
         if callback:
             job_data["callback"] = callback
 
@@ -597,8 +637,12 @@ def create_app(settings: Settings | None = None) -> Flask:
     @app.get("/metrics/robustness")
     @require_auth
     def robustness_metrics():
-        """Get robustness metrics: retries, DLQ, callbacks"""
-        metrics_data = monitoring.get_metrics(connection, settings.queue_table, settings.timeout_seconds)
+        """Get robustness metrics: retries, DLQ, callbacks (mandanten-scoped, B5)."""
+        from flask import g
+
+        metrics_data = monitoring.get_metrics(
+            connection, settings.queue_table, settings.timeout_seconds, tenant_id=g.tenant_id
+        )
         return jsonify(
             {
                 "job_statuses": metrics_data["job_status_counts"],
@@ -613,7 +657,11 @@ def create_app(settings: Settings | None = None) -> Flask:
     @app.get("/metrics/prometheus")
     @require_auth
     def prometheus_metrics():
-        text = monitoring.export_prometheus(connection, settings.queue_table, settings.timeout_seconds)
+        from flask import g
+
+        text = monitoring.export_prometheus(
+            connection, settings.queue_table, settings.timeout_seconds, tenant_id=g.tenant_id
+        )
         return Response(text, mimetype="text/plain; version=0.0.4")
 
     @app.get("/openapi.json")

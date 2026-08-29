@@ -87,17 +87,17 @@ def authorize_access(
     jwt_algorithms: Iterable[str] | None = None,
     jwt_audience: str | None = None,
     jwt_issuer: str | None = None,
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str | None, str | None]:
     """Prüfe, ob ein Token auf die angefragte Ressource zugreifen darf.
 
     Returns:
-        (allowed, tenant_id) — tenant_id ist None für Workers (kein Tenant-Kontext).
+        (allowed, tenant_id, role) — tenant_id ist None für Workers (kein Tenant-Kontext).
     """
     if not token_roles and not jwt_secret:
         logger.warning("No authentication configured — rejecting access (fail-closed)")
-        return False, None
+        return False, None, None
     if not token:
-        return False, None
+        return False, None, None
 
     role = None
     tenant_id = None
@@ -106,24 +106,29 @@ def authorize_access(
     if token_roles and token in token_roles:
         role = token_roles[token]
         if token_tenants and token in token_tenants:
-            tenant_id = token_tenants[token]
+            tenant_id = str(token_tenants[token]) if token_tenants[token] is not None else None
 
     # JWT: Rolle + Tenant aus Payload
     elif jwt_secret and jwt_algorithms is not None:
         payload = _validate_jwt(token, jwt_secret, jwt_algorithms, jwt_audience, jwt_issuer)
         if payload is None:
-            return False, None
+            return False, None, None
         role = payload.get("role")
-        tenant_id = payload.get("tenant_id")
+        raw_tenant = payload.get("tenant_id")
+        tenant_id = str(raw_tenant) if raw_tenant is not None else None
 
     # Workers haben keinen Tenant-Kontext — sie verarbeiten alle Jobs
     if role == "admin":
-        return True, tenant_id
+        return True, tenant_id, role
     if role == "worker":
-        return resource in ("/workers/register", "/workers/heartbeat", "/workers/deregister", "/workers/cleanup"), None
+        return (
+            resource in ("/workers/register", "/workers/heartbeat", "/workers/deregister", "/workers/cleanup"),
+            None,
+            role,
+        )
     if role == "metrics":
-        return resource == "/metrics", tenant_id
+        return resource == "/metrics", tenant_id, role
     if role == "jobs":
-        return resource == "/jobs", tenant_id
+        return resource == "/jobs", tenant_id, role
 
-    return False, None
+    return False, None, None

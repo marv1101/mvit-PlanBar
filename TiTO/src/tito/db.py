@@ -14,6 +14,7 @@ try:
 except ImportError:
     PSYCOPG2_AVAILABLE = False
 
+from .schema import extract_tenant_id
 
 # Global PostgreSQL connection pool
 _pg_pool: Any = None
@@ -84,9 +85,9 @@ def _initialize_sqlite(connection: sqlite3.Connection) -> None:
             failed_at TEXT,
             scheduled_for TEXT,
             callback_url TEXT,
-            idempotency_key TEXT UNIQUE,
+            idempotency_key TEXT,
             timeout_at TEXT,
-            tenant_id TEXT
+            tenant_id TEXT NOT NULL
         )
         """
     )
@@ -134,6 +135,15 @@ def _initialize_sqlite(connection: sqlite3.Connection) -> None:
         )
         """
     )
+    # Tenant-isolation indexes (B10): schnelle mandanten-scoped Filter auf allen Queue-Tabellen
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_job_queue_tenant ON job_queue(tenant_id)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_dead_letter_queue_tenant ON dead_letter_queue(tenant_id)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_callback_queue_tenant ON callback_queue(tenant_id)")
+    # B6: Idempotenz mandanten-scoped — gleicher Key darf pro Tenant mehrfach existieren
+    connection.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_job_queue_tenant_idempotency "
+        "ON job_queue(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL"
+    )
     connection.commit()
 
 
@@ -158,9 +168,9 @@ def _initialize_postgres(connection: psycopg2.extensions.connection) -> None:
                 failed_at TIMESTAMP WITH TIME ZONE,
                 scheduled_for TIMESTAMP WITH TIME ZONE,
                 callback_url TEXT,
-                idempotency_key TEXT UNIQUE,
+                idempotency_key TEXT,
                 timeout_at TIMESTAMP WITH TIME ZONE,
-                tenant_id TEXT
+                tenant_id TEXT NOT NULL
             )
             """
         )
@@ -217,6 +227,20 @@ def _initialize_postgres(connection: psycopg2.extensions.connection) -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_job_queue_scheduled_for ON job_queue(scheduled_for)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_job_queue_idempotency_key ON job_queue(idempotency_key)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_callback_queue_status ON callback_queue(callback_status)")
+        # Tenant-isolation indexes (B10): schnelle mandanten-scoped Filter auf allen Queue-Tabellen
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_job_queue_tenant ON job_queue(tenant_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_dead_letter_queue_tenant ON dead_letter_queue(tenant_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_callback_queue_tenant ON callback_queue(tenant_id)")
+        # B6: Idempotenz mandanten-scoped — gleicher Key darf pro Tenant mehrfach existieren.
+        # Bestehende single-column UNIQUE-Constraint (aus alter Schema-Version) entfernen, falls vorhanden.
+        try:
+            cursor.execute("ALTER TABLE job_queue DROP CONSTRAINT IF EXISTS job_queue_idempotency_key_key")
+        except psycopg2.Error:
+            pass
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_job_queue_tenant_idempotency "
+            "ON job_queue(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL"
+        )
 
         connection.commit()
     finally:
@@ -250,18 +274,25 @@ def enqueue_job(
     now = datetime.now(timezone.utc)
     priority = int(payload.get("metadata", {}).get("priority", 0))
 
+    # B10/B6: tenant_id Fallback aus Payload-Metadata, falls nicht explizit übergeben.
+    # Stellt sicher, dass die NOT NULL-Spalte immer belegt wird (auch bei direkten enqueue_job-Aufrufen).
+    if tenant_id is None:
+        tenant_id = extract_tenant_id(payload.get("metadata"))
+    if tenant_id is not None:
+        tenant_id = str(tenant_id)
+
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
 
-        # If idempotency_key provided, check for duplicate
+        # If idempotency_key provided, check for duplicate (B6: mandanten-scoped)
         if idempotency_key:
             cursor.execute(
-                "SELECT job_id, status FROM job_queue WHERE idempotency_key = %s",
-                (idempotency_key,),
+                "SELECT job_id, status FROM job_queue WHERE idempotency_key = %s AND tenant_id = %s",
+                (idempotency_key, tenant_id),
             )
             existing = cursor.fetchone()
             if existing:
-                print(f"[DB] Duplicate job detected with idempotency_key: {idempotency_key}")
+                print(f"[DB] Duplicate job detected with idempotency_key: {idempotency_key} (tenant={tenant_id})")
                 cursor.close()
                 return None  # Return None to indicate duplicate
 
@@ -292,12 +323,12 @@ def enqueue_job(
         # SQLite
         if idempotency_key:
             cursor = connection.execute(
-                "SELECT job_id, status FROM job_queue WHERE idempotency_key = ?",
-                (idempotency_key,),
+                "SELECT job_id, status FROM job_queue WHERE idempotency_key = ? AND tenant_id = ?",
+                (idempotency_key, tenant_id),
             )
             existing = cursor.fetchone()
             if existing:
-                print(f"[DB] Duplicate job detected with idempotency_key: {idempotency_key}")
+                print(f"[DB] Duplicate job detected with idempotency_key: {idempotency_key} (tenant={tenant_id})")
                 return None  # Return None to indicate duplicate
 
         cursor = connection.execute(
@@ -334,7 +365,9 @@ def enqueue_job(
         return job_id
 
 
-def fetch_job_by_id(connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int, tenant_id: str | None = None) -> dict | None:
+def fetch_job_by_id(
+    connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int, tenant_id: str | None = None
+) -> dict | None:
     """Fetch job details by job ID, optionally filtered by tenant."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -352,7 +385,9 @@ def fetch_job_by_id(connection: sqlite3.Connection | psycopg2.extensions.connect
     else:
         # SQLite
         if tenant_id:
-            cursor = connection.execute("SELECT * FROM job_queue WHERE job_id = ? AND tenant_id = ?", (job_id, tenant_id))
+            cursor = connection.execute(
+                "SELECT * FROM job_queue WHERE job_id = ? AND tenant_id = ?", (job_id, tenant_id)
+            )
         else:
             cursor = connection.execute("SELECT * FROM job_queue WHERE job_id = ?", (job_id,))
         job = cursor.fetchone()
@@ -363,7 +398,9 @@ def fetch_job_by_id(connection: sqlite3.Connection | psycopg2.extensions.connect
         return dict(job)
 
 
-def fetch_job_status_by_id(connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int, tenant_id: str | None = None) -> dict | None:
+def fetch_job_status_by_id(
+    connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int, tenant_id: str | None = None
+) -> dict | None:
     """Fetch job status and details by job ID, optionally filtered by tenant."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -531,20 +568,32 @@ def store_result(
         connection.commit()
 
 
-def count_jobs(connection: sqlite3.Connection | psycopg2.extensions.connection, queue_table: str) -> int:
+def count_jobs(
+    connection: sqlite3.Connection | psycopg2.extensions.connection, queue_table: str, tenant_id: str | None = None
+) -> int:
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
-        cursor.execute(f"SELECT COUNT(1) AS count FROM {queue_table}")
+        if tenant_id:
+            cursor.execute(f"SELECT COUNT(1) AS count FROM {queue_table} WHERE tenant_id = %s", (tenant_id,))
+        else:
+            cursor.execute(f"SELECT COUNT(1) AS count FROM {queue_table}")
         row = cursor.fetchone()
         cursor.close()
         return int(row["count"])
     else:
-        cursor = connection.execute(f"SELECT COUNT(1) AS count FROM {queue_table}")
+        if tenant_id:
+            cursor = connection.execute(
+                f"SELECT COUNT(1) AS count FROM {queue_table} WHERE tenant_id = ?", (tenant_id,)
+            )
+        else:
+            cursor = connection.execute(f"SELECT COUNT(1) AS count FROM {queue_table}")
         row = cursor.fetchone()
         return int(row["count"])
 
 
-def list_jobs_by_tenant(connection: sqlite3.Connection | psycopg2.extensions.connection, queue_table: str, tenant_id: str) -> list[dict]:
+def list_jobs_by_tenant(
+    connection: sqlite3.Connection | psycopg2.extensions.connection, queue_table: str, tenant_id: str
+) -> list[dict]:
     """List all jobs for a specific tenant."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -915,89 +964,140 @@ def enqueue_callback(
 
 
 def fetch_pending_callbacks(
-    connection: sqlite3.Connection | psycopg2.extensions.connection, limit: int = 10
+    connection: sqlite3.Connection | psycopg2.extensions.connection, limit: int = 10, tenant_id: str | None = None
 ) -> list[dict]:
-    """Fetch pending callbacks to send."""
+    """Fetch pending callbacks to send, optionally filtered by tenant (B4)."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
-        cursor.execute(
-            """SELECT callback_id, job_id, callback_url, result_payload, attempts, max_attempts
-               FROM callback_queue
-               WHERE callback_status = 'pending' AND (attempts < max_attempts)
-               ORDER BY created_at ASC
-               LIMIT %s""",
-            (limit,),
-        )
+        if tenant_id:
+            cursor.execute(
+                """SELECT callback_id, job_id, callback_url, result_payload, attempts, max_attempts
+                   FROM callback_queue
+                   WHERE callback_status = 'pending' AND (attempts < max_attempts) AND tenant_id = %s
+                   ORDER BY created_at ASC
+                   LIMIT %s""",
+                (tenant_id, limit),
+            )
+        else:
+            cursor.execute(
+                """SELECT callback_id, job_id, callback_url, result_payload, attempts, max_attempts
+                   FROM callback_queue
+                   WHERE callback_status = 'pending' AND (attempts < max_attempts)
+                   ORDER BY created_at ASC
+                   LIMIT %s""",
+                (limit,),
+            )
         rows = cursor.fetchall()
         cursor.close()
 
         return [dict(row) for row in rows]
     else:
         # SQLite
-        cursor = connection.execute(
-            """SELECT callback_id, job_id, callback_url, result_payload, attempts, max_attempts
-               FROM callback_queue
-               WHERE callback_status = 'pending' AND (attempts < max_attempts)
-               ORDER BY created_at ASC
-               LIMIT ?""",
-            (limit,),
-        )
+        if tenant_id:
+            cursor = connection.execute(
+                """SELECT callback_id, job_id, callback_url, result_payload, attempts, max_attempts
+                   FROM callback_queue
+                   WHERE callback_status = 'pending' AND (attempts < max_attempts) AND tenant_id = ?
+                   ORDER BY created_at ASC
+                   LIMIT ?""",
+                (tenant_id, limit),
+            )
+        else:
+            cursor = connection.execute(
+                """SELECT callback_id, job_id, callback_url, result_payload, attempts, max_attempts
+                   FROM callback_queue
+                   WHERE callback_status = 'pending' AND (attempts < max_attempts)
+                   ORDER BY created_at ASC
+                   LIMIT ?""",
+                (limit,),
+            )
         return [dict(row) for row in cursor.fetchall()]
 
 
 def fetch_callback_count_grouped_by_status(
-    connection: sqlite3.Connection | psycopg2.extensions.connection,
+    connection: sqlite3.Connection | psycopg2.extensions.connection, tenant_id: str | None = None
 ) -> dict:
-    """Fetch count of callbacks grouped by status."""
+    """Fetch count of callbacks grouped by status, optionally filtered by tenant (B5)."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
-        cursor.execute("SELECT callback_status, COUNT(*) as count FROM callback_queue GROUP BY callback_status")
+        if tenant_id:
+            cursor.execute(
+                "SELECT callback_status, COUNT(*) as count FROM callback_queue WHERE tenant_id = %s GROUP BY callback_status",
+                (tenant_id,),
+            )
+        else:
+            cursor.execute("SELECT callback_status, COUNT(*) as count FROM callback_queue GROUP BY callback_status")
         rows = cursor.fetchall()
         cursor.close()
 
         return {row["callback_status"]: row["count"] for row in rows}
     else:
         # SQLite
-        cursor = connection.execute(
-            "SELECT callback_status, COUNT(*) as count FROM callback_queue GROUP BY callback_status"
-        )
+        if tenant_id:
+            cursor = connection.execute(
+                "SELECT callback_status, COUNT(*) as count FROM callback_queue WHERE tenant_id = ? GROUP BY callback_status",
+                (tenant_id,),
+            )
+        else:
+            cursor = connection.execute(
+                "SELECT callback_status, COUNT(*) as count FROM callback_queue GROUP BY callback_status"
+            )
         return {row["callback_status"]: row["count"] for row in cursor.fetchall()}
 
 
 def fetch_callback_status_by_job_id(
-    connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int
+    connection: sqlite3.Connection | psycopg2.extensions.connection, job_id: int, tenant_id: str | None = None
 ) -> list[dict]:
-    """Fetch callback statuses for a specific job."""
+    """Fetch callback statuses for a specific job, optionally filtered by tenant (B8)."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
-        cursor.execute(
-            "SELECT callback_id, callback_status, attempted_at, attempts, max_attempts FROM callback_queue WHERE job_id = %s",
-            (job_id,),
-        )
+        if tenant_id:
+            cursor.execute(
+                "SELECT callback_id, callback_status, attempted_at, attempts, max_attempts FROM callback_queue WHERE job_id = %s AND tenant_id = %s",
+                (job_id, tenant_id),
+            )
+        else:
+            cursor.execute(
+                "SELECT callback_id, callback_status, attempted_at, attempts, max_attempts FROM callback_queue WHERE job_id = %s",
+                (job_id,),
+            )
         rows = cursor.fetchall()
         cursor.close()
 
         return [dict(row) for row in rows]
     else:
         # SQLite
-        cursor = connection.execute(
-            "SELECT callback_id, callback_status, attempted_at, attempts, max_attempts FROM callback_queue WHERE job_id = ?",
-            (job_id,),
-        )
+        if tenant_id:
+            cursor = connection.execute(
+                "SELECT callback_id, callback_status, attempted_at, attempts, max_attempts FROM callback_queue WHERE job_id = ? AND tenant_id = ?",
+                (job_id, tenant_id),
+            )
+        else:
+            cursor = connection.execute(
+                "SELECT callback_id, callback_status, attempted_at, attempts, max_attempts FROM callback_queue WHERE job_id = ?",
+                (job_id,),
+            )
         return [dict(row) for row in cursor.fetchall()]
 
 
 def check_idempotency(
     connection: sqlite3.Connection | psycopg2.extensions.connection,
     idempotency_key: str,
+    tenant_id: str | None = None,
 ) -> dict | None:
-    """Check if job with given idempotency key already exists. Returns job if exists."""
+    """Check if job with given idempotency key already exists. Returns job if exists (B6: mandanten-scoped)."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
-        cursor.execute(
-            "SELECT job_id, status, result FROM job_queue WHERE idempotency_key = %s",
-            (idempotency_key,),
-        )
+        if tenant_id:
+            cursor.execute(
+                "SELECT job_id, status, result FROM job_queue WHERE idempotency_key = %s AND tenant_id = %s",
+                (idempotency_key, tenant_id),
+            )
+        else:
+            cursor.execute(
+                "SELECT job_id, status, result FROM job_queue WHERE idempotency_key = %s",
+                (idempotency_key,),
+            )
         row = cursor.fetchone()
         cursor.close()
 
@@ -1009,10 +1109,16 @@ def check_idempotency(
             }
     else:
         # SQLite
-        cursor = connection.execute(
-            "SELECT job_id, status, result FROM job_queue WHERE idempotency_key = ?",
-            (idempotency_key,),
-        )
+        if tenant_id:
+            cursor = connection.execute(
+                "SELECT job_id, status, result FROM job_queue WHERE idempotency_key = ? AND tenant_id = ?",
+                (idempotency_key, tenant_id),
+            )
+        else:
+            cursor = connection.execute(
+                "SELECT job_id, status, result FROM job_queue WHERE idempotency_key = ?",
+                (idempotency_key,),
+            )
         row = cursor.fetchone()
 
         if row:
@@ -1056,23 +1162,33 @@ def store_callback_result(
 
 
 def fetch_dlq_count(
-    connection: sqlite3.Connection | psycopg2.extensions.connection,
+    connection: sqlite3.Connection | psycopg2.extensions.connection, tenant_id: str | None = None
 ) -> int:
-    """Fetch count of jobs in Dead Letter Queue."""
+    """Fetch count of jobs in Dead Letter Queue, optionally filtered by tenant (B5)."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
-        cursor.execute("SELECT COUNT(*) as count FROM dead_letter_queue")
+        if tenant_id:
+            cursor.execute("SELECT COUNT(*) as count FROM dead_letter_queue WHERE tenant_id = %s", (tenant_id,))
+        else:
+            cursor.execute("SELECT COUNT(*) as count FROM dead_letter_queue")
         row = cursor.fetchone()
         cursor.close()
         return row["count"]
     else:
         # SQLite
-        cursor = connection.execute("SELECT COUNT(*) as count FROM dead_letter_queue")
+        if tenant_id:
+            cursor = connection.execute(
+                "SELECT COUNT(*) as count FROM dead_letter_queue WHERE tenant_id = ?", (tenant_id,)
+            )
+        else:
+            cursor = connection.execute("SELECT COUNT(*) as count FROM dead_letter_queue")
         row = cursor.fetchone()
         return int(row["count"])
 
 
-def fetch_dlq_jobs(connection: sqlite3.Connection | psycopg2.extensions.connection, limit: int = 10, tenant_id: str | None = None) -> list[dict]:
+def fetch_dlq_jobs(
+    connection: sqlite3.Connection | psycopg2.extensions.connection, limit: int = 10, tenant_id: str | None = None
+) -> list[dict]:
     """Fetch jobs from Dead Letter Queue, optionally filtered by tenant."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -1120,17 +1236,29 @@ def fetch_dlq_jobs(connection: sqlite3.Connection | psycopg2.extensions.connecti
 
 
 def fetch_jobs_grouped_by_status(
-    connection: sqlite3.Connection | psycopg2.extensions.connection, queue_table: str
+    connection: sqlite3.Connection | psycopg2.extensions.connection, queue_table: str, tenant_id: str | None = None
 ) -> dict:
-    """Fetch job counts grouped by status."""
+    """Fetch job counts grouped by status, optionally filtered by tenant (B5)."""
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
-        cursor.execute(f"SELECT status, COUNT(*) as count FROM {queue_table} GROUP BY status")
+        if tenant_id:
+            cursor.execute(
+                f"SELECT status, COUNT(*) as count FROM {queue_table} WHERE tenant_id = %s GROUP BY status",
+                (tenant_id,),
+            )
+        else:
+            cursor.execute(f"SELECT status, COUNT(*) as count FROM {queue_table} GROUP BY status")
         rows = cursor.fetchall()
         cursor.close()
 
         return {row["status"]: row["count"] for row in rows}
     else:
         # SQLite
-        cursor = connection.execute(f"SELECT status, COUNT(*) as count FROM {queue_table} GROUP BY status")
+        if tenant_id:
+            cursor = connection.execute(
+                f"SELECT status, COUNT(*) as count FROM {queue_table} WHERE tenant_id = ? GROUP BY status",
+                (tenant_id,),
+            )
+        else:
+            cursor = connection.execute(f"SELECT status, COUNT(*) as count FROM {queue_table} GROUP BY status")
         return {row["status"]: row["count"] for row in cursor.fetchall()}

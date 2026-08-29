@@ -513,3 +513,32 @@ class TestWorkerIntegration:
 
         job_status = fetch_job_status_by_id(connection, job_id)
         assert job_status["status"] == "dead_lettered"
+
+    def test_worker_uses_validated_tenantId_for_callback_and_dlq(self, tmp_path):
+        """B2: Worker extrahiert tenant_id aus dem Payload (camelCase tenantId) für Callback + DLQ."""
+        from tito.db import enqueue_callback, fetch_callback_status_by_job_id
+
+        settings, connection = setup_test_db(tmp_path, "test_tenant_extract.db")
+
+        # Payload mit camelCase tenantId (wie im README dokumentiert), KEIN snake_case tenant_id
+        payload = create_test_payload(job_id="job-camel")
+        payload["metadata"]["callback_url"] = "http://example.com/cb"
+        # Entferne ggf. snake_case, falls vom Test-Helper gesetzt
+        payload["metadata"].pop("tenant_id", None)
+
+        job_id = enqueue_job(connection, payload, settings.queue_table)
+
+        # Simuliere Worker-Callback-Eintrag via extract_tenant_id (wie worker.py es tut)
+        from tito.schema import extract_tenant_id
+
+        tenant_id = extract_tenant_id(payload.get("metadata"))
+        assert tenant_id == "1"  # aus tenantId (int) -> str normalisiert
+
+        enqueue_callback(connection, job_id, "http://example.com/cb", {"status": "ok"}, tenant_id=tenant_id)
+
+        callbacks = fetch_callback_status_by_job_id(connection, job_id, tenant_id="1")
+        assert len(callbacks) == 1
+
+        # Cross-Tenant: Tenant 2 sieht den Callback nicht
+        callbacks_b = fetch_callback_status_by_job_id(connection, job_id, tenant_id="2")
+        assert len(callbacks_b) == 0

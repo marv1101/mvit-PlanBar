@@ -6,7 +6,7 @@
 #   export PLANBAR_DB_NAME=kunde1_planbar TITO_DB_NAME=kunde1_tito
 #   export DOMAIN=kunde1.app.planbar.de
 #   export PLANBAR_DB_PASSWORD=<pwd> TITO_DB_PASSWORD=<pwd>
-#   export SECRET_KEY=<random> TITO_API_KEY=<random> TITO_JWT_SECRET=<random>
+#   export SECRET_KEY=<random> TITO_API_KEY=<random> TITO_WORKER_API_KEY=<random> TITO_JWT_SECRET=<random>
 #   docker compose -f docker-compose.customer.yaml -p "planbar-${CUSTOMER}" up -d
 
 services:
@@ -23,6 +23,7 @@ services:
       MAX_JOBS: 20
       TIMEOUT_SECONDS: 300
       API_TOKEN: ${TITO_API_KEY:?}
+      API_TOKEN_ROLES: "${TITO_API_KEY:?}=admin,${TITO_WORKER_API_KEY:?}=worker"
       JWT_SECRET: ${TITO_JWT_SECRET:?}
       JWT_ALGORITHM: HS256
     restart: unless-stopped
@@ -45,7 +46,7 @@ services:
       TZ: ${TZ:-UTC}
       DATABASE_URL: postgresql://tito:${TITO_DB_PASSWORD:?}@db_tito:5432/${TITO_DB_NAME:?}
       API_URL: http://tito:5001
-      API_TOKEN: ${TITO_API_KEY:?}
+      WORKER_API_TOKEN: ${TITO_WORKER_API_KEY:?}
       QUEUE_TABLE: job_queue
       CALLBACK_QUEUE: callback_queue
       MAX_JOBS: 10
