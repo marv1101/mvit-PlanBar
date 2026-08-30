@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Column, DateTime, Integer, String
 
@@ -12,5 +12,5 @@ class RevokedToken(Base):
     jti = Column(String(36), unique=True, nullable=False, index=True)
     token_type = Column(String(10), nullable=False)
     user_id = Column(Integer, nullable=False)
-    revoked_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    revoked_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     expires_at = Column(DateTime, nullable=False)

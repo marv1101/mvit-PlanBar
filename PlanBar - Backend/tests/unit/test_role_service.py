@@ -1,4 +1,7 @@
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from app.core.exceptions import ConflictException, NotFoundException
 from app.db.base import Base
 from app.db.models.role import Role
@@ -9,8 +12,6 @@ from app.services.role_service import (
     list_roles,
     update_role,
 )
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture

@@ -20,13 +20,13 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # ── ArbZG constants ────────────────────────────────────────────────────────
-MIN_REST_HOURS = 11  # §3 – minimum uninterrupted rest between shifts
-MAX_DAILY_HOURS = 10  # §3 – maximum daily working time
-BREAK_THRESHOLD_6H = 6  # §4 – break required after 6h
-BREAK_MIN_30 = 30  # §4 – minimum 30 min break for >6h
-BREAK_THRESHOLD_9H = 9  # §4 – extended break required after 9h
-BREAK_MIN_45 = 45  # §4 – minimum 45 min break for >9h
-MAX_CONSECUTIVE_DAYS = 6  # §5 – maximum consecutive working days
+MIN_REST_HOURS = 11  # §3 - minimum uninterrupted rest between shifts
+MAX_DAILY_HOURS = 10  # §3 - maximum daily working time
+BREAK_THRESHOLD_6H = 6  # §4 - break required after 6h
+BREAK_MIN_30 = 30  # §4 - minimum 30 min break for >6h
+BREAK_THRESHOLD_9H = 9  # §4 - extended break required after 9h
+BREAK_MIN_45 = 45  # §4 - minimum 45 min break for >9h
+MAX_CONSECUTIVE_DAYS = 6  # §5 - maximum consecutive working days
 
 
 # ── Data structures ─────────────────────────────────────────────────────────
@@ -159,7 +159,7 @@ def validate_rest_time(shifts: list[dict[str, Any]]) -> list[ArbZgViolation]:
     """
     violations: list[ArbZgViolation] = []
     for eid, emp_shifts in _shifts_by_employee(shifts).items():
-        sorted_shifts = sorted(emp_shifts, key=lambda s: _shift_start_datetime(s))
+        sorted_shifts = sorted(emp_shifts, key=_shift_start_datetime)
         for i in range(1, len(sorted_shifts)):
             prev_end = _shift_end_datetime(sorted_shifts[i - 1])
             curr_start = _shift_start_datetime(sorted_shifts[i])

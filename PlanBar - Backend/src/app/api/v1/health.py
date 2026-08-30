@@ -24,7 +24,7 @@ def db_health(db: Session = Depends(get_db), admin: User = Depends(require_admin
     try:
         db.execute(text("SELECT 1"))
         return {"status": "ok", "database": "connected"}
-    except Exception:  # noqa: BLE001
+    except Exception:
         return {"status": "error", "detail": "Database connection failed"}
 
 

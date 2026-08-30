@@ -1,5 +1,5 @@
+from datetime import UTC, datetime
 from datetime import date as Date
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
@@ -138,11 +138,11 @@ def update_shift_wish(
 
     try:
         check_etag_conflict(wish, if_match, "date", "type", "status")
-    except ConflictError:
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Shift wish was modified by another user. Please refresh and try again.",
-        )
+        ) from e
 
     if not team_service.user_can_access_employee(db, current_user, wish.employee_id):
         raise HTTPException(
@@ -213,7 +213,7 @@ def approve_shift_wish(
         )
     wish.status = WishStatus.APPROVED.value
     wish.reviewed_by = user.id
-    wish.reviewed_at = datetime.now(timezone.utc)
+    wish.reviewed_at = datetime.now(UTC)
     wish.rejection_reason = None
     db.add(wish)
     db.commit()
@@ -255,7 +255,7 @@ def reject_shift_wish(
         )
     wish.status = WishStatus.REJECTED.value
     wish.reviewed_by = user.id
-    wish.reviewed_at = datetime.now(timezone.utc)
+    wish.reviewed_at = datetime.now(UTC)
     wish.rejection_reason = body.rejection_reason
     db.add(wish)
     db.commit()

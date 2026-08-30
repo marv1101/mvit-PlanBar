@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+
 from app.services.holiday_service import (
     _FIXED_NATIONWIDE,
     _HAS_HOLIDAYS,

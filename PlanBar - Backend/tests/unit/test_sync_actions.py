@@ -6,6 +6,8 @@ from datetime import time as _time
 from unittest.mock import Mock
 
 import pytest
+from fastapi import HTTPException
+
 from app.db.models.employee import Employee
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
@@ -18,7 +20,6 @@ from app.services.sync_actions import (
     UpdateShift,
     UpdateShiftWish,
 )
-from fastapi import HTTPException
 
 
 def _u(prefix):
@@ -115,7 +116,8 @@ class TestDeleteShiftWish:
             employee_user,
         )
         r = DeleteShiftWish.execute(db_session, {"id": c["id"]}, employee_user)
-        assert r["id"] == c["id"] and r["deleted"] is True
+        assert r["id"] == c["id"]
+        assert r["deleted"] is True
         assert db_session.query(ShiftWish).filter(ShiftWish.id == c["id"]).first() is None
 
 

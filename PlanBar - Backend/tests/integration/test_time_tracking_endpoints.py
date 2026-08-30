@@ -1,12 +1,13 @@
 """Integration tests for time tracking endpoints (Issue #29)."""
 
 import pytest
-from app.db.base import Base
-from app.db.models.employee import Employee
-from app.main import app
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+from app.db.base import Base
+from app.db.models.employee import Employee
+from app.main import app
 
 
 @pytest.fixture

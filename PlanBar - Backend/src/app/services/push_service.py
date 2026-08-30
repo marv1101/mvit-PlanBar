@@ -18,7 +18,9 @@ _vapid_public_key: str | None = None
 
 
 def _load_or_generate_vapid_keys() -> tuple[str, str]:
-    global _vapid_private_key, _vapid_public_key
+    # Module-level VAPID key cache: keys are loaded/generated once and reused
+    # for every push; stored globally so all subscribers share the same pair.
+    global _vapid_private_key, _vapid_public_key  # noqa: PLW0603
     if _vapid_private_key and _vapid_public_key:
         return _vapid_private_key, _vapid_public_key
     private_key = settings.vapid_private_key
@@ -33,7 +35,7 @@ def _load_or_generate_vapid_keys() -> tuple[str, str]:
             _vapid_private_key = data["private_key"]
             _vapid_public_key = data["public_key"]
             return _vapid_private_key, _vapid_public_key
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning("Failed to load VAPID keys from file, generating new ones")
     vapid = Vapid()
     vapid.generate_keys()
@@ -41,7 +43,7 @@ def _load_or_generate_vapid_keys() -> tuple[str, str]:
     _vapid_public_key = vapid.public_pem().decode("utf-8")
     try:
         VAPID_KEY_FILE.write_text(json.dumps({"private_key": _vapid_private_key, "public_key": _vapid_public_key}))
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("Could not persist VAPID keys to file: %s", e)
     return _vapid_private_key, _vapid_public_key
 
@@ -174,9 +176,8 @@ def send_push_notification_to_user(
         success = send_push_notification(sub, title, body, url, tag)
         if success:
             sent_count += 1
-        else:
-            if sub.endpoint:
-                db.delete(sub)
+        elif sub.endpoint:
+            db.delete(sub)
     if subscriptions:
         db.commit()
     return sent_count

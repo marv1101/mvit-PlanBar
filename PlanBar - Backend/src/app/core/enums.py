@@ -1,13 +1,13 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class UserRole(str, Enum):
+class UserRole(StrEnum):
     USER = "user"
     ADMIN = "admin"
     PLANNER = "planer"
 
 
-class ScheduleStatus(str, Enum):
+class ScheduleStatus(StrEnum):
     DRAFT = "draft"
     REVIEW = "review"
     SUBMITTED = "submitted"
@@ -16,30 +16,30 @@ class ScheduleStatus(str, Enum):
     FAILED = "failed"
 
 
-class WishType(str, Enum):
+class WishType(StrEnum):
     PREFERRED = "preferred"
     UNAVAILABLE = "unavailable"
 
 
-class WishStatus(str, Enum):
+class WishStatus(StrEnum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
 
 
-class WeekType(str, Enum):
+class WeekType(StrEnum):
     A = "A"
     B = "B"
 
 
-class NotificationType(str, Enum):
+class NotificationType(StrEnum):
     WISH_APPROVED = "wish_approved"
     WISH_REJECTED = "wish_rejected"
     SCHEDULE_PUBLISHED = "schedule_published"
     SHIFT_CHANGED = "shift_changed"
 
 
-class PushDeviceType(str, Enum):
+class PushDeviceType(StrEnum):
     WEB = "web"
     MOBILE = "mobile"
     SWAP_REQUESTED = "swap_requested"
@@ -47,7 +47,7 @@ class PushDeviceType(str, Enum):
     SWAP_REJECTED = "swap_rejected"
 
 
-class ShiftSwapStatus(str, Enum):
+class ShiftSwapStatus(StrEnum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"

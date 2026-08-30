@@ -102,7 +102,7 @@ def run_database_setup() -> None:
         alembic_cfg = Config("alembic.ini")
         command.upgrade(alembic_cfg, "head")
         logger.info("Alembic migrations applied successfully")
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.warning("Alembic migration failed, falling back to create_all")
         Base.metadata.create_all(bind=engine)
 
@@ -137,19 +137,19 @@ def _generate_complex_password() -> str:
     - At least 1 digit
     - At least 1 special character
     """
-    import random
+    import secrets
     import string
 
     # Ensure at least one of each required character type
-    uppercase = random.choice(string.ascii_uppercase)
-    lowercase = random.choice(string.ascii_lowercase)
-    digit = random.choice(string.digits)
-    special = random.choice("!@#$%^&*")
+    uppercase = secrets.choice(string.ascii_uppercase)
+    lowercase = secrets.choice(string.ascii_lowercase)
+    digit = secrets.choice(string.digits)
+    special = secrets.choice("!@#$%^&*")
     # Fill the rest with random characters from all categories
-    rest = "".join(random.choices(string.ascii_letters + string.digits + "!@#$%^&*", k=12))
+    rest = "".join(secrets.choice(string.ascii_letters + string.digits + "!@#$%^&*") for _ in range(12))
     # Combine and shuffle
     password = list(uppercase + lowercase + digit + special + rest)
-    random.shuffle(password)
+    secrets.SystemRandom().shuffle(password)
     return "".join(password)
 
 
@@ -203,4 +203,6 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    # Bind on all interfaces: the app runs in Docker/containers where the host
+    # network is isolated; same setting as in the Dockerfile CMD.
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)  # noqa: S104

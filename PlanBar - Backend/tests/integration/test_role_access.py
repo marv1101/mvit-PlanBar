@@ -8,7 +8,7 @@ def _create_user(client, password="Password@123"):
     resp = client.post(
         "/api/v1/users",
         json={
-            "username": email.split("@")[0],
+            "username": email.split("@", maxsplit=1)[0],
             "email": email,
             "password": password,
         },

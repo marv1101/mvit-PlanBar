@@ -9,7 +9,7 @@ from app.db.models.user import User
 # ---------------------------------------------------------------------------
 
 # Password that meets BSI complexity: upper, lower, digit, special
-_VALID_PASSWORD = "Test@Pass123"
+_VALID_PASSWORD = "Test@Pass123"  # noqa: S105 - test fixture password
 
 
 def _register_and_login(client, email: str, username: str) -> dict:

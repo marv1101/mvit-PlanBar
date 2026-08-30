@@ -1,9 +1,10 @@
 """Tests for role-based dependencies (require_admin_or_planer)."""
 
 import pytest
-from app.dependencies import require_admin_or_planer
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
+
+from app.dependencies import require_admin_or_planer
 
 
 @pytest.fixture

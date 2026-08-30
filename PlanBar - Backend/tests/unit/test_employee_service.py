@@ -1,4 +1,7 @@
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from app.db.base import Base
 from app.db.models.role import Role
 from app.schemas.employee import (
@@ -24,8 +27,6 @@ from app.services.employee_service import (
     update_employee,
     update_timecard,
 )
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture

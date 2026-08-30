@@ -27,7 +27,7 @@ class UpdateShift(RoleRequired):
     )
 
     @staticmethod
-    def execute(db: Session, data: dict[str, Any], user: User) -> dict[str, Any]:
+    def execute(db: Session, data: dict[str, Any], _user: User) -> dict[str, Any]:
         from datetime import date as _date
         from datetime import time as _time
 

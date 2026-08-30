@@ -10,7 +10,7 @@ implementation, so the public API and CSV shape do not change.
 import csv
 import io
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -51,7 +51,7 @@ def export_user_data(db: Session, user_id: int) -> dict:
     employee_data = employees_data[0] if employees_data else None
 
     return {
-        "export_date": serialize_datetime(datetime.now(timezone.utc)),
+        "export_date": serialize_datetime(datetime.now(UTC)),
         "user": user_block,
         "employee": employee_data,
         "pinboard": collect_pinboard(db, user_id),
@@ -76,14 +76,14 @@ def delete_user_data(db: Session, user_id: int) -> dict:
     summary = {
         "user_id": user_id,
         "anonymized_id": anonymized_id,
-        "anonymized_at": datetime.now(timezone.utc).isoformat(),
+        "anonymized_at": datetime.now(UTC).isoformat(),
         "actions": [],
     }
 
     # 1. Anonymize user account
     user.username = anonymized_id
     user.email = f"{anonymized_id}@deleted.invalid"
-    user.password_hash = "DELETED"
+    user.password_hash = "DELETED"  # noqa: S105 - anonymization sentinel, not a real credential
     user.role = "user"
     user.must_change_password = False
     user.last_login = None

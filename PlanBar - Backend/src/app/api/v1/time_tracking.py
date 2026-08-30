@@ -1,6 +1,6 @@
 """Time-Tracking API endpoints (Issue #29 - Digitale Zeiterfassung)."""
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -46,7 +46,7 @@ def clock_in(
     try:
         entry = svc_clock_in(db, emp_id, notes=(payload.notes if payload else None))
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     return entry
 
 
@@ -60,7 +60,7 @@ def clock_out(
     try:
         entry = svc_clock_out(db, emp_id)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     return entry
 
 
@@ -72,9 +72,9 @@ def today(
 ):
     emp_id = _resolve_employee_id(employee_id, current_user)
     try:
-        return svc_get_daily_entries(db, emp_id, datetime.now(timezone.utc).date())
+        return svc_get_daily_entries(db, emp_id, datetime.now(UTC).date())
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.get("/entries", response_model=list[TimeEntryResponse])
@@ -88,7 +88,7 @@ def list_entries(
     if not db.get(Employee, employee_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
     # Simple range: union of daily entries between start_date and end_date (inclusive)
-    sd: date = start_date if start_date is not None else datetime.now(timezone.utc).date()
+    sd: date = start_date if start_date is not None else datetime.now(UTC).date()
     ed: date = end_date if end_date is not None else sd
 
     from datetime import timedelta

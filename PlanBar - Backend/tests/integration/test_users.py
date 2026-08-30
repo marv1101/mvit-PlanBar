@@ -28,7 +28,7 @@ def test_register_login_and_refresh_token(client):
     token_data = login_response.json()
     assert token_data["access_token"]
     assert token_data["refresh_token"]
-    assert token_data["token_type"] == "bearer"
+    assert token_data["token_type"] == "bearer"  # noqa: S105 - token type, not a password
 
     auth_header = {"Authorization": f"Bearer {token_data['access_token']}"}
     me_response = client.get("/api/v1/users/me", headers=auth_header)
@@ -121,9 +121,11 @@ def test_change_password(client, auth_headers):
         json={"username": "changepwuser", "email": "changepw@example.com", "password": "oldPassword@123"},
     )
     register_resp.json()["id"]
-    user_auth = {
-        "Authorization": f"Bearer {client.post('/api/v1/users/login', json={'email': 'changepw@example.com', 'password': 'oldPassword@123'}).json()['access_token']}"
-    }
+    token = client.post(
+        "/api/v1/users/login",
+        json={"email": "changepw@example.com", "password": "oldPassword@123"},
+    ).json()["access_token"]
+    user_auth = {"Authorization": f"Bearer {token}"}
 
     response = client.post(
         "/api/v1/users/change-password",
@@ -138,9 +140,11 @@ def test_change_password_wrong_old(client, auth_headers):
         "/api/v1/users",
         json={"username": "changepwfail", "email": "changepwfail@example.com", "password": "oldPassword@123"},
     )
-    user_auth = {
-        "Authorization": f"Bearer {client.post('/api/v1/users/login', json={'email': 'changepwfail@example.com', 'password': 'oldPassword@123'}).json()['access_token']}"
-    }
+    token = client.post(
+        "/api/v1/users/login",
+        json={"email": "changepwfail@example.com", "password": "oldPassword@123"},
+    ).json()["access_token"]
+    user_auth = {"Authorization": f"Bearer {token}"}
 
     response = client.post(
         "/api/v1/users/change-password",

@@ -1,11 +1,12 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from app.db.base import Base
 from app.db.models.user import User
 from app.services import audit_service
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture
@@ -85,7 +86,7 @@ class TestLogFunctions:
 
 class TestQuery:
     def test_query_pagination_defaults(self, db_session):
-        for i in range(25):
+        for _ in range(25):
             audit_service.log(db_session, user_id=None, action="TEST", resource_type="test")
         items, pagination = audit_service.query(db_session)
         assert len(items) == 20
@@ -133,7 +134,7 @@ class TestQuery:
 
     def test_query_with_date_range(self, db_session):
         audit_service.log(db_session, user_id=None, action="TEST", resource_type="test")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         items, _ = audit_service.query(
             db_session,
             start_date=now - timedelta(hours=1),

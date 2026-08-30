@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -89,9 +89,9 @@ def register_user(user_in: UserCreate, request: Request, db: Session = Depends(g
         )
     try:
         user = create_user(db, user_in)
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise ConflictException(detail="User with email or username already exists")
+        raise ConflictException(detail="User with email or username already exists") from e
     return user
 
 
@@ -127,7 +127,7 @@ def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db))
     # Reset lockout counter on successful login
     lockout_service.record_successful_login(user_data.email)
 
-    user.last_login = datetime.now(timezone.utc)
+    user.last_login = datetime.now(UTC)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -158,8 +158,8 @@ def refresh_token(request: Request, token_data: TokenRefreshRequest, db: Session
 
     try:
         payload = verify_token(refresh_token_str)
-    except ValueError:
-        raise UnauthorizedException(detail="Invalid refresh token")
+    except ValueError as e:
+        raise UnauthorizedException(detail="Invalid refresh token") from e
 
     jti = payload.get("jti")
     if jti and is_token_revoked(jti, db):
@@ -176,7 +176,7 @@ def refresh_token(request: Request, token_data: TokenRefreshRequest, db: Session
     if jti and user_id:
         exp = payload.get("exp")
         if exp:
-            expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+            expires_at = datetime.fromtimestamp(exp, tz=UTC)
             revoke_token(jti, "refresh", int(user_id), expires_at, db)
 
     access_token = create_access_token(subject=str(user.id))
@@ -205,7 +205,7 @@ def logout(request: Request, db: Session = Depends(get_db)):
             user_id = payload.get("sub")
             exp = payload.get("exp")
             if jti and user_id and exp:
-                expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+                expires_at = datetime.fromtimestamp(exp, tz=UTC)
                 revoke_token(jti, token_type, int(user_id), expires_at, db)
         except ValueError:
             pass
@@ -262,11 +262,11 @@ def update_user_endpoint(
 
     try:
         check_etag_conflict(user, if_match, "username", "email", "role")
-    except ConflictError:
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="User was modified by another user. Please refresh and try again.",
-        )
+        ) from e
 
     if user_in.email:
         existing = db.query(User).filter(User.email == user_in.email, User.id != user.id).first()
@@ -308,9 +308,9 @@ def admin_create_user_endpoint(
 ):
     try:
         user, password = admin_create_user(db, user_in, actor_id=admin.id)
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise ConflictException(detail="User with email or username already exists")
+        raise ConflictException(detail="User with email or username already exists") from e
 
     return AdminUserCreateResponse(
         id=user.id,
@@ -336,7 +336,7 @@ def change_password_endpoint(
     try:
         user = change_password(db, current_user, data.old_password, data.new_password)
     except ValueError as e:
-        raise UnauthorizedException(detail=str(e))
+        raise UnauthorizedException(detail=str(e)) from e
     return user
 
 

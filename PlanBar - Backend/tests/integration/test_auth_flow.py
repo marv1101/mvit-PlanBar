@@ -8,7 +8,7 @@ def _create_user(client, password="TestPass@123"):
     resp = client.post(
         "/api/v1/users",
         json={
-            "username": email.split("@")[0],
+            "username": email.split("@", maxsplit=1)[0],
             "email": email,
             "password": password,
         },
@@ -31,7 +31,7 @@ def test_login_success(client):
     data = response.json()
     assert data["access_token"]
     assert data["refresh_token"]
-    assert data["token_type"] == "bearer"
+    assert data["token_type"] == "bearer"  # noqa: S105 - token type, not a password
     assert data["must_change_password"] is True
 
 

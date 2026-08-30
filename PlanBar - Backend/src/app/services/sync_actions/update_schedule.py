@@ -22,7 +22,7 @@ class UpdateSchedule(RoleRequired):
     role = AdminRoleCheck()
 
     @staticmethod
-    def execute(db: Session, data: dict[str, Any], user: User) -> dict[str, Any]:
+    def execute(db: Session, data: dict[str, Any], _user: User) -> dict[str, Any]:
         schedule_id = data.get("id")
         schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
         if not schedule:
@@ -34,7 +34,7 @@ class UpdateSchedule(RoleRequired):
                 schedule.updated_at if hasattr(schedule, "updated_at") else None, schedule_etag, stored_etag
             )
         except ConflictError as e:
-            raise HTTPException(status_code=409, detail=str(e))
+            raise HTTPException(status_code=409, detail=str(e)) from e
         if "name" in data:
             schedule.name = data["name"]
         if "status" in data:
