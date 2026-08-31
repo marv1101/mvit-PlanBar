@@ -178,9 +178,10 @@ describe('scheduleService', () => {
       server.use(
         http.get(`${base}/exports/schedule/1/pdf`, ({ request }) => {
           capturedUrls.push(request.url);
-          return new HttpResponse(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]), {
-            headers: { 'Content-Type': 'application/pdf' },
-          });
+          return HttpResponse.arrayBuffer(
+            new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer,
+            { headers: { 'Content-Type': 'application/pdf' } },
+          );
         })
       );
 
@@ -233,7 +234,7 @@ describe('scheduleService', () => {
       server.use(
         http.get(`${base}/exports/schedule/1/ical`, ({ request }) => {
           capturedUrls.push(request.url);
-          return new HttpResponse('BEGIN:VCALENDAR', {
+          return HttpResponse.text('BEGIN:VCALENDAR', {
             headers: { 'Content-Type': 'text/calendar' },
           });
         })
