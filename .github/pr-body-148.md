@@ -40,6 +40,7 @@ src/app/services/sync_actions/
 class RoleRequired:
     def check(self, user: User) -> None: ...  # raise HTTPException(403) on deny
 
+
 class CreateShiftWish(RoleRequired):
     resource = "requests"
     action = "create"
@@ -58,7 +59,7 @@ class SyncActionRegistry:
     @classmethod
     def dispatch(cls, payload, db, user):
         handler = cls.get(payload.resource, payload.action)  # 400 if unsupported
-        handler.role.check(user)                              # central auth
+        handler.role.check(user)  # central auth
         return handler.execute(db, payload.data, user)
 ```
 

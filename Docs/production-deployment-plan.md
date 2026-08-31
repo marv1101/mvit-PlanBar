@@ -682,14 +682,14 @@ class Settings(BaseSettings):
     cors_origins: str = Field("http://localhost:5173,http://localhost:3000")
     tito_api_key: str | None = Field(None)
 
+
 settings = Settings()
 ```
 
 ```python
 # main.py (nach App-Erstellung)
 if settings.environment in ("production", "demo"):
-    assert settings.secret_key not in ("change-me-in-production", "", None), \
-        "SECRET_KEY must be set in production"
+    assert settings.secret_key not in ("change-me-in-production", "", None), "SECRET_KEY must be set in production"
 ```
 
 ### Umsetzung S5: nginx Security Headers
@@ -808,6 +808,7 @@ docker compose -p planbar-kunde1 logs --tail=50 -f
 # pip install sentry-sdk
 # In main.py:
 import sentry_sdk
+
 sentry_sdk.init(
     dsn=settings.sentry_dsn,
     environment=settings.environment,

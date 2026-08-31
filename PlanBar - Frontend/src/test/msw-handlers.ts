@@ -577,6 +577,21 @@ export const handlers = [
       headers: { 'Content-Type': 'application/octet-stream' },
     })
   }),
+
+  // -- Exports ---------------------------------------------------------------
+
+  http.get(`${base}/exports/schedule/:id/pdf`, () => {
+    return HttpResponse.arrayBuffer(
+      new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer,
+      { headers: { 'Content-Type': 'application/pdf' } },
+    )
+  }),
+
+  http.get(`${base}/exports/schedule/:id/ical`, () => {
+    return HttpResponse.text('BEGIN:VCALENDAR', {
+      headers: { 'Content-Type': 'text/calendar' },
+    })
+  }),
 ]
 
 // ---------------------------------------------------------------------------

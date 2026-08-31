@@ -164,9 +164,7 @@ def _backfill_week_from_date_parity() -> None:
                     fixed_wishes += 1
             db.commit()
             if fixed_shifts or fixed_wishes:
-                logger.info(
-                    "Backfilled week parity: %s shiftplan(s), %s wish(es)", fixed_shifts, fixed_wishes
-                )
+                logger.info("Backfilled week parity: %s shiftplan(s), %s wish(es)", fixed_shifts, fixed_wishes)
         finally:
             db.close()
     except Exception:

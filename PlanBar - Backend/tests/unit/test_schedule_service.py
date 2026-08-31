@@ -1010,3 +1010,66 @@ def test_build_tito_payload_maximizeStaffing_false_by_default(db_session):
 
     payload = _build_tito_payload(schedule, [], [])
     assert payload["config"]["maximizeStaffing"] is False
+
+
+@pytest.mark.asyncio
+async def test_submit_tito_rejects_non_draft_status(db_session):
+    """submit_schedule_to_tito must raise ValueError for non-draft/non-failed schedules."""
+    for status in ("submitted", "completed"):
+        schedule = Schedule(
+            name=f"Status {status}",
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 6, 7),
+            status=status,
+        )
+        db_session.add(schedule)
+        db_session.commit()
+        db_session.refresh(schedule)
+
+        with pytest.raises(ValueError, match="cannot be submitted"):
+            await submit_schedule_to_tito(db_session, schedule)
+
+
+@pytest.mark.asyncio
+async def test_submit_tito_allows_draft_status(db_session):
+    """submit_schedule_to_tito must proceed for draft schedules."""
+    schedule = Schedule(
+        name="Draft Schedule",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+    db_session.refresh(schedule)
+
+    async def fake_submit(payload):
+        return {"jobId": 1}
+
+    with patch("app.services.schedule_service.tito_proxy.submit_job", side_effect=fake_submit):
+        result = await submit_schedule_to_tito(db_session, schedule)
+
+    assert result.status == "submitted"
+    assert result.tito_job_id == 1
+
+
+@pytest.mark.asyncio
+async def test_submit_tito_allows_failed_status(db_session):
+    """submit_schedule_to_tito must proceed for failed schedules (retry via submit path)."""
+    schedule = Schedule(
+        name="Failed Schedule",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="failed",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+    db_session.refresh(schedule)
+
+    async def fake_submit(payload):
+        return {"jobId": 2}
+
+    with patch("app.services.schedule_service.tito_proxy.submit_job", side_effect=fake_submit):
+        result = await submit_schedule_to_tito(db_session, schedule)
+
+    assert result.status == "submitted"

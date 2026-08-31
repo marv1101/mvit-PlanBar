@@ -148,7 +148,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         for i in range(total_slots):
             expanded = dict(req)
             expanded["count"] = 1
-            expanded["mandatory"] = (i < count)
+            expanded["mandatory"] = i < count
             expanded_requirements.append(expanded)
     requirements = expanded_requirements
 
@@ -360,8 +360,7 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
     # --- b) Globale Fairness mit Balance-Adjustment (immer aktiv) ---
     mandatory_indices = [i for i, r in enumerate(requirements) if r.get("mandatory", True)]
     total_all_minutes = sum(
-        _effective_shift_minutes(shift_templates.get(requirements[i].get("shiftId"), {}), {})
-        for i in mandatory_indices
+        _effective_shift_minutes(shift_templates.get(requirements[i].get("shiftId"), {}), {}) for i in mandatory_indices
     )
 
     total_contract_minutes = sum(
@@ -806,7 +805,8 @@ def solve_model(model: dict, timeout_seconds: int) -> dict:
         )
         mandatory_reqs_for_fairness = [r for r in requirements if r.get("mandatory", True)]
         total_requirement_minutes = sum(
-            _effective_shift_minutes(shift_templates.get(req.get("shiftId"), {}), {}) for req in mandatory_reqs_for_fairness
+            _effective_shift_minutes(shift_templates.get(req.get("shiftId"), {}), {})
+            for req in mandatory_reqs_for_fairness
         )
 
         if total_contract_minutes > 0:
