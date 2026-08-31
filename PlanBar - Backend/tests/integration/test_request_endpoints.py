@@ -22,6 +22,49 @@ def test_create_shift_wish(client, auth_headers):
     assert data["employee_id"] == emp_id
     assert data["date"] == "2026-06-01"
     assert data["type"] == "preferred"
+    assert data["week"] == 1
+
+
+def test_create_shift_wish_derives_week_from_date(client, auth_headers):
+    emp_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Week", "last_name": "Derive"},
+        headers=auth_headers,
+    )
+    emp_id = emp_resp.json()["id"]
+
+    response = client.post(
+        "/api/v1/requests",
+        json={"employee_id": emp_id, "date": "2026-06-08", "week": 1, "type": "preferred"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    assert response.json()["week"] == 2
+
+
+def test_update_shift_wish_derives_week_from_date(client, auth_headers):
+    emp_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Week", "last_name": "Update"},
+        headers=auth_headers,
+    )
+    emp_id = emp_resp.json()["id"]
+
+    create_resp = client.post(
+        "/api/v1/requests",
+        json={"employee_id": emp_id, "date": "2026-06-01", "type": "preferred"},
+        headers=auth_headers,
+    )
+    wish_id = create_resp.json()["id"]
+
+    response = client.put(
+        f"/api/v1/requests/{wish_id}",
+        json={"date": "2026-06-10"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["date"] == "2026-06-10"
+    assert response.json()["week"] == 2
 
 
 def test_list_shift_wishes(client, auth_headers):

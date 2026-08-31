@@ -194,13 +194,12 @@ function ShiftBar({
 
 interface DayBlockProps {
   date: Date;
-  weekType: WeekType;
   shifts: Shift[];
   employees: Employee[];
   onDrop: (shift: Shift, newDate: string) => void;
   onDropInDay: (shift: Shift, newStartTime: string, newEndTime: string) => void;
   onDropOnEmployee: (shift: Shift, newEmployeeId: string) => void;
-  onEmployeeDrop: (employeeId: string, date: string, weekType: WeekType) => void;
+  onEmployeeDrop: (employeeId: string, date: string) => void;
   onBreakUpdate: (shiftId: string, updatedShift: Shift) => void;
   onClick: (date: Date) => void;
   onEdit: (shift: Shift) => void;
@@ -210,7 +209,7 @@ interface DayBlockProps {
 }
 
 function DayBlock({
-  date, weekType, shifts, employees, onDrop, onDropInDay, onDropOnEmployee,
+  date, shifts, employees, onDrop, onDropInDay, onDropOnEmployee,
   onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete,
   approvedWishes, onWishClick
 }: DayBlockProps) {
@@ -346,13 +345,13 @@ function DayBlock({
       }
 
       if ('employeeId' in item) {
-        onEmployeeDropRef.current(item.employeeId, dateStr, weekType);
+        onEmployeeDropRef.current(item.employeeId, dateStr);
       }
     },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
     }),
-  }), [dateStr, weekType, sortedEmployees]);
+  }), [dateStr, sortedEmployees]);
 
   React.useEffect(() => {
     if (!isOver) setHoverInfo(null);
@@ -612,29 +611,6 @@ function EditShiftDialog({
             </div>
           </div>
           <div>
-            <Label>Woche</Label>
-            <div className="flex gap-2 mt-1">
-              <Button
-                type="button"
-                size="sm"
-                variant={formData.week === 'A' ? 'default' : 'outline'}
-                className={formData.week === 'A' ? 'bg-blue-500' : ''}
-                onClick={() => setFormData({ ...formData, week: 'A' })}
-              >
-                A
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={formData.week === 'B' ? 'default' : 'outline'}
-                className={formData.week === 'B' ? 'bg-purple-500' : ''}
-                onClick={() => setFormData({ ...formData, week: 'B' })}
-              >
-                B
-              </Button>
-            </div>
-          </div>
-          <div>
             <Label htmlFor="label">Bezeichnung</Label>
             <Input
               id="label"
@@ -661,14 +637,12 @@ function EditShiftDialog({
 
 function AddShiftDialog({
   date,
-  week,
   open,
   onClose,
   onSave,
   prefilledEmployeeId,
 }: {
   date: Date | null;
-  week: WeekType;
   open: boolean;
   onClose: () => void;
   onSave: (shift: Shift) => void;
@@ -679,7 +653,7 @@ function AddShiftDialog({
     id: Date.now().toString(),
     employeeId: prefilledEmployeeId || '',
     date: date?.toISOString().split('T')[0] || '',
-    week: week,
+    week: date ? getWeekType(date) : 'A',
     startTime: '08:00',
     endTime: '18:00',
     breakStart: '12:00',
@@ -691,11 +665,11 @@ function AddShiftDialog({
       setFormData(prev => ({
         ...prev,
         date: date.toISOString().split('T')[0],
-        week: week,
+        week: getWeekType(date),
         ...(prefilledEmployeeId ? { employeeId: prefilledEmployeeId } : {}),
       }));
     }
-  }, [date, week, prefilledEmployeeId]);
+  }, [date, prefilledEmployeeId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -703,13 +677,13 @@ function AddShiftDialog({
       toast.error('Bitte wählen Sie einen Mitarbeiter');
       return;
     }
-    onSave({ ...formData, id: Date.now().toString() });
+    onSave({ ...formData, id: Date.now().toString(), week: getWeekType(new Date(formData.date)) });
     onClose();
     setFormData({
       id: Date.now().toString(),
       employeeId: prefilledEmployeeId || '',
       date: date?.toISOString().split('T')[0] || '',
-      week: week,
+      week: date ? getWeekType(date) : 'A',
       startTime: '08:00',
       endTime: '18:00',
       breakStart: '12:00',
@@ -911,7 +885,7 @@ export function SwimlaneCalendar({
     toast.success('Schicht hinzugefügt');
   };
 
-  const handleEmployeeDrop = (employeeId: string, date: string, weekType: WeekType) => {
+  const handleEmployeeDrop = (employeeId: string, date: string) => {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
@@ -919,6 +893,7 @@ export function SwimlaneCalendar({
     const dayIndex = dateObj.getDay();
     const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayOfWeek = daysMap[dayIndex] as keyof typeof employee['workingHours']['weekA'];
+    const weekType = getWeekType(dateObj);
     const weekKey = weekType === 'A' ? 'weekA' : 'weekB';
     const workingHours = employee.workingHours[weekKey][dayOfWeek];
 
@@ -940,12 +915,13 @@ export function SwimlaneCalendar({
 
   const startDate = new Date(schedule.startDate);
   const endDate = new Date(schedule.endDate);
-  const days: Date[] = [];
+  const allDays: Date[] = [];
   let currentDate = new Date(startDate);
   while (currentDate <= endDate) {
-    days.push(new Date(currentDate));
+    allDays.push(new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())));
     currentDate.setDate(currentDate.getDate() + 1);
   }
+  const days = allDays.filter(day => getWeekType(day) === currentWeek);
 
   return (
     <div className="space-y-4 select-none">
@@ -954,8 +930,7 @@ export function SwimlaneCalendar({
           <DayBlock
             key={day.toISOString()}
             date={day}
-            weekType={currentWeek}
-            shifts={schedule.shifts.filter(s => s.week === currentWeek)}
+            shifts={schedule.shifts}
             employees={employees}
             onDrop={handleDrop}
             onDropInDay={handleDropInDay}
@@ -983,7 +958,6 @@ export function SwimlaneCalendar({
 
       <AddShiftDialog
         date={selectedDate}
-        week={currentWeek}
         open={addDialogOpen}
         onClose={() => {
           setAddDialogOpen(false);

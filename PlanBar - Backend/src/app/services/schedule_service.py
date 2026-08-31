@@ -152,6 +152,7 @@ def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = Non
     db.refresh(schedule)
 
     for shiftplan_data in data.shiftplans:
+        _assert_date_in_scope(schedule, shiftplan_data.date)
         shiftplan = Shiftplan(
             schedule_id=schedule.id,
             employee_id=shiftplan_data.employee_id,
@@ -159,7 +160,7 @@ def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = Non
             shift_id=shiftplan_data.shift_id,
             start_time=shiftplan_data.start_time,
             end_time=shiftplan_data.end_time,
-            week=shiftplan_data.week,
+            week=_get_week_type(shiftplan_data.date),
             break_start=shiftplan_data.break_start,
             break_end=shiftplan_data.break_end,
             label=shiftplan_data.label,
@@ -188,6 +189,7 @@ def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate, actor
     if data.name is not None:
         schedule.name = data.name
     if data.week_type is not None:
+        _assert_shiftplans_in_scope(db, schedule, data.week_type)
         schedule.week_type = data.week_type
     if data.status is not None:
         schedule.status = data.status.value
@@ -339,6 +341,7 @@ def replace_all_shifts(
     """
     db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).delete()
     for sp_data in shiftplans_data:
+        _assert_date_in_scope(schedule, sp_data.date)
         shiftplan = Shiftplan(
             schedule_id=schedule.id,
             employee_id=sp_data.employee_id,
@@ -346,7 +349,7 @@ def replace_all_shifts(
             shift_id=sp_data.shift_id,
             start_time=sp_data.start_time,
             end_time=sp_data.end_time,
-            week=sp_data.week,
+            week=_get_week_type(sp_data.date),
             break_start=sp_data.break_start,
             break_end=sp_data.break_end,
             label=sp_data.label,
@@ -410,6 +413,32 @@ def _get_week_type(dt: date) -> str:
     return "A" if weeks_diff % 2 == 0 else "B"
 
 
+def wish_week_for_date(dt: date) -> int:
+    """Numeric week encoding for shift wishes (1 = A, 2 = B), derived from the date."""
+    return 1 if _get_week_type(dt) == "A" else 2
+
+
+def _assert_date_in_scope(schedule: Schedule, dt: date) -> None:
+    """Ensure a date's week parity matches the schedule's planning scope (week_type)."""
+    if schedule.week_type and _get_week_type(dt) != schedule.week_type:
+        raise ValueError(
+            f"Date {dt.isoformat()} liegt in Woche {_get_week_type(dt)}, "
+            f"der Plan ist auf Woche {schedule.week_type} begrenzt"
+        )
+
+
+def _assert_shiftplans_in_scope(db: Session, schedule: Schedule, week_type: str) -> None:
+    """Ensure all existing shiftplan dates match a new planning scope (week_type)."""
+    if week_type == schedule.week_type:
+        return
+    for sp in db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).all():
+        if _get_week_type(sp.date) != week_type:
+            raise ValueError(
+                f"Plan enthält Schichten in Woche {_get_week_type(sp.date)} "
+                f"(z.B. {sp.date.isoformat()}), Scope Woche {week_type} ist daher unzulässig"
+            )
+
+
 def _build_tito_payload(
     schedule: Schedule,
     employees: list[Employee],
@@ -421,6 +450,9 @@ def _build_tito_payload(
     """Build a payload matching the TiTO JobPayload schema."""
     if not schedule.start_date or not schedule.end_date:
         raise ValueError("Schedule must have start_date and end_date to submit to TiTO")
+
+    if schedule.week_type:
+        shift_wishes = [w for w in shift_wishes if _get_week_type(w.date) == schedule.week_type]
 
     # Load role name map (for skills resolution)
     role_name_by_id: dict[int, str] = {}

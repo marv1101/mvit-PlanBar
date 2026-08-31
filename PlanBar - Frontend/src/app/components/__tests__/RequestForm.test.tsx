@@ -21,14 +21,14 @@ describe('RequestForm', () => {
     vi.clearAllMocks()
   })
 
-  it('rendert alle Formularfelder', () => {
+  it('rendert alle Formularfelder (Woche wird aus dem Datum abgeleitet)', () => {
     renderWithProviders(<RequestForm {...baseProps} />)
 
     expect(screen.getByText('Mitarbeiter')).toBeInTheDocument()
     expect(screen.getByLabelText('Datum')).toBeInTheDocument()
-    expect(screen.getByText('Woche')).toBeInTheDocument()
     expect(screen.getByText('Art des Wunsches')).toBeInTheDocument()
     expect(screen.getByLabelText('Notizen (optional)')).toBeInTheDocument()
+    expect(screen.queryByText('Woche')).not.toBeInTheDocument()
   })
 
   it('zeigt Mitarbeiter-Auswahl für Admin', () => {

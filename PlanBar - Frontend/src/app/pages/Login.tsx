@@ -106,14 +106,14 @@ export function Login() {
               {import.meta.env.VITE_DEMO_ADMIN_PASSWORD && (
                 <div className="bg-gray-50 p-3 rounded-md space-y-1">
                   <p><strong>Administrator:</strong></p>
-                  <p className="text-xs">Email: admin@mphion.de</p>
+                  <p className="text-xs">E-Mail: admin@mphion.de</p>
                   <p className="text-xs">Passwort: {import.meta.env.VITE_DEMO_ADMIN_PASSWORD}</p>
                 </div>
               )}
               {import.meta.env.VITE_DEMO_USER_PASSWORD && (
                 <div className="bg-gray-50 p-3 rounded-md space-y-1">
                   <p><strong>Mitarbeiter:</strong></p>
-                  <p className="text-xs">Email: testuser@mphion.de</p>
+                  <p className="text-xs">E-Mail: testuser@mphion.de</p>
                   <p className="text-xs">Passwort: {import.meta.env.VITE_DEMO_USER_PASSWORD}</p>
                 </div>
               )}

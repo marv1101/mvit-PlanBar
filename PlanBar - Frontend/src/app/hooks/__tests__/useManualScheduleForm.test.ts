@@ -11,7 +11,7 @@ describe('useManualScheduleForm', () => {
     expect(result.current.manualName).toBe('');
     expect(result.current.manualStartDate).toBe('');
     expect(result.current.manualEndDate).toBe('');
-    expect(result.current.manualWeekType).toBe('A');
+    expect(result.current.manualWeekType).toBe('');
     expect(result.current.manuallyCreatedSchedule).toBeNull();
     expect(result.current.loading).toBe(false);
     expect(result.current.submitting).toBe(false);

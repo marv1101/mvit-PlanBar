@@ -10,6 +10,7 @@ import { User, Calendar, Clock, Coffee, Download, Loader2, RotateCcw, AlertTrian
 import { WeekType, Shift } from '../types';
 import { toast } from 'sonner';
 import { TIMEZONE } from '../lib/timezone';
+import { getWeekType, weekTypeOfDateStr } from '../lib/week';
 import { TimeAccountCard } from '../components/TimeAccountCard';
 import { getMyTeamEmployees } from '../services/selfService';
 import { employeeFromResponse } from '../lib/mappers';
@@ -73,11 +74,11 @@ export function EmployeeView() {
   }, [selectedSchedule, selectedEmployeeId]);
 
   const employeeShiftsByWeek = useMemo(() => {
-    return employeeShifts.filter(shift => shift.week === currentWeek);
+    return employeeShifts.filter(shift => weekTypeOfDateStr(shift.date) === currentWeek);
   }, [employeeShifts, currentWeek]);
 
-  const hasWeekA = employeeShifts.some(s => s.week === 'A');
-  const hasWeekB = employeeShifts.some(s => s.week === 'B');
+  const hasWeekA = employeeShifts.some(s => weekTypeOfDateStr(s.date) === 'A');
+  const hasWeekB = employeeShifts.some(s => weekTypeOfDateStr(s.date) === 'B');
 
   useEffect(() => {
     if (employeeShifts.length === 0) return;
@@ -119,8 +120,8 @@ export function EmployeeView() {
     };
 
     const totalHours = employeeShifts.reduce((sum, shift) => sum + calculateHours(shift), 0);
-    const weekAShifts = employeeShifts.filter(s => s.week === 'A').length;
-    const weekBShifts = employeeShifts.filter(s => s.week === 'B').length;
+    const weekAShifts = employeeShifts.filter(s => weekTypeOfDateStr(s.date) === 'A').length;
+    const weekBShifts = employeeShifts.filter(s => weekTypeOfDateStr(s.date) === 'B').length;
 
     return {
       totalShifts: employeeShifts.length,
@@ -143,22 +144,22 @@ export function EmployeeView() {
     return grouped;
   }, [employeeShiftsByWeek]);
 
-  // Generate calendar days for the selected schedule
+  // Generate calendar days for the selected schedule, filtered by week parity
   const calendarDays = useMemo(() => {
     if (!selectedSchedule) return [];
-    
+
     const days: Date[] = [];
     const start = new Date(selectedSchedule.startDate);
     const end = new Date(selectedSchedule.endDate);
-    
+
     let currentDate = new Date(start);
     while (currentDate <= end) {
-      days.push(new Date(currentDate));
+      days.push(new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())));
       currentDate.setDate(currentDate.getDate() + 1);
     }
-    
-    return days;
-  }, [selectedSchedule]);
+
+    return days.filter(day => getWeekType(day) === currentWeek);
+  }, [selectedSchedule, currentWeek]);
 
   // Group calendar days by weeks
   const calendarWeeks = useMemo(() => {

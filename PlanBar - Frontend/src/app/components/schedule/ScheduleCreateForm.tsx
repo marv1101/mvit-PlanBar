@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import * as scheduleService from '../../services/scheduleService';
 import * as requestService from '../../services/requestService';
 import { exportShiftsCSV } from '../../lib/csv';
+import { weekTypeOfDateStr } from '../../lib/week';
 import { StatusBadge } from './StatusBadge';
 import { ArbZgConfirmDialog } from './ArbZgConfirmDialog';
 import type { ArbZgWarning } from '../../types';
@@ -66,8 +67,8 @@ export function ScheduleCreateForm({
   // Auto-switch currentWeek when pollResult only contains shifts from one week
   useEffect(() => {
     if (!pollResult || pollResult.shifts.length === 0) return;
-    const hasWeekA = pollResult.shifts.some(s => s.week === 'A');
-    const hasWeekB = pollResult.shifts.some(s => s.week === 'B');
+    const hasWeekA = pollResult.shifts.some(s => weekTypeOfDateStr(s.date) === 'A');
+    const hasWeekB = pollResult.shifts.some(s => weekTypeOfDateStr(s.date) === 'B');
     if (currentWeek === 'A' && !hasWeekA && hasWeekB) {
       setCurrentWeek('B');
     } else if (currentWeek === 'B' && !hasWeekB && hasWeekA) {
@@ -141,7 +142,6 @@ export function ScheduleCreateForm({
       shift_id: s.id,
       start_time: s.startTime,
       end_time: s.endTime,
-      week: s.week,
       break_start: s.breakStart,
       break_end: s.breakEnd,
     }));

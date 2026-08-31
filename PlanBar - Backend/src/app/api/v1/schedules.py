@@ -108,7 +108,10 @@ def create_schedule_endpoint(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Planer may only schedule for employees in their own teams",
         )
-    schedule = create_schedule(db, data, user.id)
+    try:
+        schedule = create_schedule(db, data, user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     return _build_schedule_with_arbzg_response(schedule)
 
 
@@ -168,7 +171,10 @@ def update_schedule_endpoint(
             detail="Schedule was modified by another user. Please refresh and try again.",
         )
 
-    updated = update_schedule(db, schedule, data, actor_id=user.id)
+    try:
+        updated = update_schedule(db, schedule, data, actor_id=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     if response is not None:
         set_etag_response(response, updated, "name", "status", "week_type")
     return updated
@@ -304,15 +310,20 @@ def update_shiftplan(
     if data.employee_id is not None:
         shiftplan.employee_id = data.employee_id
     if data.date is not None:
+        from app.services.schedule_service import _assert_date_in_scope, _get_week_type
+
+        try:
+            _assert_date_in_scope(schedule, data.date)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
         shiftplan.date = data.date
+        shiftplan.week = _get_week_type(data.date)
     if data.shift_id is not None:
         shiftplan.shift_id = data.shift_id
     if data.start_time is not None:
         shiftplan.start_time = data.start_time
     if data.end_time is not None:
         shiftplan.end_time = data.end_time
-    if data.week is not None:
-        shiftplan.week = data.week
     if data.break_start is not None:
         shiftplan.break_start = data.break_start
     if data.break_end is not None:
@@ -370,7 +381,10 @@ def replace_all_shifts_endpoint(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Planer may only schedule for employees in their own teams",
         )
-    schedule, arbzg_result = replace_all_shifts(db, schedule, data.shiftplans, actor_id=user.id)
+    try:
+        schedule, arbzg_result = replace_all_shifts(db, schedule, data.shiftplans, actor_id=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     warnings = [
         ArbZgViolationResponse(
             rule=v.rule,

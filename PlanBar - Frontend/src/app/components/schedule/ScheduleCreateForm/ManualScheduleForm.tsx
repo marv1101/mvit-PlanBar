@@ -73,7 +73,7 @@ export function ManualScheduleForm({
       </div>
 
       <div>
-        <Label htmlFor="manualWeekType">Wochen-Typ</Label>
+        <Label htmlFor="manualWeekType">Planungsumfang</Label>
         <select
           id="manualWeekType"
           value={manualWeekType}
@@ -81,9 +81,9 @@ export function ManualScheduleForm({
           disabled={submitting}
           className="w-full border rounded-md px-3 py-2"
         >
+          <option value="">Beide Wochentypen (A & B)</option>
           <option value="A">Nur Woche A</option>
           <option value="B">Nur Woche B</option>
-          <option value="">Beide (A & B)</option>
         </select>
       </div>
 

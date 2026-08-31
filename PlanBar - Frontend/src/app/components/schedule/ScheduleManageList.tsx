@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +34,7 @@ import { toast } from 'sonner';
 import * as scheduleService from '../../services/scheduleService';
 import * as requestService from '../../services/requestService';
 import { scheduleFromResponse } from '../../lib/mappers';
+import { getWeekType } from '../../lib/week';
 import { TIMEZONE } from '../../lib/timezone';
 import { exportShiftsCSV } from '../../lib/csv';
 import { StatusBadge } from './StatusBadge';
@@ -78,19 +80,28 @@ export function ScheduleManageList({
   const [arbZgWarnings, setArbZgWarnings] = useState<ArbZgWarning[]>([]);
   const [pendingShiftplans, setPendingShiftplans] = useState<scheduleService.ShiftplanCreateDTO[]>([]);
 
-  const isDraft = selectedSchedule?.status === 'draft';
-  const hasWeekA = selectedSchedule?.shifts.some(s => s.week === 'A') ?? false;
-  const hasWeekB = selectedSchedule?.shifts.some(s => s.week === 'B') ?? false;
-  const showTabs = isDraft || hasWeekA || hasWeekB;
+  const rangeWeeks = useMemo(() => {
+    const weeks = new Set<WeekType>();
+    if (!selectedSchedule?.startDate || !selectedSchedule?.endDate) return weeks;
+    const end = new Date(`${selectedSchedule.endDate}T00:00:00Z`);
+    for (let d = new Date(`${selectedSchedule.startDate}T00:00:00Z`); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+      weeks.add(getWeekType(d));
+    }
+    return weeks;
+  }, [selectedSchedule]);
+  const scope = selectedSchedule?.weekType ?? null;
+  const hasWeekA = scope ? scope === 'A' : rangeWeeks.has('A');
+  const hasWeekB = scope ? scope === 'B' : rangeWeeks.has('B');
+  const showTabs = hasWeekA || hasWeekB;
 
   useEffect(() => {
-    if (!selectedSchedule || isDraft) return;
+    if (!selectedSchedule) return;
     if (currentWeek === 'A' && !hasWeekA && hasWeekB) {
       setCurrentWeek('B');
     } else if (currentWeek === 'B' && !hasWeekB && hasWeekA) {
       setCurrentWeek('A');
     }
-  }, [selectedSchedule, currentWeek, setCurrentWeek, hasWeekA, hasWeekB, isDraft]);
+  }, [selectedSchedule, currentWeek, setCurrentWeek, hasWeekA, hasWeekB]);
 
   const handleViewSchedule = async (schedule: ScheduleType) => {
     try {
@@ -169,7 +180,6 @@ export function ScheduleManageList({
       shift_id: s.id,
       start_time: s.startTime,
       end_time: s.endTime,
-      week: s.week,
       break_start: s.breakStart,
       break_end: s.breakEnd,
     }));
@@ -273,7 +283,12 @@ export function ScheduleManageList({
                   {schedule.endDate ? new Date(schedule.endDate).toLocaleDateString('de-DE', { timeZone: TIMEZONE }) : '-'}
                 </p>
                 <p>{schedule.shifts.length} Schichten</p>
-                <StatusBadge status={schedule.status || 'draft'} />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <StatusBadge status={schedule.status || 'draft'} />
+                  {schedule.weekType && (
+                    <Badge variant="outline">Nur Woche {schedule.weekType}</Badge>
+                  )}
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -338,6 +353,9 @@ export function ScheduleManageList({
               <div className="flex items-center gap-3 flex-wrap">
                 <CardTitle>{selectedSchedule.name}</CardTitle>
                 <StatusBadge status={selectedSchedule.status} />
+                {selectedSchedule.weekType && (
+                  <Badge variant="outline">Nur Woche {selectedSchedule.weekType}</Badge>
+                )}
                 {selectedSchedule.status === 'draft' && (
                   <Button
                     size="sm"
@@ -398,8 +416,8 @@ export function ScheduleManageList({
                 {showTabs && (
                   <Tabs value={currentWeek} onValueChange={(v) => setCurrentWeek(v as WeekType)}>
                     <TabsList>
-                      {(isDraft || hasWeekA) && <TabsTrigger value="A">Woche A</TabsTrigger>}
-                      {(isDraft || hasWeekB) && <TabsTrigger value="B">Woche B</TabsTrigger>}
+                      {hasWeekA && <TabsTrigger value="A">Woche A</TabsTrigger>}
+                      {hasWeekB && <TabsTrigger value="B">Woche B</TabsTrigger>}
                     </TabsList>
                   </Tabs>
                 )}
@@ -440,7 +458,7 @@ export function ScheduleManageList({
                 onUpdateSchedule={handleUpdateSchedule}
                 onSaveShifts={handleManageSave}
               />
-            ) : !hasWeekA && !hasWeekB ? (
+            ) : selectedSchedule.shifts.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12 text-gray-500">
                   <Calendar className="h-12 w-12 mb-4 opacity-50" />

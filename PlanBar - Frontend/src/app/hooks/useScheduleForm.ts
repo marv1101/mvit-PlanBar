@@ -37,7 +37,7 @@ export function useScheduleForm(): UseScheduleFormReturn {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplateEntry[]>([]);
-  const [titoWeekType, setTitoWeekType] = useState('A');
+  const [titoWeekType, setTitoWeekType] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -104,7 +104,7 @@ export function useScheduleForm(): UseScheduleFormReturn {
     setStartDate('');
     setEndDate('');
     setShiftTemplates([]);
-    setTitoWeekType('A');
+    setTitoWeekType('');
     setMaximizeStaffing(false);
     setError(null);
   }, []);

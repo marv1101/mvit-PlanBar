@@ -111,18 +111,17 @@ export function TitoScheduleForm({
       </div>
 
       <div>
-        <Label htmlFor="titoWeekType">Wochen-Typ</Label>
+        <Label htmlFor="titoWeekType">Planungsumfang</Label>
         <select
           id="titoWeekType"
           value={titoWeekType}
           onChange={(e) => setTitoWeekType(e.target.value)}
           disabled={submitting}
           className="w-full border rounded-md px-3 py-2"
-          defaultValue=""
         >
+          <option value="">Beide Wochentypen (A & B)</option>
           <option value="A">Nur Woche A</option>
           <option value="B">Nur Woche B</option>
-          <option value="">Beide (A & B)</option>
         </select>
       </div>
     </div>

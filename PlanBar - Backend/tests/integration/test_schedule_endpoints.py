@@ -155,6 +155,59 @@ def test_update_shiftplan(client, auth_headers):
     )
     assert response.status_code == 200
     assert len(response.json()["shiftplans"]) == 1
+    assert response.json()["shiftplans"][0]["week"] == "A"
+
+
+def test_create_schedule_scope_rejects_other_parity(client, auth_headers):
+    response = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Scoped A",
+            "week_type": "A",
+            "start_date": "2026-06-01",
+            "end_date": "2026-06-14",
+            "shiftplans": [
+                {
+                    "employee_id": 1,
+                    "date": "2026-06-10",
+                    "shift_id": "früh",
+                    "start_time": "06:00",
+                    "end_time": "14:00",
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+def test_update_schedule_scope_change_rejected_with_other_parity_shifts(client, auth_headers):
+    create_resp = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Scope Change",
+            "start_date": "2026-06-01",
+            "end_date": "2026-06-14",
+            "shiftplans": [
+                {
+                    "employee_id": 1,
+                    "date": "2026-06-10",
+                    "shift_id": "früh",
+                    "start_time": "06:00",
+                    "end_time": "14:00",
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+    schedule_id = create_resp.json()["id"]
+
+    response = client.put(
+        f"/api/v1/schedules/{schedule_id}",
+        json={"week_type": "A"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
 
 
 def test_update_shiftplan_not_found(client, auth_headers):

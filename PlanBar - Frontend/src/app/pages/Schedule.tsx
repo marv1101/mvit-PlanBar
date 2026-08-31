@@ -101,7 +101,7 @@ export function Schedule() {
   const handleWishReviewCancel = () => {
     setWishReviewScheduleId(null);
     setSubmitting(false);
-    toast.info('Submit abgebrochen – bitte alle ausstehenden Wünsche prüfen');
+    toast.info('Übermittlung abgebrochen – bitte alle ausstehenden Wünsche prüfen');
   };
 
   return (

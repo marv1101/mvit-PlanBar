@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Request, RequestType, WeekType } from '../types';
+import { Request, RequestType } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Textarea } from './ui/textarea';
+import { weekTypeOfDateStr } from '../lib/week';
 
 interface RequestFormProps {
   request: Request | null;
@@ -28,11 +29,15 @@ export function RequestForm({ request, onClose, currentEmployeeId, isAdmin = tru
       id: Date.now().toString(),
       employeeId: defaultEmployeeId,
       date: new Date().toISOString().split('T')[0],
-      week: 'A',
+      week: weekTypeOfDateStr(new Date().toISOString().split('T')[0]),
       type: defaultType || 'urlaubswunsch',
       notes: '',
     }
   );
+
+  const handleDateChange = (date: string) => {
+    setFormData({ ...formData, date, week: weekTypeOfDateStr(date) });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,25 +84,9 @@ export function RequestForm({ request, onClose, currentEmployeeId, isAdmin = tru
           id="date"
           type="date"
           value={formData.date}
-          onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+          onChange={(e) => handleDateChange(e.target.value)}
           required
         />
-      </div>
-
-      <div>
-        <Label htmlFor="week">Woche</Label>
-        <Select
-          value={formData.week}
-          onValueChange={(value: WeekType) => setFormData({ ...formData, week: value })}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="A">Woche A</SelectItem>
-            <SelectItem value="B">Woche B</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       <div>

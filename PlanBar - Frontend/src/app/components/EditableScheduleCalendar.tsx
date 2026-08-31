@@ -10,7 +10,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import { getWeekType } from '../lib/week';
+import { getWeekType, weekTypeOfDateStr } from '../lib/week';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import { TIMEZONE } from '../lib/timezone';
 import { sanitizeLabel } from '../lib/sanitize';
@@ -166,13 +166,12 @@ function ShiftBar({ shift, lane, totalLanes, onEdit, onDelete }: ShiftBarProps) 
 
 interface DayColumnProps {
   date: Date;
-  weekType: WeekType;
   shifts: Shift[];
   approvedWishes: Request[];
   employees: Employee[];
   onDrop: (shift: Shift, newDate: string) => void;
   onDropInDay: (shift: Shift, newStartTime: string, newEndTime: string) => void;
-  onEmployeeDrop: (employeeId: string, date: string, weekType: WeekType) => void;
+  onEmployeeDrop: (employeeId: string, date: string) => void;
   onBreakUpdate: (shiftId: string, updatedShift: Shift) => void;
   onClick: (date: Date) => void;
   onEdit: (shift: Shift) => void;
@@ -181,7 +180,7 @@ interface DayColumnProps {
 }
 
 function DayColumn({
-  date, weekType, shifts, approvedWishes, employees, onDrop, onDropInDay, onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete, onWishClick
+  date, shifts, approvedWishes, employees, onDrop, onDropInDay, onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete, onWishClick
 }: DayColumnProps) {
   const dateStr = date.toISOString().split('T')[0];
   const dayShifts = shifts.filter(s => s.date === dateStr);
@@ -312,13 +311,13 @@ function DayColumn({
       }
 
       if ('employeeId' in item) {
-        onEmployeeDropRef.current(item.employeeId, dateStr, weekType);
+        onEmployeeDropRef.current(item.employeeId, dateStr);
       }
     },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
     }),
-  }), [dateStr, weekType]);
+  }), [dateStr]);
 
   React.useEffect(() => {
     if (!isOver) setHoverInfo(null);
@@ -534,30 +533,6 @@ function EditShiftDialog({
           </div>
 
           <div>
-            <Label>Woche</Label>
-            <div className="flex gap-2 mt-1">
-              <Button
-                type="button"
-                size="sm"
-                variant={formData.week === 'A' ? 'default' : 'outline'}
-                className={formData.week === 'A' ? 'bg-blue-500' : ''}
-                onClick={() => setFormData({ ...formData, week: 'A' })}
-              >
-                A
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={formData.week === 'B' ? 'default' : 'outline'}
-                className={formData.week === 'B' ? 'bg-purple-500' : ''}
-                onClick={() => setFormData({ ...formData, week: 'B' })}
-              >
-                B
-              </Button>
-            </div>
-          </div>
-
-          <div>
             <Label htmlFor="edit-label">Bezeichnung</Label>
             <Input
               id="edit-label"
@@ -584,13 +559,11 @@ function EditShiftDialog({
 
 function AddShiftDialog({
   date,
-  week,
   open,
   onClose,
   onSave
 }: {
   date: Date | null;
-  week: WeekType;
   open: boolean;
   onClose: () => void;
   onSave: (shift: Shift) => void;
@@ -600,7 +573,7 @@ function AddShiftDialog({
     id: Date.now().toString(),
     employeeId: '',
     date: date?.toISOString().split('T')[0] || '',
-    week: week,
+    week: date ? getWeekType(date) : 'A',
     startTime: '08:00',
     endTime: '18:00',
     breakStart: '12:00',
@@ -612,10 +585,10 @@ function AddShiftDialog({
       setFormData((prev: Shift) => ({
         ...prev,
         date: date.toISOString().split('T')[0],
-        week: week,
+        week: getWeekType(date),
       }));
     }
-  }, [date, week]);
+  }, [date]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -623,13 +596,13 @@ function AddShiftDialog({
       toast.error('Bitte wählen Sie einen Mitarbeiter');
       return;
     }
-    onSave({ ...formData, id: Date.now().toString() });
+    onSave({ ...formData, id: Date.now().toString(), week: getWeekType(new Date(formData.date)) });
     onClose();
     setFormData({
       id: Date.now().toString(),
       employeeId: '',
       date: date?.toISOString().split('T')[0] || '',
-      week: week,
+      week: date ? getWeekType(date) : 'A',
       startTime: '08:00',
       endTime: '18:00',
       breakStart: '12:00',
@@ -790,7 +763,7 @@ export function EditableScheduleCalendar({
     onUpdateSchedule({ ...schedule, shifts: updatedShifts });
   };
 
-  const handleEmployeeDrop = (employeeId: string, date: string, weekType: WeekType) => {
+  const handleEmployeeDrop = (employeeId: string, date: string) => {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
@@ -798,6 +771,7 @@ export function EditableScheduleCalendar({
     const dayIndex = dateObj.getDay();
     const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayOfWeek = daysMap[dayIndex] as keyof typeof employee['workingHours']['weekA'];
+    const weekType = getWeekType(dateObj);
     const weekKey = weekType === 'A' ? 'weekA' : 'weekB';
     const workingHours = employee.workingHours[weekKey][dayOfWeek];
 
@@ -870,13 +844,14 @@ export function EditableScheduleCalendar({
 
   const startDate = new Date(schedule.startDate);
   const endDate = new Date(schedule.endDate);
-  const days: Date[] = [];
+  const allDays: Date[] = [];
   let currentDate = new Date(startDate);
   while (currentDate <= endDate) {
     const utcDate = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()));
-    days.push(utcDate);
+    allDays.push(utcDate);
     currentDate.setDate(currentDate.getDate() + 1);
   }
+  const days = allDays.filter(day => getWeekType(day) === currentWeek);
 
   const weeks: Date[][] = [];
   let currentWeekDays: Date[] = [];
@@ -897,7 +872,7 @@ export function EditableScheduleCalendar({
     <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
       {isMobile ? (
         <ShiftListView
-          shifts={schedule.shifts.filter((s: Shift) => s.week === currentWeek)}
+          shifts={schedule.shifts.filter((s: Shift) => weekTypeOfDateStr(s.date) === currentWeek)}
           employees={employees}
           weekLabel={weekLabel}
           onEdit={handleEdit}
@@ -1030,8 +1005,7 @@ export function EditableScheduleCalendar({
                       <DayColumn
                         key={day.toISOString()}
                         date={day}
-                        weekType={currentWeek}
-                        shifts={schedule.shifts.filter((s: Shift) => s.week === currentWeek)}
+                        shifts={schedule.shifts}
                         approvedWishes={approvedWishes}
                         employees={employees}
                         onDrop={handleDrop}
@@ -1070,7 +1044,6 @@ export function EditableScheduleCalendar({
 
       <AddShiftDialog
         date={selectedDate}
-        week={currentWeek}
         open={addDialogOpen}
         onClose={() => {
           setAddDialogOpen(false);

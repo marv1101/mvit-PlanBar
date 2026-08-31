@@ -5,6 +5,7 @@ import { format, parseISO, eachDayOfInterval } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import { Button } from './ui/button';
+import { getWeekType, weekTypeOfDateStr } from '../lib/week';
 import { Coffee, LayoutGrid, CalendarDays } from 'lucide-react';
 
 interface ScheduleCalendarProps {
@@ -33,9 +34,9 @@ export function ScheduleCalendar({ shifts, startDate, endDate, currentWeek }: Sc
   const start = parseISO(startDate);
   const end = parseISO(endDate);
 
-  const days = eachDayOfInterval({ start, end });
+  const days = eachDayOfInterval({ start, end }).filter(day => weekTypeOfDateStr(format(day, 'yyyy-MM-dd')) === currentWeek);
 
-  const filteredShifts = shifts.filter(s => s.week === currentWeek);
+  const filteredShifts = shifts.filter(s => weekTypeOfDateStr(s.date) === currentWeek);
 
   const getShiftsForDate = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');

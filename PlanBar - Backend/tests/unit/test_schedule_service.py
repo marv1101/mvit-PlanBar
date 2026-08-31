@@ -66,6 +66,127 @@ def test_create_schedule_with_shiftplans(db_session):
     assert len(schedule.shiftplans) == 1
 
 
+def test_create_schedule_derives_week_from_date(db_session):
+    """week muss aus dem Datum abgeleitet werden, Client-Werte werden ignoriert."""
+    data = ScheduleCreate(
+        name="Derived Week",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 14),
+        shiftplans=[
+            ShiftplanCreate(
+                employee_id=1,
+                date=date(2026, 6, 1),
+                shift_id="früh",
+                start_time=time(6, 0),
+                end_time=time(14, 0),
+                week="B",
+            ),
+            ShiftplanCreate(
+                employee_id=1,
+                date=date(2026, 6, 8),
+                shift_id="früh",
+                start_time=time(6, 0),
+                end_time=time(14, 0),
+            ),
+        ],
+    )
+    schedule = create_schedule(db_session, data)
+    weeks = {sp.date: sp.week for sp in schedule.shiftplans}
+    assert weeks[date(2026, 6, 1)] == "A"
+    assert weeks[date(2026, 6, 8)] == "B"
+
+
+def test_create_schedule_scope_rejects_other_parity(db_session):
+    """Bei week_type='A' müssen Schichten auf A-Daten liegen."""
+    data = ScheduleCreate(
+        name="Scoped A",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 14),
+        week_type="A",
+        shiftplans=[
+            ShiftplanCreate(
+                employee_id=1,
+                date=date(2026, 6, 10),
+                shift_id="früh",
+                start_time=time(6, 0),
+                end_time=time(14, 0),
+            ),
+        ],
+    )
+    with pytest.raises(ValueError, match="begrenzt"):
+        create_schedule(db_session, data)
+
+
+def test_replace_all_shifts_derives_week(db_session):
+    schedule = create_schedule(
+        db_session,
+        ScheduleCreate(name="Derive", start_date=date(2026, 6, 1), end_date=date(2026, 6, 14)),
+    )
+    new_shifts = [
+        ShiftplanCreate(
+            employee_id=1,
+            date=date(2026, 6, 8),
+            shift_id="spät",
+            start_time=time(14, 0),
+            end_time=time(22, 0),
+            week="A",
+        ),
+    ]
+    replaced, _ = replace_all_shifts(db_session, schedule, new_shifts)
+    assert replaced.shiftplans[0].week == "B"
+
+
+def test_replace_all_shifts_scope_rejects_other_parity(db_session):
+    schedule = create_schedule(
+        db_session,
+        ScheduleCreate(name="Scoped B", start_date=date(2026, 6, 1), end_date=date(2026, 6, 14), week_type="B"),
+    )
+    new_shifts = [
+        ShiftplanCreate(
+            employee_id=1,
+            date=date(2026, 6, 2),
+            shift_id="spät",
+            start_time=time(14, 0),
+            end_time=time(22, 0),
+        ),
+    ]
+    with pytest.raises(ValueError, match="begrenzt"):
+        replace_all_shifts(db_session, schedule, new_shifts)
+
+
+def test_update_schedule_scope_change_validated(db_session):
+    """Scope-Änderung auf 'A' muss fehlschlagen, wenn B-Schichten existieren."""
+    schedule = create_schedule(
+        db_session,
+        ScheduleCreate(
+            name="Scope Change",
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 6, 14),
+            shiftplans=[
+                ShiftplanCreate(
+                    employee_id=1,
+                    date=date(2026, 6, 10),
+                    shift_id="früh",
+                    start_time=time(6, 0),
+                    end_time=time(14, 0),
+                ),
+            ],
+        ),
+    )
+    with pytest.raises(ValueError, match="unzulässig"):
+        update_schedule(db_session, schedule, ScheduleUpdate(week_type="A"))
+    assert schedule.week_type is None
+
+
+def test_wish_week_for_date_encoding(db_session):
+    from app.services.schedule_service import wish_week_for_date
+
+    assert wish_week_for_date(date(2026, 6, 1)) == 1
+    assert wish_week_for_date(date(2026, 6, 8)) == 2
+    assert wish_week_for_date(date(2026, 6, 7)) == 1
+    assert wish_week_for_date(date(2026, 6, 14)) == 2
+
+
 def test_get_schedule_by_id(db_session):
     data = ScheduleCreate(name="Find Me", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7))
     created = create_schedule(db_session, data)
@@ -253,6 +374,48 @@ def test_build_tito_payload_week_type_b(db_session):
     for req in payload["requirements"]:
         d = date.fromisoformat(req["date"])
         assert date(2026, 6, 8) <= d <= date(2026, 6, 14), f"{d} is not in week B range"
+
+
+def test_build_tito_payload_week_type_filters_wishes(db_session):
+    """week_type='A' muss auch Wünsche auf B-Daten aus dem Payload ausschließen."""
+    schedule = Schedule(
+        name="Wish Scope A",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 14),
+        status="draft",
+        week_type="A",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    wish_a = ShiftWish(employee_id=1, date=date(2026, 6, 3), type="day_off", status="approved")
+    wish_b = ShiftWish(employee_id=1, date=date(2026, 6, 10), type="day_off", status="approved")
+    db_session.add_all([wish_a, wish_b])
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [wish_a, wish_b], db=db_session)
+    wish_dates = [w["date"] for w in payload["wishes"]]
+    assert wish_dates == ["2026-06-03"]
+
+
+def test_build_tito_payload_no_week_type_keeps_all_wishes(db_session):
+    """week_type=None darf Wünsche beider Paritäten einschließen."""
+    schedule = Schedule(
+        name="Wish Scope None",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 14),
+        status="draft",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    wish_a = ShiftWish(employee_id=1, date=date(2026, 6, 3), type="day_off", status="approved")
+    wish_b = ShiftWish(employee_id=1, date=date(2026, 6, 10), type="day_off", status="approved")
+    db_session.add_all([wish_a, wish_b])
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [wish_a, wish_b], db=db_session)
+    assert len(payload["wishes"]) == 2
 
 
 def test_build_tito_payload_with_employees(db_session):

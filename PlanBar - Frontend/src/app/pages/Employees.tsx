@@ -224,7 +224,7 @@ export function Employees() {
                           hours.enabled ? 'bg-green-50 text-green-900' : 'bg-gray-100 text-gray-500'
                         }`}
                       >
-                        <div className="font-medium capitalize">{day.slice(0, 2)}</div>
+                        <div className="font-medium">{({ monday: 'Mo', tuesday: 'Di', wednesday: 'Mi', thursday: 'Do', friday: 'Fr', saturday: 'Sa', sunday: 'So' } as Record<string, string>)[day] ?? day.slice(0, 2)}</div>
                         {hours.enabled && (
                           <div className="mt-1">
                             {hours.start.slice(0, 5)}<br />-<br />{hours.end.slice(0, 5)}

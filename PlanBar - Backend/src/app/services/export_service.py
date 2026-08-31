@@ -120,7 +120,7 @@ def export_schedule_pdf(db: Session, schedule_id: int) -> bytes | None:
         date_range = f"{schedule.start_date.strftime('%d.%m.%Y')} - {schedule.end_date.strftime('%d.%m.%Y')}"
         pdf.cell(0, 8, date_range, new_x="LMARGIN", new_y="NEXT", align="C")
     if schedule.week_type:
-        pdf.cell(0, 8, f"Wochentyp: {schedule.week_type}", new_x="LMARGIN", new_y="NEXT", align="C")
+        pdf.cell(0, 8, f"Wochentyp: {schedule.week_type} (nur {schedule.week_type}-Wochen)", new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.ln(10)
 
     # Summary

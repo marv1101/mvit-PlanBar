@@ -35,8 +35,8 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
           {d.deviation > 0 ? '+' : ''}{d.deviation.toFixed(1)}%
         </span>
       </p>
-      <p>Balance: <span className="font-medium">{d.currentBalance > 0 ? '+' : ''}{d.currentBalance.toFixed(1)}h</span></p>
-      <p>Proj. Balance: <span className="font-medium">{d.projectedBalance > 0 ? '+' : ''}{d.projectedBalance.toFixed(1)}h</span></p>
+      <p>Saldo: <span className="font-medium">{d.currentBalance > 0 ? '+' : ''}{d.currentBalance.toFixed(1)}h</span></p>
+      <p>Prognose-Saldo: <span className="font-medium">{d.projectedBalance > 0 ? '+' : ''}{d.projectedBalance.toFixed(1)}h</span></p>
     </div>
   );
 }

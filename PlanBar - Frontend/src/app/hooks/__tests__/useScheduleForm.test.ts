@@ -13,7 +13,7 @@ describe('useScheduleForm', () => {
     expect(result.current.startDate).toBe('');
     expect(result.current.endDate).toBe('');
     expect(result.current.shiftTemplates).toEqual([]);
-    expect(result.current.titoWeekType).toBe('A');
+    expect(result.current.titoWeekType).toBe('');
     expect(result.current.loading).toBe(false);
     expect(result.current.submitting).toBe(false);
     expect(result.current.error).toBeNull();
