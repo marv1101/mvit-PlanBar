@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Mock } from 'vitest';
 import { server } from '../../../test/msw-handlers';
 import { http, HttpResponse } from 'msw';
 import {
@@ -13,6 +14,8 @@ import {
   getScheduleShifts,
   updateShiftplan,
   replaceAllShifts,
+  downloadSchedulePdf,
+  downloadScheduleIcal,
 } from '../scheduleService';
 import type { ScheduleCreateDTO, ScheduleUpdateDTO, ShiftplanCreateDTO } from '../scheduleService';
 
@@ -152,5 +155,115 @@ describe('scheduleService', () => {
       );
       await expect(getSchedules()).rejects.toThrow();
     }, 15000);
+  });
+
+  describe('downloadSchedulePdf', () => {
+    let clickSpy: ReturnType<typeof vi.spyOn>;
+    let capturedUrls: string[];
+
+    beforeEach(() => {
+      URL.createObjectURL = vi.fn(() => 'blob:mock-url') as any;
+      URL.revokeObjectURL = vi.fn() as any;
+      clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      capturedUrls = [];
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      delete (URL as any).createObjectURL;
+      delete (URL as any).revokeObjectURL;
+    });
+
+    it('ruft GET /exports/schedule/:id/pdf auf und lädt die Datei als schichtplan-<name>.pdf herunter', async () => {
+      server.use(
+        http.get(`${base}/exports/schedule/1/pdf`, ({ request }) => {
+          capturedUrls.push(request.url);
+          return new HttpResponse(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]), {
+            headers: { 'Content-Type': 'application/pdf' },
+          });
+        })
+      );
+
+      await downloadSchedulePdf(1, 'KW 25');
+
+      expect(capturedUrls[0]).toContain('/api/v1/exports/schedule/1/pdf');
+      expect((URL.createObjectURL as Mock).mock.calls.length).toBe(1);
+      const pdfBlob = (URL.createObjectURL as Mock).mock.calls[0][0] as Blob;
+      expect(pdfBlob).toBeInstanceOf(Blob);
+      expect(pdfBlob.type).toBe('application/pdf');
+      expect((URL.revokeObjectURL as Mock).mock.calls.length).toBe(1);
+      expect((URL.revokeObjectURL as Mock).mock.calls[0][0]).toContain('blob:mock-url');
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      const anchor = clickSpy.mock.contexts[0] as HTMLAnchorElement;
+      expect(anchor.download).toBe('schichtplan-KW 25.pdf');
+      expect(anchor.href).toContain('blob:mock-url');
+    });
+
+    it('gibt Fehler bei 404 weiter', async () => {
+      server.use(
+        http.get(`${base}/exports/schedule/999/pdf`, () =>
+          HttpResponse.json({ detail: 'Schedule not found' }, { status: 404 })
+        )
+      );
+
+      await expect(downloadSchedulePdf(999, 'X')).rejects.toMatchObject({
+        response: { status: 404 },
+      });
+    });
+  });
+
+  describe('downloadScheduleIcal', () => {
+    let clickSpy: ReturnType<typeof vi.spyOn>;
+    let capturedUrls: string[];
+
+    beforeEach(() => {
+      URL.createObjectURL = vi.fn(() => 'blob:mock-url') as any;
+      URL.revokeObjectURL = vi.fn() as any;
+      clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      capturedUrls = [];
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      delete (URL as any).createObjectURL;
+      delete (URL as any).revokeObjectURL;
+    });
+
+    it('ruft GET /exports/schedule/:id/ical auf und lädt die Datei als schichtplan-<name>.ics herunter', async () => {
+      server.use(
+        http.get(`${base}/exports/schedule/1/ical`, ({ request }) => {
+          capturedUrls.push(request.url);
+          return new HttpResponse('BEGIN:VCALENDAR', {
+            headers: { 'Content-Type': 'text/calendar' },
+          });
+        })
+      );
+
+      await downloadScheduleIcal(1, 'KW 25');
+
+      expect(capturedUrls[0]).toContain('/api/v1/exports/schedule/1/ical');
+      expect((URL.createObjectURL as Mock).mock.calls.length).toBe(1);
+      const icalBlob = (URL.createObjectURL as Mock).mock.calls[0][0] as Blob;
+      expect(icalBlob).toBeInstanceOf(Blob);
+      expect(icalBlob.type).toBe('text/calendar');
+      expect((URL.revokeObjectURL as Mock).mock.calls.length).toBe(1);
+      expect((URL.revokeObjectURL as Mock).mock.calls[0][0]).toContain('blob:mock-url');
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      const anchor = clickSpy.mock.contexts[0] as HTMLAnchorElement;
+      expect(anchor.download).toBe('schichtplan-KW 25.ics');
+      expect(anchor.href).toContain('blob:mock-url');
+    });
+
+    it('gibt Fehler bei 404 weiter', async () => {
+      server.use(
+        http.get(`${base}/exports/schedule/999/ical`, () =>
+          HttpResponse.json({ detail: 'Schedule not found' }, { status: 404 })
+        )
+      );
+
+      await expect(downloadScheduleIcal(999, 'X')).rejects.toMatchObject({
+        response: { status: 404 },
+      });
+    });
   });
 });
