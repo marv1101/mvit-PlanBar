@@ -26,6 +26,12 @@ import {
   RotateCcw,
   Sparkles,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '../ui/dropdown-menu';
 import { Schedule as ScheduleType, WeekType, Employee, Role } from '../../types';
 import { ScheduleCalendar } from '../ScheduleCalendar';
 import { EditableScheduleCalendar } from '../EditableScheduleCalendar';
@@ -308,30 +314,32 @@ export function ScheduleManageList({
                   <Send className="h-4 w-4 mr-1" />
                   TiTO
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => exportShiftsCSV(schedule.shifts, schedule.name, employees)}
-                  aria-label="Schichtplan exportieren"
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleExportPdf(schedule)}
-                  aria-label="PDF exportieren"
-                >
-                  <FileText className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleExportIcal(schedule)}
-                  aria-label="iCal exportieren"
-                >
-                  <FileUp className="h-4 w-4" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label="Exportieren"
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Export
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleExportPdf(schedule)}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExportIcal(schedule)}>
+                      <FileUp className="mr-2 h-4 w-4" />
+                      iCal
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => exportShiftsCSV(schedule.shifts, schedule.name, employees)}>
+                      <Download className="mr-2 h-4 w-4" />
+                      CSV
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                   size="sm"
                   variant="destructive"
