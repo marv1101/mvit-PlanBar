@@ -305,6 +305,7 @@ export function ScheduleManageList({
                   <Eye className="h-4 w-4 mr-1" />
                   {selectedSchedule?.id === schedule.id ? 'Ausgewählt' : 'Ansehen'}
                 </Button>
+                {schedule.status === 'draft' && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -314,6 +315,7 @@ export function ScheduleManageList({
                   <Send className="h-4 w-4 mr-1" />
                   TiTO
                 </Button>
+                )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button

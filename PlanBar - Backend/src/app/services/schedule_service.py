@@ -236,6 +236,11 @@ async def submit_schedule_to_tito(
     user=None,
     maximize_staffing: bool = False,
 ) -> Schedule:
+    if schedule.status not in ("draft", "failed"):
+        raise ValueError(
+            f"Schedule cannot be submitted in '{schedule.status}' status. "
+            "Only 'draft' schedules can be submitted to TiTO."
+        )
     if user and user.role != "admin":
         team_ids = team_service.get_team_ids_for_user(db, user)
         if not team_ids:
