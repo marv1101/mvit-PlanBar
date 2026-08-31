@@ -120,7 +120,7 @@ logger.info("Initial-Passwort fuer admin@mphion.de: %s", admin_password)
 
 **Lösung:**
 ```python
-allow_origins=settings.cors_origins.split(",") if settings.cors_origins else ["http://localhost:5173"],
+allow_origins = (settings.cors_origins.split(",") if settings.cors_origins else ["http://localhost:5173"],)
 ```
 In `config.py` ergänzen:
 ```python
@@ -224,7 +224,7 @@ async def delete_role(id: int, db: Session = Depends(get_db), admin: User = Depe
       httponly=True,
       secure=secure,
       samesite="lax",
-      max_age=900       # 15 Minuten
+      max_age=900,  # 15 Minuten
   )
   ```
 - Frontend: `withCredentials: true` im Axios-Client, localStorage-Logik entfernt
@@ -886,9 +886,7 @@ Oder einfacher: `python-json-logger`:
 from pythonjsonlogger import jsonlogger
 
 handler = logging.StreamHandler()
-formatter = jsonlogger.JsonFormatter(
-    fmt="%(asctime)s %(name)s %(levelname)s %(message)s"
-)
+formatter = jsonlogger.JsonFormatter(fmt="%(asctime)s %(name)s %(levelname)s %(message)s")
 handler.setFormatter(formatter)
 ```
 
@@ -1054,6 +1052,7 @@ logging.basicConfig(
 ```python
 import uuid
 
+
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
@@ -1073,6 +1072,7 @@ pip install sentry-sdk
 ```
 ```python
 import sentry_sdk
+
 sentry_sdk.init(
     dsn=os.getenv("SENTRY_DSN"),
     environment=os.getenv("ENVIRONMENT", "development"),

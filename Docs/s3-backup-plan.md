@@ -63,16 +63,17 @@ class BackupStorage(ABC):
     def download(self, key: str) -> bytes: ...
     def exists(self, key: str) -> bool: ...
     def head(self, key: str) -> BackupInfo: ...
-    def list_backups(self, prefix: str, *, page_size: int = 100,
-                     page_token: str | None = None) -> BackupListPage: ...
+    def list_backups(self, prefix: str, *, page_size: int = 100, page_token: str | None = None) -> BackupListPage: ...
     def delete(self, key: str) -> None: ...
     def acquire_lock(self, lock_key: str, ttl_seconds: int = 300) -> bool: ...
     def release_lock(self, lock_key: str) -> None: ...
+
 
 @dataclass
 class BackupListPage:
     items: list[BackupInfo]
     next_page_token: str | None
+
 
 @dataclass
 class BackupInfo:
@@ -173,6 +174,7 @@ MANIFEST_MIGRATORS: dict[str, Callable[[dict], dict]] = {
     "0.9": _migrate_v09_to_v10,
     "1.0": _migrate_v10_to_v20,
 }
+
 
 def Manifest_from_dict(raw: dict) -> Manifest:
     version = raw.get("manifest_version", "0.9")

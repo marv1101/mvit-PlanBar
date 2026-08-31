@@ -333,8 +333,8 @@ def test_export_pdf_employee_colors(db_session):
     assert result is not None
     pages = _pdf_pages(result)
     texts = [page.extract_text() or "" for page in pages]
-    a_page = pages[[i for i, t in enumerate(texts) if "Kalender Woche A" in t][0]]
-    b_page = pages[[i for i, t in enumerate(texts) if "Kalender Woche B" in t][0]]
+    a_page = pages[next(i for i, t in enumerate(texts) if "Kalender Woche A" in t)]
+    b_page = pages[next(i for i, t in enumerate(texts) if "Kalender Woche B" in t)]
     blue = f"{59 / 255:.4f} {130 / 255:.4f} {246 / 255:.4f}".encode()
     red = f"{239 / 255:.4f} {68 / 255:.4f} {68 / 255:.4f}".encode()
     assert blue in a_page.get_contents().get_data()

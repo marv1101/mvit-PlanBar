@@ -1172,10 +1172,7 @@ def test_solver_optional_unassigned_slot_reported_as_SOFT():
     assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
     violations = result["metrics"]["violations"]
     soft_violations = [v for v in violations if v["severity"] == "SOFT"]
-    hard_unassigned = [
-        v for v in violations
-        if v["type"] == "UNASSIGNED_REQUIREMENT" and v["severity"] == "HARD"
-    ]
+    hard_unassigned = [v for v in violations if v["type"] == "UNASSIGNED_REQUIREMENT" and v["severity"] == "HARD"]
     # The mandatory slot is filled, optional slots unfilled → SOFT violations
     assert len(soft_violations) > 0
     assert all(v["type"] == "UNASSIGNED_REQUIREMENT" for v in soft_violations)

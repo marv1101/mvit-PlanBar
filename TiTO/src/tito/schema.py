@@ -78,9 +78,7 @@ class Requirement(BaseModel):
             self.count = 1
 
         if self.maxCount is not None and self.count is not None and self.maxCount < self.count:
-            raise ValueError(
-                f"maxCount ({self.maxCount}) must be >= count ({self.count})"
-            )
+            raise ValueError(f"maxCount ({self.maxCount}) must be >= count ({self.count})")
 
         if not self.shiftTemplateId:
             raise ValueError("Requirement must contain either shiftTemplateId or shiftId")

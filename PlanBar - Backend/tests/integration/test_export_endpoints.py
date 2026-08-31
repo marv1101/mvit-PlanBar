@@ -4,10 +4,9 @@ import io
 from datetime import date, time
 
 import pytest
-from pypdf import PdfReader
-
 from app.db.models.employee import Employee
 from app.db.models.schedule import Shiftplan
+from pypdf import PdfReader
 
 
 def test_export_ical_endpoint(client, auth_headers):
@@ -82,9 +81,7 @@ def test_export_pdf_landscape_a4_via_endpoint(client, auth_headers, db_session):
     )
     db_session.commit()
 
-    response = client.get(
-        f"/api/v1/exports/schedule/{schedule_id}/pdf", headers=auth_headers
-    )
+    response = client.get(f"/api/v1/exports/schedule/{schedule_id}/pdf", headers=auth_headers)
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
     assert response.content[:5] == b"%PDF-"

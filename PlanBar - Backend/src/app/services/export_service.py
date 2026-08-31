@@ -167,9 +167,7 @@ def _schedule_range(schedule: Schedule, shifts: list[Shiftplan]) -> tuple[date, 
     return min(dates), max(dates)
 
 
-def _build_week_buckets(
-    start: date, end: date, shifts: list[Shiftplan]
-) -> list[dict]:
+def _build_week_buckets(start: date, end: date, shifts: list[Shiftplan]) -> list[dict]:
     """Group the [start..end] range into weekly buckets keyed by their Monday.
 
     Each bucket carries its parity ('A'/'B') and a dict of date -> shifts for
@@ -187,9 +185,7 @@ def _build_week_buckets(
     while current <= end:
         monday = current - timedelta(days=current.weekday())
         parity = _week_parity(current)
-        bucket = partial.setdefault(
-            monday, {"monday": monday, "parity": parity, "days": {}}
-        )
+        bucket = partial.setdefault(monday, {"monday": monday, "parity": parity, "days": {}})
         bucket["days"][current] = shifts_by_day.get(current, [])
         current += timedelta(days=1)
 
@@ -200,9 +196,7 @@ def _build_week_buckets(
         for offset in range(7):
             day = monday + timedelta(days=offset)
             full_days[day] = bucket["days"].get(day, [])
-        buckets.append(
-            {"monday": monday, "parity": bucket["parity"], "days": full_days}
-        )
+        buckets.append({"monday": monday, "parity": bucket["parity"], "days": full_days})
     return buckets
 
 
@@ -264,18 +258,13 @@ def _render_cover_page(
     )
     pdf.set_font("Helvetica", "", 12)
     if schedule.start_date and schedule.end_date:
-        date_range = (
-            f"{schedule.start_date.strftime('%d.%m.%Y')} - "
-            f"{schedule.end_date.strftime('%d.%m.%Y')}"
-        )
+        date_range = f"{schedule.start_date.strftime('%d.%m.%Y')} - {schedule.end_date.strftime('%d.%m.%Y')}"
         pdf.cell(0, 8, _safe_text(date_range), align="C", new_x="LMARGIN", new_y="NEXT")
     if schedule.week_type:
         pdf.cell(
             0,
             8,
-            _safe_text(
-                f"Wochentyp: {schedule.week_type} (nur {schedule.week_type}-Wochen)"
-            ),
+            _safe_text(f"Wochentyp: {schedule.week_type} (nur {schedule.week_type}-Wochen)"),
             align="C",
             new_x="LMARGIN",
             new_y="NEXT",
@@ -300,9 +289,7 @@ def _render_cover_page(
     pdf.set_font("Helvetica", "B", 14)
     pdf.cell(0, 8, "Legende", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 10)
-    employees = [
-        employee_info[eid] for eid in employee_ids if employee_info.get(eid) is not None
-    ]
+    employees = [employee_info[eid] for eid in employee_ids if employee_info.get(eid) is not None]
     employees.sort(key=lambda emp: f"{emp.first_name} {emp.last_name}")
     for emp in employees:
         x = pdf.get_x()
@@ -384,10 +371,7 @@ def _render_calendar_page(
     pdf.set_draw_color(200, 200, 200)
 
     pdf.set_font("Helvetica", "B", 14)
-    title = (
-        f"Kalender Woche {parity} (KW {iso_week}: "
-        f"{monday.strftime('%d.%m.')} - {sunday.strftime('%d.%m.%Y')})"
-    )
+    title = f"Kalender Woche {parity} (KW {iso_week}: {monday.strftime('%d.%m.')} - {sunday.strftime('%d.%m.%Y')})"
     pdf.cell(0, 8, _safe_text(title), new_x="LMARGIN", new_y="NEXT")
 
     col_w = pdf.epw / 7
@@ -472,19 +456,11 @@ def _render_list_row(
     """Render a single shift row in the list table (with a color bar)."""
     emp = employee_info.get(shift.employee_id)
     color = _hex_to_rgb(emp.color if emp else None)
-    name = (
-        f"{emp.first_name} {emp.last_name}"
-        if emp
-        else f"Employee #{shift.employee_id}"
-    )
+    name = f"{emp.first_name} {emp.last_name}" if emp else f"Employee #{shift.employee_id}"
     label = shift.label or shift.shift_id
     start_str = shift.start_time.strftime("%H:%M")
     end_str = shift.end_time.strftime("%H:%M")
-    pause = (
-        f"{shift.break_start} - {shift.break_end}"
-        if (shift.break_start and shift.break_end)
-        else ""
-    )
+    pause = f"{shift.break_start} - {shift.break_end}" if (shift.break_start and shift.break_end) else ""
     notes = _safe_text((shift.notes or "")[:40])
     row_h = 6.0
 
@@ -527,8 +503,7 @@ def _render_list_pages(
 
     days = sorted({shift.date for shift in shifts})
     shifts_by_day: dict[date, list[Shiftplan]] = {
-        day: sorted([s for s in shifts if s.date == day], key=lambda s: s.start_time)
-        for day in days
+        day: sorted([s for s in shifts if s.date == day], key=lambda s: s.start_time) for day in days
     }
 
     for day in days:
