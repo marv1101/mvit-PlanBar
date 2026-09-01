@@ -13,6 +13,7 @@ from app.api.v1.exports import router as exports_router
 from app.api.v1.gdpr import admin_router as gdpr_admin_router
 from app.api.v1.gdpr import router as gdpr_router
 from app.api.v1.health import router as health_router
+from app.api.v1.ldap import router as ldap_router
 from app.api.v1.metrics import router as metrics_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.pinboard import router as pinboard_router
@@ -31,6 +32,7 @@ from app.api.v1.users import router as users_router
 api_router = APIRouter()
 api_router.include_router(sync_router, prefix="", tags=["sync"])
 api_router.include_router(health_router, prefix="/health", tags=["health"])
+api_router.include_router(ldap_router, prefix="/ldap", tags=["ldap"])
 api_router.include_router(users_router, prefix="/users", tags=["users"])
 api_router.include_router(employees_router, prefix="/employees", tags=["employees"])
 api_router.include_router(contract_router, prefix="/contracts", tags=["contracts"])

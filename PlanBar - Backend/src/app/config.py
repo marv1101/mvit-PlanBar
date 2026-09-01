@@ -36,5 +36,18 @@ class Settings(BaseSettings):
     # and admins must use POST /api/v1/users/admin-create instead.
     enable_self_registration: bool = Field(False)
 
+    # LDAP/AD Authentication
+    ldap_enabled: bool = Field(False)
+    ldap_server: str = Field("ldap://localhost:389")
+    ldap_bind_dn: str = Field("")
+    ldap_bind_password: str = Field("")
+    ldap_user_search_base: str = Field("")
+    ldap_user_search_filter: str = Field("(objectClass=person)")
+    ldap_group_search_base: str = Field("")
+    ldap_group_search_filter: str = Field("(objectClass=groupOfNames)")
+    ldap_group_member_attr: str = Field("member")
+    ldap_role_mapping: dict[str, str] = Field(default_factory=dict)
+    ldap_use_tls: bool = Field(False)
+
 
 settings = Settings()
