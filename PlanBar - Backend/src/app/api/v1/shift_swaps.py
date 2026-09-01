@@ -15,6 +15,7 @@ from app.schemas.shift_swap import (
     ShiftSwapReject,
     ShiftSwapResponse,
 )
+from app.core.event_bus import event_bus
 from app.services import team_service
 from app.services.notification_service import create_notification
 
@@ -159,6 +160,14 @@ def approve_shift_swap(
             message="Der Schichttausch wurde genehmigt.",
             data={"swap_id": swap.id},
         )
+
+    event_bus.dispatch("shift.swapped", {
+        "swap_id": swap.id,
+        "requester_employee_id": swap.employee_id,
+        "target_employee_id": swap.target_employee_id,
+        "requester_shift_id": swap.requester_shift_id,
+        "target_shift_id": swap.target_shift_id,
+    })
 
     return swap
 

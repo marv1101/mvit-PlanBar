@@ -13,6 +13,7 @@ from app.schemas.employee import (
     TimecardCreate,
     TimecardUpdate,
 )
+from app.core.event_bus import event_bus
 from app.services import audit_service
 
 
@@ -59,6 +60,7 @@ def create_employee(db: Session, data: EmployeeCreate, actor_id: int | None = No
     db.commit()
     db.refresh(employee)
     audit_service.log_create(db, user_id=actor_id, resource_type="employee", resource_id=str(employee.id))
+    event_bus.dispatch("employee.created", {"employee_id": employee.id, "first_name": employee.first_name, "last_name": employee.last_name})
     return employee
 
 
@@ -111,6 +113,7 @@ def update_employee(db: Session, employee: Employee, data: EmployeeUpdate, actor
     db.commit()
     db.refresh(employee)
     audit_service.log_update(db, user_id=actor_id, resource_type="employee", resource_id=str(employee.id))
+    event_bus.dispatch("employee.updated", {"employee_id": employee.id, "first_name": employee.first_name, "last_name": employee.last_name})
     return employee
 
 

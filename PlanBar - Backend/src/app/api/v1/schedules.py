@@ -22,6 +22,7 @@ from app.schemas.schedule import (
     ShiftplanResponse,
     ShiftplanUpdate,
 )
+from app.core.event_bus import event_bus
 from app.services.arbzg_validator import validate_schedule
 from app.services.notification_service import create_notification_and_push
 from app.services.schedule_service import (
@@ -354,6 +355,14 @@ def update_shiftplan(
             push_url="/employee-view",
             push_tag="shift_changed",
         )
+
+    event_bus.dispatch("shift.modified", {
+        "shiftplan_id": shiftplan.id,
+        "schedule_id": schedule_id,
+        "employee_id": shiftplan.employee_id,
+        "date": str(shiftplan.date),
+        "shift_id": shiftplan.shift_id,
+    })
 
     # Reload schedule with all shiftplans for ArbZG validation and full response
     schedule = get_schedule_by_id(db, schedule_id)

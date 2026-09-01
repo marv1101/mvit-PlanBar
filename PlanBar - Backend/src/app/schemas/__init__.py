@@ -40,6 +40,16 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
+from app.schemas.webhook import (
+    TestEventRequest,
+    TestEventResponse,
+    WebhookCreate,
+    WebhookDetailResponse,
+    WebhookLogResponse,
+    WebhookResponse,
+    WebhookSecretResponse,
+    WebhookUpdate,
+)
 
 __all__ = [
     "AvailabilityEntry",
@@ -66,6 +76,8 @@ __all__ = [
     "ShiftplanCreate",
     "ShiftplanResponse",
     "ShiftplanUpdate",
+    "TestEventRequest",
+    "TestEventResponse",
     "TiTOCallbackPayload",
     "TiTOJobResponse",
     "TiTOJobStatus",
@@ -78,4 +90,10 @@ __all__ = [
     "UserLogin",
     "UserResponse",
     "UserUpdate",
+    "WebhookCreate",
+    "WebhookDetailResponse",
+    "WebhookLogResponse",
+    "WebhookResponse",
+    "WebhookSecretResponse",
+    "WebhookUpdate",
 ]

@@ -13,6 +13,7 @@ from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.team import employee_teams
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
+from app.core.event_bus import event_bus
 from app.services import audit_service, team_service
 from app.services.arbzg_validator import ArbZgResult, validate_schedule
 from app.services.holiday_service import get_german_holidays
@@ -171,6 +172,18 @@ def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = Non
     db.commit()
     db.refresh(schedule)
     audit_service.log_create(db, user_id=user_id, resource_type="schedule", resource_id=str(schedule.id))
+    event_bus.dispatch("schedule.created", {"schedule_id": schedule.id, "name": schedule.name})
+
+    # Fire shift.assigned for each created shiftplan
+    for sp in schedule.shiftplans:
+        event_bus.dispatch("shift.assigned", {
+            "shiftplan_id": sp.id,
+            "schedule_id": schedule.id,
+            "employee_id": sp.employee_id,
+            "date": str(sp.date),
+            "shift_id": sp.shift_id,
+        })
+
     return schedule
 
 
@@ -202,6 +215,7 @@ def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate, actor
 
     # Notify all assigned employees when schedule becomes completed
     if data.status is not None and data.status.value == "completed":
+        event_bus.dispatch("schedule.published", {"schedule_id": schedule.id, "name": schedule.name})
         shiftplans = db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).all()
         notified_user_ids: set[int] = set()
         for sp in shiftplans:
@@ -370,6 +384,14 @@ def replace_all_shifts(
         resource_id=str(schedule.id),
         details="replace_all_shifts",
     )
+
+    for sp_data in shiftplans_data:
+        event_bus.dispatch("shift.assigned", {
+            "schedule_id": schedule.id,
+            "employee_id": sp_data.employee_id,
+            "date": str(sp_data.date),
+            "shift_id": sp_data.shift_id,
+        })
 
     # Validate ArbZG compliance for the manually created shifts
     shift_dicts = [

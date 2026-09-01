@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.enums import NotificationType, WishStatus
+from app.core.event_bus import event_bus
 from app.core.exceptions import NotFoundException
 from app.core.versioning import ConflictError, check_etag_conflict, set_etag_header, set_etag_response
 from app.db.models.shift_wish import ShiftWish
@@ -78,6 +79,13 @@ def create_shift_wish(
     db.add(wish)
     db.commit()
     db.refresh(wish)
+    event_bus.dispatch("leave.requested", {
+        "wish_id": wish.id,
+        "employee_id": wish.employee_id,
+        "date": str(wish.date),
+        "type": wish.type,
+        "note": wish.note,
+    })
     return wish
 
 
@@ -235,6 +243,13 @@ def approve_shift_wish(
             push_tag="wish_approved",
         )
 
+    event_bus.dispatch("leave.approved", {
+        "wish_id": wish.id,
+        "employee_id": wish.employee_id,
+        "date": str(wish.date),
+        "type": wish.type,
+    })
+
     return wish
 
 
@@ -282,5 +297,13 @@ def reject_shift_wish(
             push_url="/employee-view",
             push_tag="wish_rejected",
         )
+
+    event_bus.dispatch("leave.rejected", {
+        "wish_id": wish.id,
+        "employee_id": wish.employee_id,
+        "date": str(wish.date),
+        "type": wish.type,
+        "rejection_reason": body.rejection_reason,
+    })
 
     return wish
