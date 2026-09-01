@@ -97,5 +97,13 @@
     "react-dom": {
       "optional": true
     }
+  },
+  "resolutions": {
+    "postcss": "8.5.23"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "8.5.23"
+    }
   }
 }
