@@ -353,6 +353,8 @@ class TestShiftUpdateNotification:
                         "shift_id": "früh",
                         "start_time": "06:00",
                         "end_time": "14:00",
+                        "break_start": "10:00",
+                        "break_end": "10:30",
                     },
                 ],
             },
@@ -367,7 +369,7 @@ class TestShiftUpdateNotification:
         # Update the shift
         update_resp = client.put(
             f"/api/v1/schedules/{schedule_id}/shifts/{shiftplan_id}",
-            json={"shift_id": "spät", "start_time": "14:00", "end_time": "22:00"},
+            json={"shift_id": "spät", "start_time": "14:00", "end_time": "22:00", "break_start": "18:00", "break_end": "18:30"},
             headers=auth_headers,
         )
         assert update_resp.status_code == 200

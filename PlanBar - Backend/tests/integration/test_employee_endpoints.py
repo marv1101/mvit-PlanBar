@@ -208,3 +208,78 @@ def test_list_timecards(client, auth_headers):
     data = response.json()
     assert "items" in data
     assert isinstance(data["items"], list)
+
+
+# --- ArbZG-relevant employee fields (is_minor, is_night_worker, ...) ---
+
+
+def test_create_employee_with_arbzg_fields(client, auth_headers):
+    """Neue ArbZG-Felder müssen beim Anlegen mitgegeben und zurückgegeben werden."""
+    response = client.post(
+        "/api/v1/employees",
+        json={
+            "first_name": "Mia",
+            "last_name": "Minor",
+            "is_minor": True,
+            "is_night_worker": True,
+            "is_shift_worker": True,
+            "night_worker_exam_date": "2026-02-01",
+            "protection_until": "2026-06-30",
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["is_minor"] is True
+    assert data["is_night_worker"] is True
+    assert data["is_shift_worker"] is True
+    assert data["night_worker_exam_date"] == "2026-02-01"
+    assert data["protection_until"] == "2026-06-30"
+
+
+def test_create_employee_arbzg_defaults(client, auth_headers):
+    """Ohne explizite Angaben gelten die Defaults (False/None)."""
+    response = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Default", "last_name": "Arbzg"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["is_minor"] is False
+    assert data["is_night_worker"] is False
+    assert data["is_shift_worker"] is False
+    assert data["night_worker_exam_date"] is None
+    assert data["protection_until"] is None
+
+
+def test_update_employee_arbzg_fields(client, auth_headers):
+    """Updates müssen die ArbZG-Felder tragen (inkl. explizites Zurücksetzen auf False)."""
+    create_resp = client.post(
+        "/api/v1/employees",
+        json={"first_name": "Upd", "last_name": "Arbzg"},
+        headers=auth_headers,
+    )
+    emp_id = create_resp.json()["id"]
+
+    response = client.put(
+        f"/api/v1/employees/{emp_id}",
+        json={"is_minor": True, "is_night_worker": True, "night_worker_exam_date": "2026-03-01"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_minor"] is True
+    assert data["is_night_worker"] is True
+    assert data["night_worker_exam_date"] == "2026-03-01"
+
+    # Minderjährigkeit endet: explizit auf False zurücksetzen
+    response = client.put(
+        f"/api/v1/employees/{emp_id}",
+        json={"is_minor": False},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["is_minor"] is False
+    # andere Felder bleiben unangetastet (None = keine Änderung)
+    assert response.json()["is_night_worker"] is True

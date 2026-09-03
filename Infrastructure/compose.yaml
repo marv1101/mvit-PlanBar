@@ -49,6 +49,7 @@ services:
       - TZ=${TZ:-UTC}
       - DATABASE_URL=postgresql://tito:${TITO_DB_PASSWORD}@db:5432/tito
       - API_URL=http://tito:5001
+      - API_TOKEN=${TITO_API_KEY}
       - WORKER_API_TOKEN=${TITO_WORKER_API_KEY}
       - QUEUE_TABLE=job_queue
       - CALLBACK_QUEUE=callback_queue

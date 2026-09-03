@@ -200,39 +200,67 @@ Metrics: Score der Optimierung (wie viele Wünsche wurden erfüllt?).
 }
 
 ## Der Solver-Kern (Logik & Constraints)
-Der Solver muss zwischen harten Gesetzen und weichen Wünschen unterscheiden.
 
-### A. Harte Constraints 
-#### Basierend auf dem Arbeitszeitgesetz (ArbZG) und Standardverträgen:
+Der Solver verwendet Google OR-Tools CP-SAT. Entscheidend ist die Trennung zwischen **harten Gesetzen** (ArbZG/JArbSchG/MuSchG — werden verletzungsunfähig erzwungen) und **weichen Zielen** (Objective Function).
 
-Ruhezeit: 
-Mindestens 11 Stunden zwischen dem Ende einer Schicht und dem Beginn der nächsten (§ 5 ArbZG).
+### A. Harte Constraints
 
-Maximalarbeitszeit: 
-Verbot von mehr als 10 Stunden Arbeitszeit pro Tag (§ 3 ArbZG).
+#### Arbeitsrecht (ArbZG, JArbSchG, MuSchG)
 
-Pausenregelung: 
-Automatischer Abzug/Einplanung von 30 Min. (ab 6 Std.) bzw. 45 Min. (ab 9 Std.) Arbeit.
-Die Pause kann individuell pro Mitarbeiter eingeplant werden. Es ist ebenfalls möglich eine Pause von 15 min für das Frühstück (morgens) und eine für das Mittagessen einzuplanen.
-Die Pausenzeit ist vertraglich individuell für jeden Mitarbeiter festlegbar. Kollegen können auch 1h pro Tag Pause haben, je nach Vertrag.
+Ruhezeit (§ 5 ArbZG):
+Mindestens 11 Stunden zwischen dem Ende einer Schicht und dem Beginn der nächsten. Berechnung auf Basis **absoluter Zeitstempel**, korrekt für Mitternacht überschreitende Schichten (Nachtdienst 22:00–06:00). Für Schichtarbeiter konfigurierbar verkürzbar auf bis zu 9h (§ 21 ArbZG).
 
-Sonntagsruhe: 
-Mindestens 15 Sonntage im Jahr müssen beschäftigungsfrei bleiben (§ 11 ArbZG).
+Tagesmaximum (§ 3 ArbZG):
+Maximal 10h effektive Arbeitszeit pro Tag. Die Arbeitszeit wird **netto** gemessen (§ 2 Abs. 1 ArbZG): gesetzliche/vertragliche Ruhepausen zählen **nicht** zur Arbeitszeit. Die Pausenregelung wird kumulativ über den gesamten Arbeitstag berechnet (auch bei Teilschichten). Zusätzlich eine gesetzliche Wochenobergrenze von 48h (Durchschnitt, konservativ als Wochen-Cap umgesetzt).
 
-Qualifikation: 
-Eine Schicht darf nur mit Personal besetzt werden, das den erforderlichen Skill-Tag besitzt (z. B. "Ersthelfer" oder "Kasse").
+Pausenregelung (§ 4 ArbZG):
+Automatischer Abzug/Einplanung — **exakte Grenzwerke**: 30 Min. bei **mehr als 6 bis 9 Stunden**, 45 Min. bei **mehr als 9 Stunden** (bei exakt 6,0h bzw. 9,0h keine bzw. nur 30 Min.). Die Pause kann individuell pro Mitarbeiter und pro Schichttemplate überschrieben werden (max. aus Gesetz/Template/Vertrag).
 
-### B. Weiche Constraints (Optimierungsziele)
-Diese fließen in die Objective Function ein. TiTO versucht, diese zu maximieren/minimieren:
+Sonn-/Feiertagsschonung (§ 9/§ 11 ArbZG):
+Mindestens 15 Sonntage im Jahr beschäftigungsfrei. Feiertage werden wie Sonntage gewertet. Pro-rata-Näherung auf den Planungszeitraum (Half-Up-Rundung) abzüglich eines vom Aufrufer übergebenen Jahressaldos (`protectedDaysWorkedYTD`). Nach Sonntagsarbeit ist ein Ersatzruhetag binnen 2 Kalenderwochen zu gewähren, nach Feiertagsarbeit (auf Werktag) binnen 8 Wochen (§ 11 Abs. 3).
 
-Wunscherfüllung: 
-Mitarbeiterkönnen den Wunsch für freie Tage oder spezifische Schichten aüßer und dieser wird bestmöglich mit eingeplant.
+Qualifikation (hart, B1):
+Eine Schicht darf **ausschließlich** mit Personal besetzt werden, das die geforderten Skills **und** (bei `ROLE_`-Skills) die passende Rolle besitzt. Unqualifizierte oder gesperrte Mitarbeiter (`forbiddenDates`) werden niemals geplant — inklusive einer INFEASIBLE-Diagnose, falls eine Schicht niemandem zugewiesen werden kann.
 
-Gleichverteilung: 
-"Fairness-Algorithmus", damit nicht immer dieselbe Person die unbeliebte Samstags-Spätschicht bekommt.
+Nachtarbeit (§ 6 ArbZG):
+Nachtarbeitnehmer (über isNightWorker-Flag) dürfen an Nachtschichten maximal 10h arbeiten (Netto). Fehlende oder älter als 1 Jahr abgelaufene arbeitsmedizinische Eignungsuntersuchung (§ 6 Abs. 1) wird als SOFT-Verletzung gemeldet.
 
-Stundenkonto-Target: 
-Minimierung der Abweichung zwischen Ist-Stunden und vertraglichen Soll-Stunden.
+Jugendarbeitsschutz (JArbSchG, vereinfachte Kernregeln):
+Minderjährige (`isMinor`) unterliegen 12h Ruhezeit, max. 8h/Tag, max. 40h/Woche, max. 5 Werktage/Woche sowie einem Verbot der Nachtarbeit (20:00–06:00) und der Arbeit an Samstagen, Sonn- und Feiertagen.
+
+Mutterschutz (MuSchG):
+Über `protectionUntil` gesperrte Tage werden als absolute Beschäftigungsverbote erzwungen.
+
+Teilschichten / Split-Shifts:
+Mehrere Schichten desselben Arbeitstags sind zulässig; Ruhezeit (§ 5) gilt zwischen Arbeitstagen, nicht zwischen Teilschichten. Überlappende Schichten sind stets verboten.
+
+#### Planungslogische Constraints
+
+Wochenstunden (Vertrag): Effektive Arbeitszeit pro ISO-Woche ≤ Vertrag (inkl. Vorperioden, `preShifts`).
+max. aufeinanderfolgende Arbeitstage (Default 6) über **echte Kalendertage** (Lücken unterbrechen die Kette).
+Schicht-Rotation: max. gleiche Schicht hintereinander (konfigurierbar).
+
+### B. Objective Function (Zielfunktungsgewichte, B8)
+
+Die Gewichte sind so proportioniert, dass harte Pflichten dominieren und Ziele sich sinnvoll steuern:
+
+| Priorität | Ziel | Gewicht pro Einheit |
+|---|---|---|
+| 1 | Pflicht-Slot besetzt | +100.000 |
+| 2 | Wunsch erfüllt | +2.000 × weight (1–10) |
+| 3 | Fairness-Abweichung (Pflicht-Arbeit) | −50 / Minute |
+| 4 | Optionaler Slot gefüllt (nur maximizeStaffing) | +60 / Netto-Minute |
+| 5 | Balance-Recovery (Zeitkonto) | ±1,04 / Min. × Saldo |
+
+Pflicht-Zuweisungen dominieren alles. Wünsche überwiegen eine Fairness-Abweichung von bis ca. 20–40 Minuten. Optionale Slots werden nur bei `maximizeStaffing` gefüllt (Fairness bleibt anreizfrei, damit optionale Kapazität ohne Flag leer bleibt).
+
+### C. Diagnose bei INFEASIBLE (D6)
+
+Fehlende Planbarkeit wird nicht still gemeldet. Stattdessen: statische Analyse (Skills, Rollen, Verfügbarkeit) und gezielte Re-Löstung mit entspannten Constraint-Familien (`infeasibilityReasons` im Output).
+
+### D. Vorperioden / Cross-Schedule-Kontinuität (C8)
+
+Über das `preShifts`-Feld können bereits fixierte Schichten (andere Pläne, Drafts, 7-Tage-Fenster vor Planstart) übergeben werden. Sie fließen in Ruhezeit, Folgetage-Ketten, Wochenstunden und Sonntagsquoten ein.
 
 ## 3. Tech-Stack & Implementierungsdetails
 ### Komponente Technologie Zweck

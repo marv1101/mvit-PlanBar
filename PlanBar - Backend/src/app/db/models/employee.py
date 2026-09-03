@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean,
     Column,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -42,6 +43,12 @@ class Employee(Base):
     break_start = Column(String(5), nullable=True)
     break_end = Column(String(5), nullable=True)
     max_work_hours = Column(Float, nullable=True)
+    # ArbZG / JArbSchG / MuSchG relevant flags (validated by app.services.arbzg_validator)
+    is_minor = Column(Boolean, default=False, nullable=False)  # JArbSchG rules apply
+    is_night_worker = Column(Boolean, default=False, nullable=False)  # § 6 ArbZG
+    night_worker_exam_date = Column(Date, nullable=True)  # § 6 Abs. 1 Eignungsuntersuchung
+    protection_until = Column(Date, nullable=True)  # MuSchG protection period end
+    is_shift_worker = Column(Boolean, default=False, nullable=False)  # § 4 Abs. 2 / § 6 shift worker
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
         DateTime,

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -12,6 +12,12 @@ class EmployeeBase(BaseModel):
     break_start: str | None = None
     break_end: str | None = None
     max_work_hours: float | None = None
+    # ArbZG / JArbSchG / MuSchG relevant fields
+    is_minor: bool = False
+    is_night_worker: bool = False
+    night_worker_exam_date: date | None = None
+    protection_until: date | None = None
+    is_shift_worker: bool = False
     role_ids: list[int] = []
 
 
@@ -29,6 +35,12 @@ class EmployeeUpdate(BaseModel):
     break_start: str | None = None
     break_end: str | None = None
     max_work_hours: float | None = None
+    # ArbZG / JArbSchG / MuSchG relevant fields (None = unchanged)
+    is_minor: bool | None = None
+    is_night_worker: bool | None = None
+    night_worker_exam_date: date | None = None
+    protection_until: date | None = None
+    is_shift_worker: bool | None = None
     user_id: int | None = None
     role_ids: list[int] | None = None
     team_ids: list[int] | None = None

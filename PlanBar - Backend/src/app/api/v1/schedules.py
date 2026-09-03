@@ -22,9 +22,10 @@ from app.schemas.schedule import (
     ShiftplanResponse,
     ShiftplanUpdate,
 )
-from app.services.arbzg_validator import validate_schedule
+from app.services.arbzg_validator import ArbZgResult, validate_schedule
 from app.services.notification_service import create_notification_and_push
 from app.services.schedule_service import (
+    ArbZgHardViolationError,
     assert_team_write_on_shiftplans,
     create_schedule,
     delete_schedule,
@@ -46,6 +47,38 @@ class SubmitRequest(BaseModel):
 router = APIRouter()
 
 
+def _violation_responses(arbzg_result: ArbZgResult | None) -> list[ArbZgViolationResponse]:
+    return [
+        ArbZgViolationResponse(
+            rule=v.rule,
+            message=v.message,
+            employee_id=v.employee_id,
+            shift_date=v.shift_date,
+            details=v.details,
+            severity=v.severity,
+        )
+        for v in (arbzg_result.violations if arbzg_result else [])
+    ]
+
+
+def _hard_violation_detail(exc: ArbZgHardViolationError) -> dict:
+    """422 detail payload for blocked manual shift updates (B5)."""
+    return {
+        "message": str(exc),
+        "violations": [
+            ArbZgViolationResponse(
+                rule=v.rule,
+                message=v.message,
+                employee_id=v.employee_id,
+                shift_date=v.shift_date,
+                details=v.details,
+                severity=v.severity,
+            ).model_dump(mode="json")
+            for v in exc.result.hard_violations
+        ],
+    }
+
+
 def _build_shift_dicts_from_schedule(schedule) -> list[dict]:
     return [
         {
@@ -61,19 +94,19 @@ def _build_shift_dicts_from_schedule(schedule) -> list[dict]:
     ]
 
 
-def _build_schedule_with_arbzg_response(schedule) -> ScheduleWithArbzgResponse:
+def _validate_schedule_shifts(db, schedule, shift_dicts: list[dict]) -> ArbZgResult | None:
+    """Validate with the full rule context (employees, holidays, period, history)."""
+    if not shift_dicts:
+        return None
+    from app.services.schedule_service import _build_arbzg_validation_kwargs
+
+    kwargs = _build_arbzg_validation_kwargs(db, schedule, {s["employee_id"] for s in shift_dicts})
+    return validate_schedule(shift_dicts, **kwargs)
+
+
+def _build_schedule_with_arbzg_response(db, schedule) -> ScheduleWithArbzgResponse:
     shift_dicts = _build_shift_dicts_from_schedule(schedule)
-    arbzg_result = validate_schedule(shift_dicts) if shift_dicts else None
-    warnings = [
-        ArbZgViolationResponse(
-            rule=v.rule,
-            message=v.message,
-            employee_id=v.employee_id,
-            shift_date=v.shift_date,
-            details=v.details,
-        )
-        for v in (arbzg_result.violations if arbzg_result else [])
-    ]
+    arbzg_result = _validate_schedule_shifts(db, schedule, shift_dicts)
     return ScheduleWithArbzgResponse(
         id=schedule.id,
         name=schedule.name,
@@ -90,7 +123,7 @@ def _build_schedule_with_arbzg_response(schedule) -> ScheduleWithArbzgResponse:
         shiftplans=schedule.shiftplans,
         created_at=schedule.created_at,
         updated_at=schedule.updated_at,
-        arbZgWarnings=warnings,
+        arbZgWarnings=_violation_responses(arbzg_result),
     )
 
 
@@ -112,7 +145,7 @@ def create_schedule_endpoint(
         schedule = create_schedule(db, data, user.id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-    return _build_schedule_with_arbzg_response(schedule)
+    return _build_schedule_with_arbzg_response(db, schedule)
 
 
 @router.get("", response_model=PaginatedResponse[ScheduleResponse])
@@ -333,6 +366,31 @@ def update_shiftplan(
     if data.notes is not None:
         shiftplan.notes = data.notes
     db.add(shiftplan)
+    db.flush()
+
+    # B5: manual PUT path blocks HARD ArbZG violations before committing.
+    shift_dicts = _build_shift_dicts_from_schedule(schedule)
+    arbzg_result = _validate_schedule_shifts(db, schedule, shift_dicts)
+    if arbzg_result is not None and arbzg_result.has_hard_violations:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "message": "Shift update verletzt ArbZG-HARD-Regeln",
+                "violations": [
+                    ArbZgViolationResponse(
+                        rule=v.rule,
+                        message=v.message,
+                        employee_id=v.employee_id,
+                        shift_date=v.shift_date,
+                        details=v.details,
+                        severity=v.severity,
+                    ).model_dump(mode="json")
+                    for v in arbzg_result.hard_violations
+                ],
+            },
+        )
+
     db.commit()
     db.refresh(shiftplan)
 
@@ -357,7 +415,7 @@ def update_shiftplan(
 
     # Reload schedule with all shiftplans for ArbZG validation and full response
     schedule = get_schedule_by_id(db, schedule_id)
-    return _build_schedule_with_arbzg_response(schedule)
+    return _build_schedule_with_arbzg_response(db, schedule)
 
 
 @router.put("/{schedule_id}/shifts", response_model=ScheduleWithArbzgResponse)
@@ -383,18 +441,14 @@ def replace_all_shifts_endpoint(
         )
     try:
         schedule, arbzg_result = replace_all_shifts(db, schedule, data.shiftplans, actor_id=user.id)
+    except ArbZgHardViolationError as e:
+        # B5: HARD violations are rejected with the violation list (422)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=_hard_violation_detail(e),
+        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-    warnings = [
-        ArbZgViolationResponse(
-            rule=v.rule,
-            message=v.message,
-            employee_id=v.employee_id,
-            shift_date=v.shift_date,
-            details=v.details,
-        )
-        for v in arbzg_result.violations
-    ]
     return ScheduleWithArbzgResponse(
         id=schedule.id,
         name=schedule.name,
@@ -410,7 +464,7 @@ def replace_all_shifts_endpoint(
         shiftplans=schedule.shiftplans,
         created_at=schedule.created_at,
         updated_at=schedule.updated_at,
-        arbZgWarnings=warnings,
+        arbZgWarnings=_violation_responses(arbzg_result),
     )
 
 

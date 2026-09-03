@@ -1,6 +1,5 @@
 import logging
 import threading
-import time
 from functools import wraps
 
 from flask import Flask, Response, jsonify, request
@@ -19,25 +18,45 @@ from .db import (
     fetch_pending_callbacks,
     get_connection,
     list_jobs_by_tenant,
+    reclaim_timed_out_jobs,
     register_worker,
-    update_job,
+    requeue_stale_sending_callbacks,
+    retry_job,
     update_worker_heartbeat,
 )
 from .schema import JobPayload, extract_tenant_id, validate_job_payload
 
+cleanup_logger = logging.getLogger(__name__)
 
-def cleanup_worker_thread(database_url: str, interval_minutes: int = 5):
-    """Background thread that periodically cleans up inactive workers.
-    Uses its own database connection to avoid race conditions."""
+
+def cleanup_worker_thread(
+    database_url: str,
+    interval_minutes: int = 5,
+    stop_event: threading.Event | None = None,
+):
+    """Background thread: periodically cleans up inactive workers and reclaims timed-out jobs.
+
+    F2: Neben der Worker-Registry-Aufräumung werden hier auch festhängende Jobs
+    (Status 'processing' mit abgelaufenem Lease) re-queued bzw. terminal abgeschlossen
+    und hängengebliebene 'sending'-Callbacks re-queued. Uses its own database
+    connection to avoid race conditions."""
     connection = get_connection(database_url)
+    stop = stop_event if stop_event is not None else threading.Event()
     while True:
         try:
             deleted_count = cleanup_inactive_workers(connection, timeout_seconds=300)  # 5 minutes
             if deleted_count > 0:
                 print(f"[Cleanup] Removed {deleted_count} inactive workers")
-        except (OSError, ValueError) as e:
-            print(f"[Cleanup] Error during cleanup: {e}")
-        time.sleep(interval_minutes * 60)
+            reclaimed = reclaim_timed_out_jobs(connection)
+            for entry in reclaimed:
+                print(f"[Cleanup] Reclaimed stuck job {entry['job_id']} ({entry['action']})")
+            requeued_callbacks = requeue_stale_sending_callbacks(connection)
+            if requeued_callbacks > 0:
+                print(f"[Cleanup] Requeued {requeued_callbacks} stale sending callbacks")
+        except Exception:
+            cleanup_logger.exception("[Cleanup] Error during cleanup")
+        if stop.wait(interval_minutes * 60):
+            break
 
 
 def create_app(settings: Settings | None = None) -> Flask:
@@ -625,12 +644,18 @@ def create_app(settings: Settings | None = None) -> Flask:
                 }
             ), 400
 
-        # Reset to queued status
-        from datetime import datetime, timezone
+        # F6: Reset auf 'queued' MIT Zurücksetzen von attempts, last_error und timeout_at,
+        # damit der Job nach dem Manual-Retry wieder den vollen Retry-Rahmen hat.
+        if not retry_job(connection, job_id):
+            logger.warning(f"Job {job_id} could not be re-queued for retry (status changed concurrently)")
+            return jsonify(
+                {
+                    "error": "Invalid operation",
+                    "message": f"Cannot retry job in {job['status']} status",
+                    "status_code": 400,
+                }
+            ), 400
 
-        datetime.now(timezone.utc).isoformat()
-
-        update_job(connection, job_id, status="queued")
         logger.info(f"Job {job_id} manually retried")
         return jsonify({"status": "retry_scheduled", "jobId": job_id})
 

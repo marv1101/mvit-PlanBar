@@ -897,8 +897,7 @@ def test_holiday_treated_like_sunday():
     - Period: 2026-01-01 (Thu/holiday) through 2026-01-11 (Sun)
     - Sundays in period: Jan 4, Jan 11 (2 Sundays)
     - Holiday in period: Jan 1 (Neujahr)
-    - minFreeSundaysPerYear=49 → allows 1 protected day work per employee
-      (required_free = round(49*3/52)=3, allowed = 3 - min(3,2) = 1)
+    - minFreeSundaysPerYear=34 → allowed protected workdays = floor(3*(52-34)/52) = 1
 
     Without holiday awareness: employee could work Jan 1 (holiday, not counted)
     + Jan 4 (Sunday, counted) = 2 protected days.
@@ -911,7 +910,7 @@ def test_holiday_treated_like_sunday():
         "config": {
             "startDate": "2026-01-01",
             "endDate": "2026-01-11",
-            "minFreeSundaysPerYear": 49,
+            "minFreeSundaysPerYear": 34,
             "holidayDates": ["2026-01-01"],
         },
         "shiftTemplates": [
@@ -946,7 +945,7 @@ def test_holiday_treated_like_sunday():
     for emp_id, count in emp_protected_count.items():
         assert count <= 1, (
             f"Employee {emp_id} worked on {count} protected days (Sunday/holiday). "
-            f"With minFreeSundaysPerYear=49 and holidayDates=[2026-01-01], "
+            f"With minFreeSundaysPerYear=34 and holidayDates=[2026-01-01], "
             f"should work on at most 1 protected day total (ArbZG §9)"
         )
 
