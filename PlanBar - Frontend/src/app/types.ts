@@ -102,6 +102,7 @@ export interface TiTODiagnostics {
   isOptimal: boolean;
   info: string;
   aggregatedMessages?: TiTOAggregatedMessage[];
+  infeasibilityReasons?: string[];
 }
 
 export interface TiTOAggregatedMessage {

@@ -52,6 +52,7 @@ class TiTOMetrics(BaseModel):
 class TiTODiagnostics(BaseModel):
     isOptimal: bool = False
     info: str = ""
+    infeasibilityReasons: list[str] = []
 
 
 class TiTOSolution(BaseModel):
