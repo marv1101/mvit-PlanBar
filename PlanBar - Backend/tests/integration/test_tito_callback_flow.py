@@ -509,8 +509,20 @@ def test_callback_malformed_assignment_no_500(
         json=_callback_payload(
             313,
             assignments=[
-                {"employeeId": "emp_abc", "date": "2026-05-26", "shiftId": "x", "startTime": "08:00", "endTime": "16:00"},
-                {"employeeId": test_employee.id, "date": "2026-05-27", "shiftId": "x", "startTime": "8 Uhr", "endTime": "16:00"},
+                {
+                    "employeeId": "emp_abc",
+                    "date": "2026-05-26",
+                    "shiftId": "x",
+                    "startTime": "08:00",
+                    "endTime": "16:00",
+                },
+                {
+                    "employeeId": test_employee.id,
+                    "date": "2026-05-27",
+                    "shiftId": "x",
+                    "startTime": "8 Uhr",
+                    "endTime": "16:00",
+                },
                 _assignment(test_employee, "2026-05-28"),
             ],
         ),
@@ -704,9 +716,7 @@ def test_replace_shifts_soft_violation_returns_200_with_warnings(client, db_sess
     user = db_session.query(User).filter(User.email == "admin_arbzg_soft@test.com").first()
     user.role = "admin"
     db_session.commit()
-    login = client.post(
-        "/api/v1/users/login", json={"email": "admin_arbzg_soft@test.com", "password": "TestPass@123"}
-    )
+    login = client.post("/api/v1/users/login", json={"email": "admin_arbzg_soft@test.com", "password": "TestPass@123"})
     headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
     client.cookies.clear()
 
@@ -885,6 +895,3 @@ def test_callback_auth_no_key_rejects_in_production(client, db_session, test_sch
     finally:
         settings.tito_api_key = original_key
         settings.environment = original_env
-
-
-

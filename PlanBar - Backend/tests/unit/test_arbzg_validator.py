@@ -266,7 +266,9 @@ class TestSundayQuota:
         for i, sd in enumerate(worked_sundays):
             shifts.append(_shift(1, sd, time(8, 0), sd, time(16, 0), "12:00", "12:30"))
             # free days in between (no consecutive-day / ersatzruhetag issues)
-            shifts.append(_shift(1, sd + timedelta(days=2), time(8, 0), sd + timedelta(days=2), time(16, 0), "12:00", "12:30"))
+            shifts.append(
+                _shift(1, sd + timedelta(days=2), time(8, 0), sd + timedelta(days=2), time(16, 0), "12:00", "12:30")
+            )
         result = validate_schedule(
             shifts,
             period_start=date(2026, 6, 1),
@@ -280,7 +282,9 @@ class TestSundayQuota:
         shifts = []
         for sd in worked_sundays:
             shifts.append(_shift(1, sd, time(8, 0), sd, time(16, 0), "12:00", "12:30"))
-            shifts.append(_shift(1, sd + timedelta(days=2), time(8, 0), sd + timedelta(days=2), time(16, 0), "12:00", "12:30"))
+            shifts.append(
+                _shift(1, sd + timedelta(days=2), time(8, 0), sd + timedelta(days=2), time(16, 0), "12:00", "12:30")
+            )
         result = validate_schedule(
             shifts,
             period_start=date(2026, 6, 1),
@@ -390,7 +394,9 @@ class TestErsatzruhetag:
         sunday = date(2026, 6, 7)
         shifts = [
             _shift(1, sunday, time(8, 0), sunday, time(16, 0), "12:00", "12:30"),
-            _shift(1, sunday + timedelta(days=1), time(8, 0), sunday + timedelta(days=1), time(16, 0), "12:00", "12:30"),
+            _shift(
+                1, sunday + timedelta(days=1), time(8, 0), sunday + timedelta(days=1), time(16, 0), "12:00", "12:30"
+            ),
             # 09.-13.06 free, then Sat 13.06? -> 08+09 worked, 10-13 free
         ]
         result = validate_schedule(
@@ -404,7 +410,9 @@ class TestErsatzruhetag:
         """Holiday work (holiday on a weekday) requires a free day within 8 weeks."""
         holiday = date(2026, 6, 4)  # Thursday (e.g. Fronleichnam in BW)
         shifts = [
-            _shift(1, holiday + timedelta(days=i), time(8, 0), holiday + timedelta(days=i), time(16, 0), "12:00", "12:30")
+            _shift(
+                1, holiday + timedelta(days=i), time(8, 0), holiday + timedelta(days=i), time(16, 0), "12:00", "12:30"
+            )
             for i in range(3)  # works 04.-06.06, no free day up to period end
         ]
         result = validate_schedule(
@@ -495,7 +503,9 @@ class TestMinorRules:
         d = date(2026, 6, 3)
         shifts = [
             _shift(1, d, time(8, 0), d, time(16, 0), "12:00", "12:30"),
-            _shift(1, d + timedelta(days=1), time(3, 0), d + timedelta(days=1), time(11, 0), "07:00", "07:30"),  # 11h gap
+            _shift(
+                1, d + timedelta(days=1), time(3, 0), d + timedelta(days=1), time(11, 0), "07:00", "07:30"
+            ),  # 11h gap
         ]
         result = validate_schedule(shifts, employees=[_emp(1, is_minor=True)])
         assert ("minor_rest_time", "HARD") in _rules(result)
@@ -576,7 +586,9 @@ class TestMuSchGProtection:
 class TestSeverityClassification:
     def test_hard_and_soft_violation_properties(self):
         d = date(2026, 6, 7)  # Sunday
-        shifts = [_shift(1, d, time(6, 0), d, time(19, 0))]  # 13h no break: HARD daily + HARD breaks + SOFT sunday/ersatz
+        shifts = [
+            _shift(1, d, time(6, 0), d, time(19, 0))
+        ]  # 13h no break: HARD daily + HARD breaks + SOFT sunday/ersatz
         result = validate_schedule(
             shifts,
             employees=[_emp(1)],
@@ -600,6 +612,3 @@ class TestSeverityClassification:
         assert not result.has_hard_violations
         assert len(result.soft_violations) > 0  # sunday work -> SOFT warnings
         assert not result.is_valid  # violations exist (soft)
-
-
-

@@ -75,9 +75,9 @@ def _extract_employee_id(value) -> int | None:
 
 
 def _parse_hhmm(value: str) -> time:
-    """Parse "HH:MM" robustly; raises ValueError for malformed values."""
+    """Parse "HH:MM" robustly; raises TypeError/ValueError for malformed values."""
     if not isinstance(value, str):
-        raise ValueError(f"not a string: {value!r}")
+        raise TypeError(f"not a string: {value!r}")
     parts = value.split(":")
     if len(parts) < 2:
         raise ValueError(f"expected HH:MM, got {value!r}")
@@ -125,7 +125,12 @@ def _normalize_break(
             bs = _parse_hhmm(employee.break_start)
             be = _parse_hhmm(employee.break_end)
         except ValueError:
-            logger.warning("Invalid employee break window %s-%s for employee %s", employee.break_start, employee.break_end, employee.id)
+            logger.warning(
+                "Invalid employee break window %s-%s for employee %s",
+                employee.break_start,
+                employee.break_end,
+                employee.id,
+            )
         else:
             bs_m = bs.hour * 60 + bs.minute
             be_m = be.hour * 60 + be.minute
@@ -150,7 +155,9 @@ def _normalize_break(
     return _format_hhmm(start_m + rel_start), _format_hhmm(start_m + rel_start + break_minutes), break_minutes
 
 
-def _callback_violation(rule: str, message: str, employee_id: int | None = None, shift_date: date | None = None) -> dict:
+def _callback_violation(
+    rule: str, message: str, employee_id: int | None = None, shift_date: date | None = None
+) -> dict:
     """Payload-level violation (OUT_OF_SCOPE / INVALID_ASSIGNMENT) for diagnostics."""
     return {
         "rule": rule,
@@ -310,12 +317,7 @@ def process_tito_callback(db: Session, payload: TiTOCallbackPayload) -> Schedule
     - Idempotency: a callback for an already processed schedule (completed
       or failed) is a no-op that still returns the schedule.
     """
-    schedule = (
-        db.query(Schedule)
-        .filter(Schedule.tito_job_id == payload.job_id)
-        .with_for_update()
-        .first()
-    )
+    schedule = db.query(Schedule).filter(Schedule.tito_job_id == payload.job_id).with_for_update().first()
     if not schedule:
         return None
 
@@ -498,11 +500,7 @@ def update_timecards_from_schedule(db: Session, schedule: Schedule) -> None:
         except ValueError:
             continue
         sunday = monday + timedelta(days=6)
-        for sp in (
-            db.query(Shiftplan)
-            .filter(Shiftplan.date >= monday, Shiftplan.date <= sunday)
-            .all()
-        ):
+        for sp in db.query(Shiftplan).filter(Shiftplan.date >= monday, Shiftplan.date <= sunday).all():
             contract = weekly_emp_contracts.get(sp.employee_id)
             if contract is None and sp.employee_id not in weekly_emp_contracts:
                 contract = db.query(Contract).filter(Contract.employee_id == sp.employee_id).first()
@@ -642,5 +640,3 @@ def _aggregate_violations(schedule: Schedule, payload: TiTOCallbackPayload) -> l
         )
 
     return messages
-
-

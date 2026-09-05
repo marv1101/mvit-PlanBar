@@ -30,10 +30,7 @@ def verify_tito_callback_auth(request: Request) -> None:
             and auth_header.startswith("Bearer ")
             and hmac.compare_digest(auth_header[7:], settings.tito_api_key)
         )
-        header_valid = bool(
-            api_key_header
-            and hmac.compare_digest(api_key_header, settings.tito_api_key)
-        )
+        header_valid = bool(api_key_header and hmac.compare_digest(api_key_header, settings.tito_api_key))
         if not bearer_valid and not header_valid:
             raise UnauthorizedException(detail="Invalid or missing API key")
     else:

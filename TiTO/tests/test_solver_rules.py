@@ -247,9 +247,17 @@ def test_timeout_without_solution_reports_no_phantom_assignments():
     day = datetime(2026, 3, 2, tzinfo=timezone.utc)
     for d in range(12):
         for _ in range(5):
-            requirements.append({"date": (day + timedelta(days=d)).strftime("%Y-%m-%d"), "shiftId": "S_FRUEH", "count": 1})
+            requirements.append(
+                {"date": (day + timedelta(days=d)).strftime("%Y-%m-%d"), "shiftId": "S_FRUEH", "count": 1}
+            )
     wishes = [
-        {"employeeId": f"emp_{i:03d}", "type": "PREFER_SHIFT", "shiftId": "S_FRUEH", "date": "2026-03-03", "priority": 10}
+        {
+            "employeeId": f"emp_{i:03d}",
+            "type": "PREFER_SHIFT",
+            "shiftId": "S_FRUEH",
+            "date": "2026-03-03",
+            "priority": 10,
+        }
         for i in range(1, 26)
     ]
     payload = {
@@ -460,13 +468,19 @@ def test_night_worker_exam_warning():
     assert "NIGHT_WORKER_EXAM" in viol_types
 
     veraltet = _run(
-        dict(base, employees=[_emp("emp_001", skills=["Apotheker"], isNightWorker=True, nightWorkerExamDate="2024-06-01")])
+        dict(
+            base,
+            employees=[_emp("emp_001", skills=["Apotheker"], isNightWorker=True, nightWorkerExamDate="2024-06-01")],
+        )
     )
     viol_types = {v["type"] for v in veraltet["metrics"]["violations"]}
     assert "NIGHT_WORKER_EXAM" in viol_types
 
     aktuell = _run(
-        dict(base, employees=[_emp("emp_001", skills=["Apotheker"], isNightWorker=True, nightWorkerExamDate="2025-12-01")])
+        dict(
+            base,
+            employees=[_emp("emp_001", skills=["Apotheker"], isNightWorker=True, nightWorkerExamDate="2025-12-01")],
+        )
     )
     viol_types = {v["type"] for v in aktuell["metrics"]["violations"]}
     assert "NIGHT_WORKER_EXAM" not in viol_types
@@ -866,9 +880,7 @@ def test_weekly_law_cap_48_hours():
     sieben_tage = _run(
         dict(
             base,
-            requirements=[
-                {"date": f"2026-01-{d:02d}", "shiftId": "S_FRUEH", "count": 1} for d in range(5, 12)
-            ],
+            requirements=[{"date": f"2026-01-{d:02d}", "shiftId": "S_FRUEH", "count": 1} for d in range(5, 12)],
         )
     )
     assert sieben_tage["metadata"]["status"] == "INFEASIBLE", "7x7.5h netto = 52.5h > 48h Gesetzesgrenze"
@@ -876,9 +888,7 @@ def test_weekly_law_cap_48_hours():
     sechs_tage = _run(
         dict(
             base,
-            requirements=[
-                {"date": f"2026-01-{d:02d}", "shiftId": "S_FRUEH", "count": 1} for d in range(5, 11)
-            ],
+            requirements=[{"date": f"2026-01-{d:02d}", "shiftId": "S_FRUEH", "count": 1} for d in range(5, 11)],
         )
     )
     assert sechs_tage["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
@@ -1003,8 +1013,13 @@ def test_requirement_time_overrides_respected():
 
     # Ohne Override endet die Spaetschicht 22:00 -> nur 8h Ruhe -> INFEASIBLE
     ohne = _run(
-        dict(base, requirements=[{"date": "2026-01-02", "shiftId": "S_SPAET", "count": 1},
-                                 {"date": "2026-01-03", "shiftId": "S_FRUEH", "count": 1}])
+        dict(
+            base,
+            requirements=[
+                {"date": "2026-01-02", "shiftId": "S_SPAET", "count": 1},
+                {"date": "2026-01-03", "shiftId": "S_FRUEH", "count": 1},
+            ],
+        )
     )
     assert ohne["metadata"]["status"] == "INFEASIBLE"
 
@@ -1091,9 +1106,7 @@ def test_deterministic_with_single_worker_and_seed():
         "metadata": {"jobId": "c9-a"},
         "config": {"startDate": "2026-01-01", "endDate": "2026-01-14", "numSearchWorkers": 1, "randomSeed": 7},
         "shiftTemplates": [FRUEH, SPAET],
-        "requirements": [
-            {"date": f"2026-01-{d:02d}", "shiftId": "S_FRUEH", "count": 1} for d in range(2, 10)
-        ]
+        "requirements": [{"date": f"2026-01-{d:02d}", "shiftId": "S_FRUEH", "count": 1} for d in range(2, 10)]
         + [{"date": "2026-01-09", "shiftId": "S_SPAET", "count": 1}],
         "employees": [
             _emp("emp_001", skills=["Apotheker"]),

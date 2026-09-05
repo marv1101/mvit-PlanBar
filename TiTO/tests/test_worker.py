@@ -527,9 +527,7 @@ class TestRunWorker:
         assert job_status["attempts"] == 1
 
         # Ergebnis-Callback wurde enqueued (Roh-Ergebnis inkl. INFEASIBLE-Status)
-        row = connection.execute(
-            "SELECT result_payload FROM callback_queue WHERE job_id = ?", (job_id,)
-        ).fetchone()
+        row = connection.execute("SELECT result_payload FROM callback_queue WHERE job_id = ?", (job_id,)).fetchone()
         assert row is not None
         result_payload = json.loads(row["result_payload"])
         assert result_payload["metadata"]["status"] == "INFEASIBLE"

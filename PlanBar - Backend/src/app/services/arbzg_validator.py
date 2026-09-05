@@ -45,9 +45,9 @@ from app.services.arbzg_rules import (
     MINOR_MIN_REST_HOURS,
     MINOR_NIGHT_REST_END,
     MINOR_NIGHT_REST_START,
-    NIGHT_WORK_MAX_HOURS,
     NIGHT_WINDOW_END,
     NIGHT_WINDOW_START,
+    NIGHT_WORK_MAX_HOURS,
     SUNDAYS_PER_YEAR,
     required_break_minutes,
 )
@@ -871,10 +871,7 @@ def validate_muschg(
             violations.append(
                 ArbZgViolation(
                     rule="muschg_protection",
-                    message=(
-                        f"Employee {eid} is protected until {until} (MuSchG) but is scheduled "
-                        f"on {affected[0]}."
-                    ),
+                    message=(f"Employee {eid} is protected until {until} (MuSchG) but is scheduled on {affected[0]}."),
                     employee_id=eid,
                     shift_date=affected[0],
                     details={"protection_until": until.isoformat(), "dates": [d.isoformat() for d in affected]},
@@ -954,7 +951,3 @@ def validate_schedule(
         )
 
     return ArbZgResult(is_valid=is_valid, violations=violations)
-
-
-
-

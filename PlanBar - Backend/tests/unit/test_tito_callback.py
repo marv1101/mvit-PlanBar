@@ -765,7 +765,9 @@ def test_aggregate_violations_fallback_duration_without_templates(db_session):
     db_session.add(schedule)
     db_session.commit()
 
-    payload = _callback_payload(job_id=1, status="INFEASIBLE", violations=[_hard_violation("Apotheker", "x", "2026-06-15")])
+    payload = _callback_payload(
+        job_id=1, status="INFEASIBLE", violations=[_hard_violation("Apotheker", "x", "2026-06-15")]
+    )
     result = _aggregate_violations(schedule, payload)
     assert result[0]["totalMissingHours"] == 8  # default 8h fallback
 
@@ -819,7 +821,3 @@ def test_aggregate_violations_stored_in_process_callback(db_session):
     assert "aggregatedMessages" in result.diagnostics_json
     assert len(result.diagnostics_json["aggregatedMessages"]) == 1
     assert result.diagnostics_json["aggregatedMessages"][0]["skill"] == "Apotheker"
-
-
-
-
