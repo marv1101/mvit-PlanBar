@@ -6,9 +6,17 @@ Tests für den TiTO Worker mit Fokus auf:
 - Retry-Logik
 - Callback-Verarbeitung
 - Dead Letter Queue
-- Heartbeat-Mechanismus
+- Heartbeat-Mechanismus (F4: separater Thread)
+- Atomares Job-Claiming (F1)
+- Lease/Timeout-Recovery (F2)
+- Fehler-Callbacks bei terminalem Fehlschlag (F3)
+- Callback-Claiming/DLQ (F5)
+- Callback-Auth via Authorization-Header (F7)
 """
 
+import json
+import os
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -79,6 +87,41 @@ def setup_test_db(tmp_path, db_name: str = "test_worker.db") -> tuple[Settings, 
 
 
 # ============================================================================
+# Settings Tests (F2/F4/F7)
+# ============================================================================
+
+
+def test_settings_robustness_defaults_and_env_overrides():
+    """F2/F4/F7: Neue Settings mit Defaults und Env-Overrides."""
+    settings = Settings.from_env({})
+    assert settings.job_lease_seconds == 600
+    assert settings.heartbeat_interval_seconds == 15
+    # Fallback: callback_api_key greift auf API_TOKEN, wenn TITO_CALLBACK_API_KEY
+    # nicht gesetzt ist (Shared Secret zwischen TiTO und Backend).
+    assert settings.callback_api_key == os.environ.get("API_TOKEN")
+
+    settings = Settings.from_env(
+        {
+            "JOB_LEASE_SECONDS": "120",
+            "HEARTBEAT_INTERVAL_SECONDS": "5",
+            "TITO_CALLBACK_API_KEY": "cb-key",
+        }
+    )
+    assert settings.job_lease_seconds == 120
+    assert settings.heartbeat_interval_seconds == 5
+    assert settings.callback_api_key == "cb-key"
+
+    # Expliziter TITO_CALLBACK_API_KEY hat Vorrang vor API_TOKEN-Fallback.
+    settings = Settings.from_env(
+        {
+            "TITO_CALLBACK_API_KEY": "explicit-cb-key",
+            "API_TOKEN": "api-token",
+        }
+    )
+    assert settings.callback_api_key == "explicit-cb-key"
+
+
+# ============================================================================
 # WorkerContext Tests
 # ============================================================================
 
@@ -135,7 +178,7 @@ class TestRunWorker:
             patch("tito.worker.requests.post") as mock_post,
             patch("tito.worker.psutil.cpu_percent", return_value=50.0),
             patch("tito.worker.psutil.virtual_memory") as mock_vmem,
-            patch("tito.worker.fetch_next_job", return_value=None),
+            patch("tito.worker.claim_next_job", return_value=None),
             patch("tito.worker._process_pending_callbacks"),
             self._setup_limited_worker(max_loops=1),
         ):
@@ -151,27 +194,26 @@ class TestRunWorker:
             assert len(register_calls) > 0
 
     def test_worker_sends_heartbeat(self, tmp_path):
-        """Teste Heartbeat-Sendung."""
+        """F4: Heartbeat läuft im separaten Daemon-Thread und pingt unabhängig vom Job-Loop."""
         settings, _connection = setup_test_db(tmp_path)
+        settings.heartbeat_interval_seconds = 0.05
 
-        # Mock time.time() um Heartbeat zu erzwingen
-        current_time = [1000.0]  # Startwert
-
-        def mock_time():
-            return current_time[0]
+        loop_counter = [0]
+        original_sleep = time.sleep
 
         def mock_sleep(duration):
-            current_time[0] += duration + 5  # Erhöhe Zeit um >5 Sekunden
+            loop_counter[0] += 1
+            if loop_counter[0] >= 2:
+                raise KeyboardInterrupt()  # Beende gracefully
+            original_sleep(0.2)  # gibt dem Heartbeat-Thread Zeit zu pingen
 
         with (
             patch("tito.worker.requests.post") as mock_post,
             patch("tito.worker.psutil.cpu_percent", return_value=50.0),
             patch("tito.worker.psutil.virtual_memory") as mock_vmem,
-            patch("tito.worker.fetch_next_job", return_value=None),
+            patch("tito.worker.claim_next_job", return_value=None),
             patch("tito.worker._process_pending_callbacks"),
-            patch("tito.worker.time.time", side_effect=mock_time),
             patch("tito.worker.time.sleep", side_effect=mock_sleep),
-            self._setup_limited_worker(max_loops=3),
         ):
             mock_post.return_value = Mock(status_code=200)
             mock_vmem.return_value = Mock(percent=50.0)
@@ -184,6 +226,64 @@ class TestRunWorker:
             heartbeat_calls = [c for c in mock_post.call_args_list if "workers/heartbeat" in str(c)]
             assert len(heartbeat_calls) > 0
 
+    def test_worker_heartbeat_pings_during_blocking_solve(self, tmp_path):
+        """F4: Während eines blockierenden Solves laufen die Heartbeats weiter (separater Thread)."""
+        settings, connection = setup_test_db(tmp_path, "test_heartbeat_solve.db")
+        settings.heartbeat_interval_seconds = 0.05
+
+        payload = create_test_payload()
+        payload["metadata"]["callback_url"] = "http://example.com/cb"
+        job_id = enqueue_job(connection, payload, settings.queue_table)
+
+        solve_started = threading.Event()
+        release_solve = threading.Event()
+        heartbeats: list[str] = []
+        heartbeats_lock = threading.Lock()
+
+        def fake_post(url, *args, **kwargs):
+            if "workers/heartbeat" in str(url) and solve_started.is_set() and not release_solve.is_set():
+                with heartbeats_lock:
+                    heartbeats.append(str(url))
+                if len(heartbeats) >= 3:
+                    release_solve.set()
+            return Mock(status_code=200)
+
+        def fake_solve(model, timeout_seconds):
+            solve_started.set()
+            if not release_solve.wait(timeout=5):
+                raise AssertionError("Heartbeat hat während des blockierenden Solves nicht gepingt")
+            return {"metadata": {"status": "SUCCESS"}, "solution": {"assignments": []}}
+
+        loop_counter = [0]
+        original_sleep = time.sleep
+
+        def mock_sleep(duration):
+            loop_counter[0] += 1
+            if loop_counter[0] >= 1:
+                raise KeyboardInterrupt()
+            original_sleep(0.001)
+
+        with (
+            patch("tito.worker.requests.post", side_effect=fake_post),
+            patch("tito.worker.psutil.cpu_percent", return_value=50.0),
+            patch("tito.worker.psutil.virtual_memory", return_value=Mock(percent=50.0)),
+            patch("tito.worker.build_model"),
+            patch("tito.worker.solve_model", side_effect=fake_solve),
+            patch("tito.worker.time.sleep", side_effect=mock_sleep),
+        ):
+            try:
+                run_worker(settings)
+            except KeyboardInterrupt:
+                pass
+
+        # Heartbeats wurden während des blockierenden Solves gesendet
+        assert len(heartbeats) >= 3
+
+        from tito.db import fetch_job_status_by_id
+
+        job_status = fetch_job_status_by_id(connection, job_id)
+        assert job_status["status"] == "completed"
+
     def test_worker_deregisters_on_shutdown(self, tmp_path):
         """Teste Deregistrierung beim Herunterfahren."""
         settings, _connection = setup_test_db(tmp_path)
@@ -192,7 +292,7 @@ class TestRunWorker:
             patch("tito.worker.requests.post") as mock_post,
             patch("tito.worker.psutil.cpu_percent", return_value=50.0),
             patch("tito.worker.psutil.virtual_memory") as mock_vmem,
-            patch("tito.worker.fetch_next_job", return_value=None),
+            patch("tito.worker.claim_next_job", return_value=None),
             patch("tito.worker._process_pending_callbacks"),
             self._setup_limited_worker(max_loops=1),
         ):
@@ -323,6 +423,115 @@ class TestRunWorker:
         assert job_id1 is not None
         assert job_id2 is None  # Doppelter wird abgelehnt
 
+    def test_callbacks_and_reclaim_run_every_loop_iteration(self, tmp_path):
+        """F5a/F2: Callbacks und Timeout-Recovery laufen in jedem Loop-Durchlauf - auch bei voller Queue."""
+        settings, _connection = setup_test_db(tmp_path, "test_cb_every_loop.db")
+
+        fake_job = create_test_payload()
+        fake_job["_db_job_id"] = 999999  # existiert nicht in der DB -> DB-Updates sind No-Ops
+
+        with (
+            patch("tito.worker.requests.post", return_value=Mock(status_code=200)),
+            patch("tito.worker.psutil.cpu_percent", return_value=50.0),
+            patch("tito.worker.psutil.virtual_memory", return_value=Mock(percent=50.0)),
+            patch("tito.worker.build_model"),
+            patch("tito.worker.solve_model", return_value={"metadata": {"status": "SUCCESS"}}),
+            patch("tito.worker.claim_next_job", side_effect=[fake_job, None]),
+            patch("tito.worker._process_pending_callbacks") as mock_callbacks,
+            patch("tito.worker.reclaim_timed_out_jobs") as mock_reclaim,
+            self._setup_limited_worker(max_loops=2),
+        ):
+            try:
+                run_worker(settings)
+            except KeyboardInterrupt:
+                pass
+
+        # Callbacks werden NICHT nur bei leerer Queue bearbeitet (alte Starvation-Bug-Fix F5)
+        assert mock_callbacks.call_count >= 2
+        # Timeout-Sweep läuft in jeder Iteration (F2)
+        assert mock_reclaim.call_count >= 2
+
+    def test_worker_dlq_failure_enqueues_error_callback(self, tmp_path):
+        """F3: Endgültiger Fehlschlag (DLQ) erzeugt Fehler-Callback mit error-Text und attempts."""
+        settings, connection = setup_test_db(tmp_path, "test_dlq_callback.db")
+
+        payload = create_test_payload()
+        payload["metadata"]["callback_url"] = "http://example.com/cb"
+        job_id = enqueue_job(connection, payload, settings.queue_table)
+
+        # attempts bereits auf max_retries -> nächster Fehlschlag geht in die DLQ
+        connection.execute("UPDATE job_queue SET attempts = 3 WHERE job_id = ?", (job_id,))
+        connection.commit()
+
+        sent_payloads: list[dict | None] = []
+
+        def capture_post(url, *args, **kwargs):
+            sent_payloads.append(kwargs.get("json"))
+            return Mock(status_code=200)
+
+        with (
+            patch("tito.worker.requests.post", side_effect=capture_post),
+            patch("tito.worker.psutil.cpu_percent", return_value=50.0),
+            patch("tito.worker.psutil.virtual_memory", return_value=Mock(percent=50.0)),
+            patch("tito.worker.build_model"),
+            patch("tito.worker.solve_model", side_effect=RuntimeError("solver crashed")),
+            self._setup_limited_worker(max_loops=2),
+        ):
+            try:
+                run_worker(settings)
+            except KeyboardInterrupt:
+                pass
+
+        from tito.db import fetch_job_status_by_id
+
+        job_status = fetch_job_status_by_id(connection, job_id)
+        assert job_status["status"] == "dead_lettered"
+
+        # Fehler-Callback wurde enqueued und versendet
+        error_callbacks = [p for p in sent_payloads if p and p.get("status") == "FAILED"]
+        assert len(error_callbacks) == 1
+        assert error_callbacks[0]["job_id"] == job_id
+        assert "solver crashed" in error_callbacks[0]["error"]
+        assert error_callbacks[0]["attempts"] >= 3
+
+    def test_worker_infeasible_result_is_terminal_with_result_callback(self, tmp_path):
+        """F3: INFEASIBLE ist terminal - Job wird completed gespeichert (KEIN Retry) + Ergebnis-Callback."""
+        settings, connection = setup_test_db(tmp_path, "test_infeasible.db")
+
+        payload = create_test_payload()
+        payload["metadata"]["callback_url"] = "http://example.com/cb"
+        job_id = enqueue_job(connection, payload, settings.queue_table)
+
+        with (
+            patch("tito.worker.requests.post", return_value=Mock(status_code=200)),
+            patch("tito.worker.psutil.cpu_percent", return_value=50.0),
+            patch("tito.worker.psutil.virtual_memory", return_value=Mock(percent=50.0)),
+            patch("tito.worker.build_model"),
+            patch(
+                "tito.worker.solve_model",
+                return_value={"metadata": {"status": "INFEASIBLE"}, "solution": {"assignments": []}},
+            ),
+            # Callbacks bleiben während des Runs pending, damit wir sie danach prüfen können
+            patch("tito.worker._process_pending_callbacks"),
+            self._setup_limited_worker(max_loops=2),
+        ):
+            try:
+                run_worker(settings)
+            except KeyboardInterrupt:
+                pass
+
+        from tito.db import fetch_job_status_by_id
+
+        job_status = fetch_job_status_by_id(connection, job_id)
+        assert job_status["status"] == "completed"  # terminal, KEIN Retry
+        assert job_status["attempts"] == 1
+
+        # Ergebnis-Callback wurde enqueued (Roh-Ergebnis inkl. INFEASIBLE-Status)
+        row = connection.execute("SELECT result_payload FROM callback_queue WHERE job_id = ?", (job_id,)).fetchone()
+        assert row is not None
+        result_payload = json.loads(row["result_payload"])
+        assert result_payload["metadata"]["status"] == "INFEASIBLE"
+
 
 # ============================================================================
 # _process_pending_callbacks Tests
@@ -412,6 +621,138 @@ class TestProcessPendingCallbacks:
 
         # Sollte keine Exception werfen
         _process_pending_callbacks(connection, settings, {})
+
+    def test_result_callback_sent_payload_format(self, tmp_path):
+        """F3: Versandter Ergebnis-Callback enthält job_id + status (top-level ODER metadata.status)."""
+        settings, connection = setup_test_db(tmp_path, "test_cb_format.db")
+
+        payload = create_test_payload()
+        job_id = enqueue_job(connection, payload, settings.queue_table)
+        # Alt-Format: status in metadata
+        enqueue_callback(
+            connection,
+            job_id,
+            "http://example.com/cb",
+            {"metadata": {"status": "INFEASIBLE"}, "solution": {"assignments": []}},
+            tenant_id="1",
+        )
+        # Neu-Format: status top-level
+        enqueue_callback(
+            connection,
+            job_id,
+            "http://example.com/cb",
+            {"status": "TIMEOUT", "solution": {"assignments": []}},
+            tenant_id="1",
+        )
+
+        sent: list[dict | None] = []
+
+        def capture_post(url, *args, **kwargs):
+            sent.append(kwargs.get("json"))
+            return Mock(status_code=200)
+
+        with patch("tito.worker.requests.post", side_effect=capture_post):
+            _process_pending_callbacks(connection, settings, {})
+
+        assert len(sent) == 2
+        by_status = {p["status"]: p for p in sent}
+        assert by_status["INFEASIBLE"]["job_id"] == job_id
+        assert "solution" in by_status["INFEASIBLE"]  # **result gemerged
+        assert by_status["TIMEOUT"]["job_id"] == job_id
+        assert by_status["TIMEOUT"]["status"] == "TIMEOUT"
+
+    def test_callback_moves_to_failed_after_max_attempts(self, tmp_path):
+        """F5c: Nach 3 fehlgeschlagenen Versuchen landet der Callback im Status 'failed' (Callback-DLQ)."""
+        settings, connection = setup_test_db(tmp_path, "test_cb_failed.db")
+
+        payload = create_test_payload()
+        job_id = enqueue_job(connection, payload, settings.queue_table)
+        enqueue_callback(
+            connection,
+            job_id,
+            "http://example.com/callback",
+            {"metadata": {"status": "SUCCESS"}},
+            tenant_id="1",
+        )
+
+        with patch("tito.worker.requests.post", return_value=Mock(status_code=500)):
+            _process_pending_callbacks(connection, settings, {})
+            _process_pending_callbacks(connection, settings, {})
+            _process_pending_callbacks(connection, settings, {})
+
+        from tito.db import fetch_callback_status_by_job_id
+
+        callback_status = fetch_callback_status_by_job_id(connection, job_id)
+        assert callback_status[0]["callback_status"] == "failed"
+        assert callback_status[0]["attempts"] == 3
+
+    def test_callback_sent_exactly_once_on_success(self, tmp_path):
+        """F5b: Claiming verhindert Doppelversand - erfolgreicher Callback wird nur 1x gesendet."""
+        settings, connection = setup_test_db(tmp_path, "test_cb_once.db")
+
+        payload = create_test_payload()
+        job_id = enqueue_job(connection, payload, settings.queue_table)
+        enqueue_callback(
+            connection,
+            job_id,
+            "http://example.com/callback",
+            {"metadata": {"status": "SUCCESS"}},
+            tenant_id="1",
+        )
+
+        with patch("tito.worker.requests.post", return_value=Mock(status_code=200)) as mock_post:
+            _process_pending_callbacks(connection, settings, {})
+            _process_pending_callbacks(connection, settings, {})
+
+        assert mock_post.call_count == 1
+
+        from tito.db import fetch_callback_status_by_job_id
+
+        callback_status = fetch_callback_status_by_job_id(connection, job_id)
+        assert callback_status[0]["callback_status"] == "sent"
+        assert callback_status[0]["attempts"] == 1
+
+    def test_callback_send_uses_bearer_authorization_header(self, tmp_path):
+        """F7: Mit gesetztem callback_api_key wird ein Authorization-Header gesendet."""
+        settings, connection = setup_test_db(tmp_path, "test_cb_auth.db")
+        settings.callback_api_key = "secret-callback-key"
+
+        payload = create_test_payload()
+        job_id = enqueue_job(connection, payload, settings.queue_table)
+        enqueue_callback(
+            connection,
+            job_id,
+            "http://example.com/callback",
+            {"metadata": {"status": "SUCCESS"}},
+            tenant_id="1",
+        )
+
+        with patch("tito.worker.requests.post", return_value=Mock(status_code=200)) as mock_post:
+            _process_pending_callbacks(connection, settings, {})
+
+        headers = mock_post.call_args.kwargs["headers"]
+        assert headers["Authorization"] == "Bearer secret-callback-key"
+
+    def test_callback_send_without_key_omits_authorization_header(self, tmp_path):
+        """F7: Ohne callback_api_key wird kein Authorization-Header gesendet (nur Development)."""
+        settings, connection = setup_test_db(tmp_path, "test_cb_noauth.db")
+        settings.callback_api_key = None
+
+        payload = create_test_payload()
+        job_id = enqueue_job(connection, payload, settings.queue_table)
+        enqueue_callback(
+            connection,
+            job_id,
+            "http://example.com/callback",
+            {"metadata": {"status": "SUCCESS"}},
+            tenant_id="1",
+        )
+
+        with patch("tito.worker.requests.post", return_value=Mock(status_code=200)) as mock_post:
+            _process_pending_callbacks(connection, settings, {})
+
+        headers = mock_post.call_args.kwargs["headers"]
+        assert "Authorization" not in headers
 
 
 # ============================================================================

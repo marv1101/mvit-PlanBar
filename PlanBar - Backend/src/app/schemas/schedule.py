@@ -116,6 +116,7 @@ class ArbZgViolationResponse(BaseModel):
     employee_id: int
     shift_date: Date | None = None
     details: dict[str, Any] | None = None
+    severity: str = "HARD"
 
 
 class ArbZgCheckResponse(BaseModel):

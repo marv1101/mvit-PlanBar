@@ -102,6 +102,7 @@ export interface TiTODiagnostics {
   isOptimal: boolean;
   info: string;
   aggregatedMessages?: TiTOAggregatedMessage[];
+  infeasibilityReasons?: string[];
 }
 
 export interface TiTOAggregatedMessage {
@@ -114,14 +115,12 @@ export interface TiTOAggregatedMessage {
 }
 
 export interface EmployeeFairnessEntry {
-  group: string;
-  groupTarget: number;
-  adjustedTarget: number;
-  actualMinutes: number;
-  deviation: number;
-  deviationType: string;
-  projectedBalance: number;
   currentBalanceHours: number;
+  scheduledHours: number;
+  contractHours: number;
+  targetHours: number;
+  projectedBalance: number;
+  fairnessDeviation: number;
 }
 
 export interface TiTOMetrics {
@@ -158,6 +157,8 @@ export interface ShiftTemplateEntry {
   endTime: string;
   requirements: Record<string, number>;
   maxRequirements?: Record<string, number>;
+  saturday?: boolean;
+  sunday?: boolean;
 }
 
 export interface Schedule {

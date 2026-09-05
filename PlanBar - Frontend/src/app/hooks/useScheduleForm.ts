@@ -22,7 +22,7 @@ export interface UseScheduleFormReturn {
   canSubmit: boolean;
   addShiftTemplate: () => void;
   removeShiftTemplate: (index: number) => void;
-  updateShiftTemplate: (index: number, field: string, value: string | Record<string, number>) => void;
+  updateShiftTemplate: (index: number, field: string, value: string | boolean | Record<string, number>) => void;
   updateRequirement: (templateIndex: number, roleId: string, count: number) => void;
   updateMaxRequirement: (templateIndex: number, roleId: string, count: number) => void;
   maximizeStaffing: boolean;
@@ -52,6 +52,8 @@ export function useScheduleForm(): UseScheduleFormReturn {
       startTime: '06:00',
       endTime: '14:00',
       requirements: {},
+      saturday: false,
+      sunday: false,
     }]);
   }, []);
 
@@ -59,7 +61,7 @@ export function useScheduleForm(): UseScheduleFormReturn {
     setShiftTemplates(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  const updateShiftTemplate = useCallback((index: number, field: string, value: string | Record<string, number>) => {
+  const updateShiftTemplate = useCallback((index: number, field: string, value: string | boolean | Record<string, number>) => {
     setShiftTemplates(prev => prev.map((st, i) =>
       i === index ? { ...st, [field]: value } : st
     ));

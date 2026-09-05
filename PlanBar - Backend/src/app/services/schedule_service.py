@@ -1,7 +1,8 @@
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,6 +21,70 @@ from app.services.notification_service import create_notification_and_push
 from app.services.tito_proxy import tito_proxy
 
 logger = logging.getLogger(__name__)
+
+
+class ArbZgHardViolationError(ValueError):
+    """Raised when manual shift planning violates HARD ArbZG rules (B5).
+
+    Carried to the API as HTTP 422 including the violation list.
+    """
+
+    def __init__(self, result: ArbZgResult):
+        self.result = result
+        hard = result.hard_violations
+        summary = "; ".join(v.message for v in hard)
+        super().__init__(f"ArbZG-Verstöße (HARD): {summary}")
+
+
+def _submit_attempt_number(schedule: Schedule) -> int:
+    """1-based attempt number for the next TiTO submission (C1).
+
+    Deterministic (no timestamps): stored submitAttempt count + 1, so the
+    first submission is schedule_{id}_1 and every resubmission after a
+    terminal callback gets a fresh idempotency key.
+    """
+    meta = schedule.metadata_json or {}
+    return int(meta.get("submitAttempt", 0)) + 1
+
+
+def _bump_submit_attempt(schedule: Schedule) -> int:
+    """Persist the incremented submit attempt counter (merges into metadata_json)."""
+    meta = dict(schedule.metadata_json or {})
+    meta["submitAttempt"] = _submit_attempt_number(schedule)
+    schedule.metadata_json = meta
+    return meta["submitAttempt"]
+
+
+def _build_arbzg_validation_kwargs(db: Session, schedule: Schedule, employee_ids: set[int]) -> dict[str, Any]:
+    """Build validate_schedule keyword arguments from DB context (shared by all manual paths)."""
+    employees: list[Employee] = []
+    if employee_ids:
+        employees = db.query(Employee).filter(Employee.id.in_(employee_ids)).all()
+
+    holidays: list[str] = []
+    if schedule.start_date and schedule.end_date:
+        holidays = get_german_holidays(
+            schedule.start_date,
+            schedule.end_date,
+            subdivision=settings.german_state,
+        )
+
+    weekly_history: dict[int, list[tuple[int, int, float]]] = {}
+    if employee_ids:
+        timecards = db.query(Timecard).filter(Timecard.employee_id.in_(employee_ids)).all()
+        for tc in timecards:
+            hours = tc.actual_hours if (tc.actual_hours or 0) > 0 else (tc.scheduled_hours or 0)
+            weekly_history.setdefault(tc.employee_id, []).append((tc.year, tc.week, float(hours)))
+
+    return {
+        "employees": employees,
+        "holidays": holidays,
+        "period_start": schedule.start_date,
+        "period_end": schedule.end_date,
+        "night_window_start": settings.night_window_start,
+        "night_window_end": settings.night_window_end,
+        "weekly_history": weekly_history,
+    }
 
 
 def _schedule_employee_ids(schedule: Schedule) -> set[int]:
@@ -136,6 +201,27 @@ def create_schedule(db: Session, data: ScheduleCreate, user_id: int | None = Non
     metadata = {}
     if data.maximize_staffing:
         metadata["maximizeStaffing"] = True
+
+    # C4b: overlapping planning periods risk double assignments (the solver
+    # only sees its own requirements) — legitimate in some workflows, so this
+    # is a WARNING in the response metadata, not a rejection.
+    if data.start_date is not None and data.end_date is not None:
+        overlapping = (
+            db.query(Schedule)
+            .filter(
+                Schedule.start_date.isnot(None),
+                Schedule.end_date.isnot(None),
+                Schedule.start_date <= data.end_date,
+                Schedule.end_date >= data.start_date,
+            )
+            .all()
+        )
+        if overlapping:
+            metadata["overlapWarnings"] = [
+                f"Planungszeitraum überschneidet sich mit Schedule '{s.name}' "
+                f"(id {s.id}, {s.start_date} bis {s.end_date})"
+                for s in overlapping
+            ]
 
     schedule = Schedule(
         name=data.name,
@@ -279,14 +365,51 @@ async def submit_schedule_to_tito(
         schedule, employees, approved_wishes, callback_url=callback_url, db=db, maximize_staffing=maximize_staffing
     )
 
+    # C5: submitting without requirements would make TiTO answer SUCCESS with
+    # an empty plan — reject early with a clear client error instead.
+    if not payload["requirements"]:
+        raise ValueError(
+            "Schedule hat keine Requirements (weder shift_templates noch role_requirements) — "
+            "eine TiTO-Submission würde einen leeren Plan erzeugen."
+        )
+
     try:
         result = await tito_proxy.submit_job(payload)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 409:
+            # C1: TiTO rejected the idempotency key (job already known). Adopt
+            # the jobId if TiTO provides one in the 409 body; otherwise surface
+            # a clean client error (not 500) and keep the schedule re-submittable
+            # with a fresh key.
+            job_id = None
+            try:
+                body = exc.response.json()
+                job_id = body.get("jobId") or body.get("job_id")
+            except ValueError:
+                pass
+            if job_id:
+                schedule.tito_job_id = int(job_id)
+                schedule.status = "submitted"
+                _bump_submit_attempt(schedule)
+                logger.info(
+                    "TiTO reported existing job %s for schedule %s (409 adopted)",
+                    job_id,
+                    schedule.id,
+                )
+            else:
+                _bump_submit_attempt(schedule)  # next submission uses a fresh key
+                raise ValueError(
+                    "Schedule wurde bereits bei TiTO eingereicht (Idempotenz-Konflikt 409). "
+                    "Bitte erneut versuchen — der nächste Versuch nutzt einen neuen Key."
+                ) from exc
+        else:
+            logger.exception("TiTO job submission failed for schedule %s", schedule.id)
+            schedule.status = "failed"
+            raise
+    else:
         schedule.status = "submitted"
         schedule.tito_job_id = result.get("jobId") or result.get("job_id")
-    except Exception:
-        logger.exception("TiTO job submission failed for schedule %s", schedule.id)
-        schedule.status = "failed"
-        raise
+        _bump_submit_attempt(schedule)
     finally:
         db.add(schedule)
         db.commit()
@@ -339,14 +462,45 @@ def replace_all_shifts(
     shiftplans_data: list[ShiftplanCreate],
     actor_id: int | None = None,
 ) -> tuple[Schedule, ArbZgResult]:
-    """Replace all shifts in a schedule and validate ArbZG compliance.
+    """Replace all shifts in a schedule and validate ArbZG compliance (B5).
+
+    Validates BEFORE writing: HARD violations raise ArbZgHardViolationError
+    (endpoint: 422 with violations) and leave the existing shiftplans
+    untouched. SOFT violations are accepted and returned as warnings.
 
     Returns a tuple of (schedule, arbzg_result) where arbzg_result
     contains any labor law violations found in the new shifts.
     """
-    db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).delete()
     for sp_data in shiftplans_data:
         _assert_date_in_scope(schedule, sp_data.date)
+
+    shift_dicts = [
+        {
+            "employee_id": sp_data.employee_id,
+            "date": sp_data.date,
+            "start_time": sp_data.start_time,
+            "end_date": sp_data.date,
+            "end_time": sp_data.end_time,
+            "break_start": sp_data.break_start,
+            "break_end": sp_data.break_end,
+        }
+        for sp_data in shiftplans_data
+    ]
+
+    arbzg_result = validate_schedule(
+        shift_dicts,
+        **_build_arbzg_validation_kwargs(db, schedule, {sp.employee_id for sp in shiftplans_data}),
+    )
+    if arbzg_result.has_hard_violations:
+        logger.warning(
+            "Manual shift update for schedule %s rejected: %d HARD ArbZG violation(s)",
+            schedule.id,
+            len(arbzg_result.hard_violations),
+        )
+        raise ArbZgHardViolationError(arbzg_result)
+
+    db.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).delete()
+    for sp_data in shiftplans_data:
         shiftplan = Shiftplan(
             schedule_id=schedule.id,
             employee_id=sp_data.employee_id,
@@ -371,23 +525,9 @@ def replace_all_shifts(
         details="replace_all_shifts",
     )
 
-    # Validate ArbZG compliance for the manually created shifts
-    shift_dicts = [
-        {
-            "employee_id": sp_data.employee_id,
-            "date": sp_data.date,
-            "start_time": sp_data.start_time,
-            "end_date": sp_data.date,
-            "end_time": sp_data.end_time,
-            "break_start": sp_data.break_start,
-            "break_end": sp_data.break_end,
-        }
-        for sp_data in shiftplans_data
-    ]
-    arbzg_result = validate_schedule(shift_dicts)
     if not arbzg_result.is_valid:
         logger.warning(
-            "ArbZG violations in schedule %s after manual shift update: %d violation(s)",
+            "ArbZG SOFT violations in schedule %s after manual shift update: %d violation(s)",
             schedule.id,
             arbzg_result.warning_count,
         )
@@ -444,6 +584,62 @@ def _assert_shiftplans_in_scope(db: Session, schedule: Schedule, week_type: str)
             )
 
 
+def _protected_days_worked_ytd(db: Session | None, employee_id: int, holiday_dates: set[str]) -> int:
+    """Number of worked Sundays/public holidays in the current calendar year up to today.
+
+    Basis is the Shiftplan history (any schedule); without history the count is 0.
+    """
+    if db is None:
+        return 0
+    today = datetime.now(tz=timezone.utc).date()
+    year_start = date(today.year, 1, 1)
+    if year_start > today:
+        return 0
+    rows = (
+        db.query(Shiftplan)
+        .filter(
+            Shiftplan.employee_id == employee_id,
+            Shiftplan.date >= year_start,
+            Shiftplan.date <= today,
+        )
+        .all()
+    )
+    return sum(1 for sp in rows if sp.date.weekday() == 6 or sp.date.isoformat() in holiday_dates)
+
+
+def _build_pre_shifts(db: Session | None, schedule: Schedule, employees: list[Employee]) -> list[dict[str, Any]]:
+    """C4a: existing shifts of the payload employees as preShifts for the solver.
+
+    Includes ALL shiftplans (other schedules AND this schedule's draft) in
+    the planning period plus the 7-day window before start_date, so the
+    solver can enforce rest time / consecutive days / weekly hours across
+    schedule boundaries. Format: {"employeeId", "date", "startTime", "endTime"}.
+    """
+    if db is None or not employees or not schedule.start_date or not schedule.end_date:
+        return []
+    employee_ids = [emp.id for emp in employees]
+    window_start = schedule.start_date - timedelta(days=7)
+    rows = (
+        db.query(Shiftplan)
+        .filter(
+            Shiftplan.employee_id.in_(employee_ids),
+            Shiftplan.date >= window_start,
+            Shiftplan.date <= schedule.end_date,
+        )
+        .order_by(Shiftplan.employee_id, Shiftplan.date)
+        .all()
+    )
+    return [
+        {
+            "employeeId": f"emp_{sp.employee_id:03d}",
+            "date": sp.date.isoformat(),
+            "startTime": sp.start_time.strftime("%H:%M"),
+            "endTime": sp.end_time.strftime("%H:%M"),
+        }
+        for sp in rows
+    ]
+
+
 def _build_tito_payload(
     schedule: Schedule,
     employees: list[Employee],
@@ -483,6 +679,10 @@ def _build_tito_payload(
                 seen_emp_ids.add(tc.employee_id)
 
     employee_list = []
+    ytd_holidays: set[str] = set()
+    if db is not None:
+        today = datetime.now(tz=timezone.utc).date()
+        ytd_holidays = set(get_german_holidays(date(today.year, 1, 1), today, subdivision=settings.german_state))
     for emp in employees:
         contract_hours = 40.0
         break_minutes = 30
@@ -502,6 +702,13 @@ def _build_tito_payload(
             "breakMinutes": break_minutes,
             "currentBalanceHours": current_balance,
             "skills": [r.name for r in emp.roles],
+            # ArbZG-relevant employee attributes (validated identically by PlanBar)
+            "isMinor": bool(emp.is_minor),
+            "isNightWorker": bool(emp.is_night_worker),
+            "isShiftWorker": bool(emp.is_shift_worker),
+            "nightWorkerExamDate": emp.night_worker_exam_date.isoformat() if emp.night_worker_exam_date else None,
+            "protectionUntil": emp.protection_until.isoformat() if emp.protection_until else None,
+            "protectedDaysWorkedYTD": _protected_days_worked_ytd(db, emp.id, ytd_holidays),
         }
         if role:
             entry["role"] = role
@@ -522,6 +729,7 @@ def _build_tito_payload(
 
     # Build requirements from shift_templates or role_requirements.
     # Iterate per-date, filtering by week_type if scoped to A or B.
+    # Skip Saturday/Sunday for templates where weekend work is disabled.
     requirements = []
     if schedule.shift_templates:
         current = schedule.start_date
@@ -529,7 +737,12 @@ def _build_tito_payload(
             if schedule.week_type and _get_week_type(current) != schedule.week_type:
                 current += timedelta(days=1)
                 continue
+            weekday = current.weekday()
             for st in schedule.shift_templates:
+                if weekday == 5 and not st.get("saturday", True):
+                    continue
+                if weekday == 6 and not st.get("sunday", True):
+                    continue
                 for role_id_str, count in st.get("requirements", {}).items():
                     if int(count) > 0:
                         role_id = int(role_id_str)
@@ -570,10 +783,17 @@ def _build_tito_payload(
         cb_url = callback_url.rstrip("/") + "/api/v1/callbacks/tito"
     else:
         cb_url = settings.backend_callback_url.rstrip("/") + "/api/v1/callbacks/tito"
-    if settings.tito_api_key:
-        cb_url += f"?api_key={settings.tito_api_key}"
+    # C7: the API key is NOT embedded in the URL anymore — TiTO sends the
+    # shared secret as Authorization: Bearer header instead (both sides
+    # configured with settings.tito_api_key).
 
-    holiday_dates = get_german_holidays(schedule.start_date, schedule.end_date)
+    holiday_dates = get_german_holidays(
+        schedule.start_date,
+        schedule.end_date,
+        subdivision=settings.german_state,
+    )
+
+    pre_shifts = _build_pre_shifts(db, schedule, employees)
 
     effective_maximize = maximize_staffing or (schedule.metadata_json or {}).get("maximizeStaffing", False)
 
@@ -582,18 +802,32 @@ def _build_tito_payload(
             "tenantId": 1,
             "tenant_id": 1,
             "callback_url": cb_url,
-            "idempotency_key": f"schedule_{schedule.id}",
+            # C1: versioned idempotency key — deterministic per submit attempt
+            "idempotency_key": f"schedule_{schedule.id}_{_submit_attempt_number(schedule)}",
         },
         "config": {
             "startDate": schedule.start_date.isoformat(),
             "endDate": schedule.end_date.isoformat(),
             "holidayDates": holiday_dates,
             "maximizeStaffing": effective_maximize,
+            # C2: ArbZG/solver parameters from backend settings so PlanBar's
+            # validator and TiTO's solver plan against the same rule set
+            "min_rest_time_hours": settings.min_rest_time_hours,
+            "max_daily_work_hours": settings.max_daily_work_hours,
+            "max_consecutive_days": settings.max_consecutive_days,
+            "min_free_sundays_per_year": settings.min_free_sundays_per_year,
+            "night_window_start": settings.night_window_start,
+            "night_window_end": settings.night_window_end,
+            "night_work_max_hours": settings.night_work_max_hours,
+            "rest_time_shift_workers_hours": settings.rest_time_shift_workers_hours,
+            "max_weekly_hours_law": settings.max_weekly_hours_law,
         },
         "shiftTemplates": shift_templates,
         "requirements": requirements,
         "employees": employee_list,
         "wishes": wishes_list,
+        # C4a: pre-existing shifts (cross-schedule continuity for rest time etc.)
+        "preShifts": pre_shifts,
     }
 
 

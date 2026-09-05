@@ -46,13 +46,14 @@ jobs:
           docker run --rm \
             --network host \
             -v "$(pwd)/zap-reports:/zap/wrk:rw" \
+            -v "$(pwd)/.zap:/zap/rules:ro" \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
               -t ${{ env.ZAP_TARGET }} \
               -r report_baseline.html \
               -J report_baseline.json \
               -x report_baseline.xml \
-              -c /zap/wrk/.zap/rules.tsv \
+              -c /zap/rules/rules.tsv \
               -I \
               -s
 
@@ -112,13 +113,14 @@ jobs:
           docker run --rm \
             --network host \
             -v "$(pwd)/zap-reports:/zap/wrk:rw" \
+            -v "$(pwd)/.zap:/zap/rules:ro" \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-full-scan.py \
               -t ${{ env.ZAP_TARGET }} \
               -r report_full.html \
               -J report_full.json \
               -x report_full.xml \
-              -c /zap/wrk/.zap/rules.tsv \
+              -c /zap/rules/rules.tsv \
               -I \
               -s
 

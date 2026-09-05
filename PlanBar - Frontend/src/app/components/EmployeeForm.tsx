@@ -55,7 +55,7 @@ const colors = [
 export function EmployeeForm({ employee, onClose }: EmployeeFormProps) {
   const { addEmployee, updateEmployee, roles } = useApp();
   const [allTeams, setAllTeams] = useState<Team[]>([]);
-  const [formData, setFormData] = useState<Employee>(
+  const [formData, setFormData] = useState<Employee>(() =>
     employee || {
       id: Date.now().toString(),
       name: '',
@@ -68,6 +68,12 @@ export function EmployeeForm({ employee, onClose }: EmployeeFormProps) {
       teamIds: [],
     }
   );
+
+  React.useEffect(() => {
+    if (employee) {
+      setFormData(employee);
+    }
+  }, [employee]);
 
   React.useEffect(() => {
     teamService.getTeams().then(res => setAllTeams(res.items)).catch(() => {});

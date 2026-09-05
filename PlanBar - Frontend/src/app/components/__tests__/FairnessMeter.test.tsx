@@ -37,14 +37,12 @@ const roles: Role[] = [
 ]
 
 const fairnessEntry: EmployeeFairnessEntry = {
-  group: 'Koch',
-  groupTarget: 2400,
-  adjustedTarget: 2400,
-  actualMinutes: 2400,
-  deviation: 0,
-  deviationType: 'equal',
-  projectedBalance: 2.5,
   currentBalanceHours: 5,
+  scheduledHours: 40,
+  contractHours: 40,
+  targetHours: 20,
+  projectedBalance: 2.5,
+  fairnessDeviation: 0,
 }
 
 describe('FairnessMeter', () => {
@@ -80,11 +78,27 @@ describe('FairnessMeter', () => {
     expect(screen.getByText(/Abweichung/)).toBeInTheDocument()
   })
 
+  it('rendert auch mit emp_XXX IDs', () => {
+    const employeeFairness: Record<string, EmployeeFairnessEntry> = {
+      'emp_001': fairnessEntry,
+    }
+    const { container } = render(
+      <FairnessMeter
+        employees={[baseEmployee]}
+        roles={roles}
+        employeeFairness={employeeFairness}
+      />,
+    )
+
+    expect(screen.getByText('Fairness-Meter')).toBeInTheDocument()
+    expect(container.querySelector('.recharts-responsive-container')).toBeInTheDocument()
+  })
+
   it('zeigt mehrere Mitarbeiter im Chart an', () => {
     const emp2: Employee = { ...baseEmployee, id: '2', name: 'Anna Schmidt' }
     const employeeFairness: Record<string, EmployeeFairnessEntry> = {
       '1': fairnessEntry,
-      '2': { ...fairnessEntry, actualMinutes: 2100, currentBalanceHours: -2 },
+      '2': { ...fairnessEntry, scheduledHours: 35, currentBalanceHours: -2 },
     }
 
     render(

@@ -353,6 +353,7 @@ def test_planer_submit_tito_only_own_team_employees(
             "name": "TitoSubmit",
             "start_date": "2099-02-01",
             "end_date": "2099-02-07",
+            "role_requirements": {"frueh": "1"},
             "shiftplans": [
                 {
                     "employee_id": own_emp_id,
@@ -402,6 +403,7 @@ def test_admin_submit_tito_sends_all_employees(
             "name": "TitoAdminSubmit",
             "start_date": "2099-01-01",
             "end_date": "2099-01-07",
+            "role_requirements": {"frueh": "1"},
             "shiftplans": [
                 {
                     "employee_id": emp_id,

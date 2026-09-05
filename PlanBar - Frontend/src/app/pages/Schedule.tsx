@@ -58,8 +58,14 @@ export function Schedule() {
           clearInterval(interval);
           setSubmitting(false);
           setPollResult(scheduleFromResponse(res));
-          const diagnostics = res.diagnostics_json as { info?: string } | null;
-          const msg = diagnostics?.info || 'TiTO-Berechnung fehlgeschlagen';
+          const diagnostics = res.diagnostics_json as { info?: string; infeasibilityReasons?: string[] } | null;
+          const reasons = diagnostics?.infeasibilityReasons;
+          let msg = 'Berechnung fehlgeschlagen.';
+          if (reasons && reasons.length > 0) {
+            msg = reasons.slice(0, 2).join(' ');
+          } else if (diagnostics?.info) {
+            msg = diagnostics.info;
+          }
           toast.error(msg, { duration: 8000 });
           refresh();
         }

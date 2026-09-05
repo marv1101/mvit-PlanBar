@@ -2,10 +2,12 @@ import base64
 import hashlib
 import hmac
 import json
+import threading
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from tito.api import create_app
+from tito.api import cleanup_worker_thread, create_app
 from tito.config import Settings
 
 
@@ -475,3 +477,71 @@ def test_worker_token_cannot_access_jobs(tmp_path: Path):
     # Worker kann keine Jobs abfragen
     list_resp = client.get("/jobs", headers=w_headers)
     assert list_resp.status_code == 403
+
+
+# ============================================================================
+# Robustness Tests (F2, F6)
+# ============================================================================
+
+
+def test_manual_retry_resets_attempts_and_errors(tmp_path: Path):
+    """F6: /jobs/{id}/retry setzt attempts, last_error und timeout_at zurück - voller Retry-Satz."""
+    from tito.db import enqueue_job, get_connection
+
+    db_file = tmp_path / "api_retry.db"
+    settings = Settings.from_env({"DATABASE_URL": f"sqlite:///{db_file}", "API_TOKENS": "test-token"})
+    app = create_app(settings)
+    client = app.test_client()
+    headers = {"Authorization": "Bearer test-token"}
+
+    conn = get_connection(settings.database_url)
+    payload = _valid_job_payload(metadata={"jobId": "job-retry", "tenantId": 1})
+    job_id = enqueue_job(conn, payload, settings.queue_table, tenant_id="1")
+    conn.execute(
+        "UPDATE job_queue SET status = 'failed', attempts = 3, last_error = 'boom', "
+        "timeout_at = '2026-01-01T00:00:00+00:00', scheduled_for = '2030-01-01T00:00:00+00:00' "
+        "WHERE job_id = ?",
+        (job_id,),
+    )
+    conn.commit()
+
+    response = client.post(f"/jobs/{job_id}/retry", headers=headers)
+    assert response.status_code == 200
+    assert response.json["status"] == "retry_scheduled"
+
+    row = conn.execute(
+        "SELECT status, attempts, last_error, timeout_at, scheduled_for FROM job_queue WHERE job_id = ?",
+        (job_id,),
+    ).fetchone()
+    assert row["status"] == "queued"
+    assert row["attempts"] == 0
+    assert row["last_error"] is None
+    assert row["timeout_at"] is None
+    assert row["scheduled_for"] is None
+
+
+def test_cleanup_pass_reclaims_stuck_processing_jobs(tmp_path: Path):
+    """F2: Der Cleanup-Pass der API re-queued festhängende 'processing'-Jobs (abgelaufener Lease)."""
+    from tito.db import enqueue_job, get_connection
+
+    db_file = tmp_path / "api_cleanup.db"
+    settings = Settings.from_env({"DATABASE_URL": f"sqlite:///{db_file}"})
+    conn = get_connection(settings.database_url)
+    payload = _valid_job_payload(metadata={"jobId": "job-stuck", "tenantId": 1})
+    job_id = enqueue_job(conn, payload, settings.queue_table, tenant_id="1")
+
+    stale = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
+    conn.execute(
+        "UPDATE job_queue SET status = 'processing', attempts = 1, timeout_at = ? WHERE job_id = ?",
+        (stale, job_id),
+    )
+    conn.commit()
+
+    # Ein einzelner Cleanup-Durchlauf (stop_event vorab gesetzt -> genau ein Pass)
+    stop_event = threading.Event()
+    stop_event.set()
+    cleanup_worker_thread(settings.database_url, interval_minutes=0, stop_event=stop_event)
+
+    row = conn.execute("SELECT status, timeout_at FROM job_queue WHERE job_id = ?", (job_id,)).fetchone()
+    assert row["status"] == "queued"
+    assert row["timeout_at"] is None

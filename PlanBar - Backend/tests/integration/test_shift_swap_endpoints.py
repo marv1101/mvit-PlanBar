@@ -16,6 +16,8 @@ def _create_schedule_and_shifts(client, admin_headers, emp_id, target_emp_id, pr
                     "shift_id": "morning",
                     "start_time": "08:00:00",
                     "end_time": "16:00:00",
+                    "break_start": "12:00",
+                    "break_end": "12:30",
                 },
                 {
                     "employee_id": target_emp_id,
@@ -23,6 +25,8 @@ def _create_schedule_and_shifts(client, admin_headers, emp_id, target_emp_id, pr
                     "shift_id": "evening",
                     "start_time": "14:00:00",
                     "end_time": "22:00:00",
+                    "break_start": "18:00",
+                    "break_end": "18:30",
                 },
             ]
         },

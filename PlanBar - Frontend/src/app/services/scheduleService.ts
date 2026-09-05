@@ -41,6 +41,8 @@ export interface ShiftTemplateEntryDTO {
   endTime: string;
   requirements: Record<string, number>;
   maxRequirements?: Record<string, number>;
+  saturday?: boolean;
+  sunday?: boolean;
 }
 
 export interface ScheduleCreateDTO {

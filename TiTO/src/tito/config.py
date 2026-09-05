@@ -32,6 +32,13 @@ class Settings:
     callback_max_attempts: int = 3
     callback_retry_delay: int = 60  # seconds between callback retries
 
+    # F2: Lease-Dauer für Job-Claims (Worker-Crash-Recovery über timeout_at)
+    job_lease_seconds: int = 600
+    # F4: Heartbeat-Intervall des separaten Heartbeat-Threads
+    heartbeat_interval_seconds: int = 15
+    # F7: API-Key für Callback-Versand (Authorization: Bearer ...); None = kein Header (nur Development)
+    callback_api_key: str | None = None
+
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "Settings":
         env_dict = cast(dict[str, str], env or os.environ)
@@ -87,4 +94,7 @@ class Settings:
             retry_base_delay=int(env_dict.get("RETRY_BASE_DELAY", "5")),
             callback_max_attempts=int(env_dict.get("CALLBACK_MAX_ATTEMPTS", "3")),
             callback_retry_delay=int(env_dict.get("CALLBACK_RETRY_DELAY", "60")),
+            job_lease_seconds=int(env_dict.get("JOB_LEASE_SECONDS", "600")),
+            heartbeat_interval_seconds=int(env_dict.get("HEARTBEAT_INTERVAL_SECONDS", "15")),
+            callback_api_key=env_dict.get("TITO_CALLBACK_API_KEY", env_dict.get("API_TOKEN")),
         )
