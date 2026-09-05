@@ -207,9 +207,7 @@ def run_worker(settings: Settings) -> None:
                 # F2: Festhängende Jobs (abgelaufener Lease) re-queued oder terminal abschließen
                 reclaimed = reclaim_timed_out_jobs(connection, settings.queue_table)
                 for entry in reclaimed:
-                    logger.warning(
-                        f"Reclaimed stuck job {entry['job_id']} ({entry['action']}) after lease timeout"
-                    )
+                    logger.warning(f"Reclaimed stuck job {entry['job_id']} ({entry['action']}) after lease timeout")
 
                 # F1: Atomaren Claim des nächsten fälligen Jobs
                 job = claim_next_job(connection, settings.queue_table, settings.job_lease_seconds)
@@ -399,9 +397,7 @@ def _process_pending_callbacks(connection: Any, settings: Settings, headers: dic
                 )
             else:
                 store_callback_result(connection, callback_id, "pending")
-                logger.warning(
-                    f"Callback {callback_id}: Failed, will retry (attempt {attempts_after}/{max_attempts})"
-                )
+                logger.warning(f"Callback {callback_id}: Failed, will retry (attempt {attempts_after}/{max_attempts})")
 
     except Exception:
         logger.exception("Error processing callbacks")

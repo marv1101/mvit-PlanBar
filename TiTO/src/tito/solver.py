@@ -201,8 +201,7 @@ def build_model(payload: dict | JobPayload) -> dict:
             req_dt = _parse_date(req["date"])
             if req_dt < start_dt or req_dt > end_dt:
                 raise ValueError(
-                    f"Requirement date {req['date']} is outside the planning period "
-                    f"[{start_date}, {end_date}]"
+                    f"Requirement date {req['date']} is outside the planning period [{start_date}, {end_date}]"
                 )
 
     employees = payload_dict.get("employees") or []
@@ -366,7 +365,10 @@ def _prepare(model: dict) -> dict:
     night_ws = _time_to_minutes(_parse_hhmm(config.get("nightWindowStart") or "23:00", "nightWindowStart"))
     night_we = _time_to_minutes(_parse_hhmm(config.get("nightWindowEnd") or "06:00", "nightWindowEnd"))
     for slot in slots:
-        if _overlap_with_daily_window(slot["start_abs"], slot["end_abs"], night_ws, night_we) >= NIGHT_WORK_MIN_OVERLAP_MINUTES:
+        if (
+            _overlap_with_daily_window(slot["start_abs"], slot["end_abs"], night_ws, night_we)
+            >= NIGHT_WORK_MIN_OVERLAP_MINUTES
+        ):
             slot["is_night"] = True
 
     # --- OFF-/Urlaubs-/Unavailable-Tage aus Wünschen (hart, B1) ---
@@ -438,7 +440,9 @@ def _prepare(model: dict) -> dict:
         "max_consecutive_days": int(config.get("maxConsecutiveDays") or 6),
         "min_rest_minutes": max(0, int(float(config.get("minRestTimeHours") or 11) * 60)),
         "max_daily_minutes": int(float(config.get("maxDailyWorkHours") or 10) * 60),
-        "min_free_sundays": int(config.get("minFreeSundaysPerYear") if config.get("minFreeSundaysPerYear") is not None else 15),
+        "min_free_sundays": int(
+            config.get("minFreeSundaysPerYear") if config.get("minFreeSundaysPerYear") is not None else 15
+        ),
         "default_weekly_hours": float(config.get("defaultWeeklyHours") or 40.0),
         "max_same_shift_consecutive": int(config.get("maxSameShiftConsecutive") or 0),
         "rest_shift_worker_minutes": (
@@ -470,11 +474,7 @@ def _is_valid_assignment(ctx: dict, employee: dict, slot: dict, relaxed: frozens
         return False
 
     protection_until = employee.get("protectionUntil")
-    if (
-        protection_until
-        and "protection" not in relaxed
-        and _parse_date(date) <= _parse_date(protection_until)
-    ):
+    if protection_until and "protection" not in relaxed and _parse_date(date) <= _parse_date(protection_until):
         return False
 
     if "qualifications" not in relaxed:
@@ -491,9 +491,12 @@ def _is_valid_assignment(ctx: dict, employee: dict, slot: dict, relaxed: frozens
     if is_minor and "minor_rules" not in relaxed:
         if date in ctx["saturday_set"] or date in ctx["sunday_set"] or date in ctx["holiday_set"]:
             return False
-        if _overlap_with_daily_window(
-            slot["start_abs"], slot["end_abs"], MINOR_NIGHT_START % 1440, MINOR_NIGHT_END % 1440
-        ) > 0:
+        if (
+            _overlap_with_daily_window(
+                slot["start_abs"], slot["end_abs"], MINOR_NIGHT_START % 1440, MINOR_NIGHT_END % 1440
+            )
+            > 0
+        ):
             return False
 
     is_night_rule_violation = (
@@ -530,9 +533,7 @@ def _build_cp_model(ctx: dict, relaxed: frozenset, with_objective: bool = True) 
     assignments: dict[tuple[int, int], object] = {}
     for slot in slots:
         for emp_idx in valid_by_slot[slot["index"]]:
-            assignments[(emp_idx, slot["index"])] = cp.new_bool_var(
-                f"assign_e{emp_idx}_s{slot['index']}"
-            )
+            assignments[(emp_idx, slot["index"])] = cp.new_bool_var(f"assign_e{emp_idx}_s{slot['index']}")
 
     def _vars_for(emp_idx: int, slot_indices: list[int]) -> list:
         return [assignments[(emp_idx, i)] for i in slot_indices if (emp_idx, i) in assignments]
@@ -799,7 +800,7 @@ def _build_cp_model(ctx: dict, relaxed: frozenset, with_objective: bool = True) 
             if not employee.get("isMinor") or emp_idx not in valid_slots_by_emp:
                 continue
             week_days: dict[tuple[int, int], list[str]] = defaultdict(list)
-            for (e, d) in works:
+            for e, d in works:
                 if e == emp_idx:
                     week_days[_date_to_week_key(d)].append(d)
             for pre in ctx["pre_shifts"].get(emp_idx, []):
@@ -863,9 +864,7 @@ def _build_cp_model(ctx: dict, relaxed: frozenset, with_objective: bool = True) 
         total = sum(slots[i]["netto"] for i in mandatory_slots)
         if total <= 0:
             return
-        contract_total = sum(
-            _emp_contract_hours(employees[e], ctx["default_weekly_hours"]) for e in group_emps
-        )
+        contract_total = sum(_emp_contract_hours(employees[e], ctx["default_weekly_hours"]) for e in group_emps)
         if contract_total <= 0:
             return
         for emp_idx in group_emps:
@@ -876,9 +875,7 @@ def _build_cp_model(ctx: dict, relaxed: frozenset, with_objective: bool = True) 
             if is_global:
                 fairness_targets[emp_idx] = target
             actual_terms = [
-                assignments[(emp_idx, i)] * slots[i]["netto"]
-                for i in mandatory_slots
-                if (emp_idx, i) in assignments
+                assignments[(emp_idx, i)] * slots[i]["netto"] for i in mandatory_slots if (emp_idx, i) in assignments
             ]
             over = cp.new_int_var(0, total, f"over_{tag}_e{emp_idx}")
             under = cp.new_int_var(0, total, f"under_{tag}_e{emp_idx}")
@@ -1023,6 +1020,7 @@ def _empty_result(ctx: dict, status: str, info: str, solve_time: float, is_optim
                 str(e.get("id")): {
                     "currentBalanceHours": round(float(e.get("currentBalanceHours") or 0.0), 2),
                     "scheduledHours": 0.0,
+                    "contractHours": round(_emp_contract_hours(e, ctx["default_weekly_hours"]), 2),
                     "targetHours": 0.0,
                     "projectedBalance": round(float(e.get("currentBalanceHours") or 0.0), 2),
                     "fairnessDeviation": 0.0,
@@ -1168,9 +1166,7 @@ def solve_model(model: dict, timeout_seconds: float = 300) -> dict:
 
     # § 6 Abs. 1: Eignungsuntersuchung für Nachtarbeitnehmer (SOFT)
     start_dt = ctx["reference"]
-    assigned_emps_with_night = {
-        a["employeeId"] for a in assignments_solution if a["isNightShift"]
-    }
+    assigned_emps_with_night = {a["employeeId"] for a in assignments_solution if a["isNightShift"]}
     for employee in employees:
         if not employee.get("isNightWorker") or str(employee.get("id")) not in assigned_emps_with_night:
             continue

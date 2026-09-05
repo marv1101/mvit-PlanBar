@@ -47,7 +47,7 @@ def list_notifications(
 ):
     total_query = db.query(Notification).filter(Notification.user_id == current_user.id)
     if unread_only:
-        total_query = total_query.filter(Notification.read == False)
+        total_query = total_query.filter(Notification.read == False)  # noqa: E712
     total = total_query.count()
     notifications = get_user_notifications(
         db, current_user.id, unread_only=unread_only, offset=pagination.offset, limit=pagination.limit
