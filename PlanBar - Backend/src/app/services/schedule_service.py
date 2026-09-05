@@ -1,5 +1,5 @@
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -591,7 +591,7 @@ def _protected_days_worked_ytd(db: Session | None, employee_id: int, holiday_dat
     """
     if db is None:
         return 0
-    today = date.today()
+    today = datetime.now(tz=timezone.utc).date()
     year_start = date(today.year, 1, 1)
     if year_start > today:
         return 0
@@ -681,10 +681,8 @@ def _build_tito_payload(
     employee_list = []
     ytd_holidays: set[str] = set()
     if db is not None:
-        today = date.today()
-        ytd_holidays = set(
-            get_german_holidays(date(today.year, 1, 1), today, subdivision=settings.german_state)
-        )
+        today = datetime.now(tz=timezone.utc).date()
+        ytd_holidays = set(get_german_holidays(date(today.year, 1, 1), today, subdivision=settings.german_state))
     for emp in employees:
         contract_hours = 40.0
         break_minutes = 30
@@ -731,6 +729,7 @@ def _build_tito_payload(
 
     # Build requirements from shift_templates or role_requirements.
     # Iterate per-date, filtering by week_type if scoped to A or B.
+    # Skip Saturday/Sunday for templates where weekend work is disabled.
     requirements = []
     if schedule.shift_templates:
         current = schedule.start_date
@@ -738,7 +737,12 @@ def _build_tito_payload(
             if schedule.week_type and _get_week_type(current) != schedule.week_type:
                 current += timedelta(days=1)
                 continue
+            weekday = current.weekday()
             for st in schedule.shift_templates:
+                if weekday == 5 and not st.get("saturday", True):
+                    continue
+                if weekday == 6 and not st.get("sunday", True):
+                    continue
                 for role_id_str, count in st.get("requirements", {}).items():
                     if int(count) > 0:
                         role_id = int(role_id_str)

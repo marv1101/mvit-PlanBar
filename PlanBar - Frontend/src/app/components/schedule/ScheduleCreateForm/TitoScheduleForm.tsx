@@ -9,7 +9,7 @@ interface TitoScheduleFormProps {
   setTitoWeekType: (v: string) => void;
   addShiftTemplate: () => void;
   removeShiftTemplate: (index: number) => void;
-  updateShiftTemplate: (index: number, field: string, value: string | Record<string, number>) => void;
+  updateShiftTemplate: (index: number, field: string, value: string | boolean | Record<string, number>) => void;
   updateRequirement: (templateIndex: number, roleId: string, count: number) => void;
   updateMaxRequirement: (templateIndex: number, roleId: string, count: number) => void;
   maximizeStaffing: boolean;

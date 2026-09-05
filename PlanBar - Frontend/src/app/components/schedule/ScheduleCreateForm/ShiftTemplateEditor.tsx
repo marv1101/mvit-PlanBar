@@ -7,7 +7,7 @@ interface ShiftTemplateEditorProps {
   roles: unknown[];
   addShiftTemplate: () => void;
   removeShiftTemplate: (index: number) => void;
-  updateShiftTemplate: (index: number, field: string, value: string | Record<string, number>) => void;
+  updateShiftTemplate: (index: number, field: string, value: string | boolean | Record<string, number>) => void;
   updateRequirement: (templateIndex: number, roleId: string, count: number) => void;
   updateMaxRequirement: (templateIndex: number, roleId: string, count: number) => void;
   submitting: boolean;
@@ -135,6 +135,30 @@ export function ShiftTemplateEditor({
                   </p>
                 )}
               </div>
+            </div>
+
+            <div className="flex items-center gap-4 pt-1">
+              <Label className="text-xs">Wochenendarbeit</Label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={st.saturday || false}
+                  onChange={(e) => updateShiftTemplate(index, 'saturday', e.target.checked)}
+                  disabled={submitting}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span className="text-xs">Samstag</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={st.sunday || false}
+                  onChange={(e) => updateShiftTemplate(index, 'sunday', e.target.checked)}
+                  disabled={submitting}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span className="text-xs">Sonntag</span>
+              </label>
             </div>
           </div>
         ))}
