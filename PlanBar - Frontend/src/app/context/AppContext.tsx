@@ -9,6 +9,7 @@ import * as scheduleService from '../services/scheduleService';
 import {
   employeeFromResponse,
   employeeToCreate,
+  employeeToUpdate,
   roleFromResponse,
   roleToCreate,
   requestFromResponse,
@@ -124,8 +125,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateEmployee = useCallback((id: string, employee: Employee) => {
-    const dto = employeeToCreate(employee);
-    employeeService.updateEmployee(Number(id), dto)
+    employeeService.getEmployee(Number(id))
+      .then(() => {
+        const dto = employeeToUpdate(employee);
+        return employeeService.updateEmployee(Number(id), dto);
+      })
       .then(res => {
         setEmployees(prev => prev.map(e => e.id === id ? employeeFromResponse(res) : e));
         toast.success('Mitarbeiter aktualisiert');

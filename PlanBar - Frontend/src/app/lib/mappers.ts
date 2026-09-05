@@ -1,5 +1,5 @@
 import { AppUser, Employee, Request, Role, Schedule, Shift, TiTODiagnostics, TiTOMetrics, WeekType, WishStatus } from '../types';
-import type { EmployeeResponseDTO, EmployeeCreateDTO } from '../services/employeeService';
+import type { EmployeeResponseDTO, EmployeeCreateDTO, EmployeeUpdateDTO } from '../services/employeeService';
 import type { RoleResponseDTO, RoleCreateDTO } from '../services/roleService';
 import type { ShiftWishResponseDTO, ShiftWishCreateDTO, ShiftWishType } from '../services/requestService';
 import type { ScheduleResponseDTO, ScheduleCreateDTO, ShiftplanResponseDTO, ShiftplanCreateDTO, ShiftTemplateEntryDTO } from '../services/scheduleService';
@@ -90,6 +90,22 @@ export function employeeToCreate(emp: Employee): EmployeeCreateDTO {
     max_work_hours: emp.maxWorkHours,
     role_ids: emp.roles.length > 0 ? emp.roles.map(Number) : undefined,
     team_ids: emp.teamIds ?? [],
+  };
+}
+
+export function employeeToUpdate(emp: Employee): EmployeeUpdateDTO {
+  const { first_name, last_name } = splitName(emp.name);
+  return {
+    first_name,
+    last_name,
+    email: emp.email,
+    color: emp.color,
+    working_hours_json: JSON.stringify(emp.workingHours),
+    break_start: emp.breakTime.start,
+    break_end: emp.breakTime.end,
+    max_work_hours: emp.maxWorkHours,
+    role_ids: emp.roles.length > 0 ? emp.roles.map(Number) : undefined,
+    team_ids: emp.teamIds,
   };
 }
 

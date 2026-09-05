@@ -23,6 +23,12 @@ export interface EmployeeUpdateDTO {
   break_start?: string;
   break_end?: string;
   max_work_hours?: number;
+  is_minor?: boolean;
+  is_night_worker?: boolean;
+  night_worker_exam_date?: string | null;
+  protection_until?: string | null;
+  is_shift_worker?: boolean;
+  user_id?: number | null;
   role_ids?: number[];
   team_ids?: number[];
 }
