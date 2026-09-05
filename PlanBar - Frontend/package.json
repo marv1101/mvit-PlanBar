@@ -97,5 +97,8 @@
     "react-dom": {
       "optional": true
     }
+  },
+  "resolutions": {
+    "fast-uri": "3.1.7"
   }
 }
