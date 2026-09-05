@@ -41,16 +41,25 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   );
 }
 
+function normalizeEmpId(empId: string): string {
+  const match = empId.match(/^emp_(\d+)$/);
+  if (match) return String(Number(match[1]));
+  return empId;
+}
+
 export function FairnessMeter({ employees, roles, employeeFairness }: FairnessMeterProps) {
   if (!employeeFairness || Object.keys(employeeFairness).length === 0) return null;
 
   const chartData: ChartDataItem[] = Object.entries(employeeFairness).map(([empId, entry]) => {
-    const emp = employees.find(e => e.id === empId);
+    const normalizedId = normalizeEmpId(empId);
+    const emp = employees.find(e => e.id === normalizedId);
     const empRole = emp?.roles?.[0];
     const role = roles.find(r => r.id === empRole);
-    const plannedHours = entry.actualMinutes / 60;
-    const groupTarget = entry.groupTarget;
-    const contractHours = groupTarget / 60;
+    const plannedHours = entry.scheduledHours;
+    const contractHours = entry.targetHours;
+    const deviationPercent = contractHours > 0
+      ? ((plannedHours - contractHours) / contractHours) * 100
+      : 0;
 
     return {
       name: emp?.name || `MA #${empId}`,
@@ -58,8 +67,8 @@ export function FairnessMeter({ employees, roles, employeeFairness }: FairnessMe
       roleColor: role?.color || '#6b7280',
       plannedHours: Math.round(plannedHours * 10) / 10,
       contractHours: Math.round(contractHours * 10) / 10,
-      deviation: Math.round(entry.deviation * 10) / 10,
-      deviationType: entry.deviationType,
+      deviation: Math.round(deviationPercent * 10) / 10,
+      deviationType: deviationPercent > 10 ? 'over' : deviationPercent < -10 ? 'under' : 'equal',
       projectedBalance: Math.round(entry.projectedBalance * 10) / 10,
       currentBalance: Math.round(entry.currentBalanceHours * 10) / 10,
     };

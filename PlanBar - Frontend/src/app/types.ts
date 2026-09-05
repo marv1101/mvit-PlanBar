@@ -115,14 +115,11 @@ export interface TiTOAggregatedMessage {
 }
 
 export interface EmployeeFairnessEntry {
-  group: string;
-  groupTarget: number;
-  adjustedTarget: number;
-  actualMinutes: number;
-  deviation: number;
-  deviationType: string;
-  projectedBalance: number;
   currentBalanceHours: number;
+  scheduledHours: number;
+  targetHours: number;
+  projectedBalance: number;
+  fairnessDeviation: number;
 }
 
 export interface TiTOMetrics {
