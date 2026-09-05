@@ -117,6 +117,7 @@ export interface TiTOAggregatedMessage {
 export interface EmployeeFairnessEntry {
   currentBalanceHours: number;
   scheduledHours: number;
+  contractHours: number;
   targetHours: number;
   projectedBalance: number;
   fairnessDeviation: number;

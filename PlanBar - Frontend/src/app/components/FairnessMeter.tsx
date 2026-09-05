@@ -15,6 +15,7 @@ interface ChartDataItem {
   roleColor: string;
   plannedHours: number;
   contractHours: number;
+  targetHours: number;
   deviation: number;
   deviationType: string;
   projectedBalance: number;
@@ -29,6 +30,7 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
       <p className="font-semibold">{d.name}</p>
       <p>Geplant: <span className="font-medium">{d.plannedHours.toFixed(1)}h</span></p>
       <p>Vertrag: <span className="font-medium">{d.contractHours.toFixed(1)}h</span></p>
+      <p>Soll: <span className="font-medium">{d.targetHours.toFixed(1)}h</span></p>
       <p>
         Abweichung:{' '}
         <span className={Math.abs(d.deviation) > 10 ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>
@@ -56,9 +58,9 @@ export function FairnessMeter({ employees, roles, employeeFairness }: FairnessMe
     const empRole = emp?.roles?.[0];
     const role = roles.find(r => r.id === empRole);
     const plannedHours = entry.scheduledHours;
-    const contractHours = entry.targetHours;
-    const deviationPercent = contractHours > 0
-      ? ((plannedHours - contractHours) / contractHours) * 100
+    const contractHours = entry.contractHours;
+    const deviationPercent = entry.targetHours > 0
+      ? ((plannedHours - entry.targetHours) / entry.targetHours) * 100
       : 0;
 
     return {
@@ -67,6 +69,7 @@ export function FairnessMeter({ employees, roles, employeeFairness }: FairnessMe
       roleColor: role?.color || '#6b7280',
       plannedHours: Math.round(plannedHours * 10) / 10,
       contractHours: Math.round(contractHours * 10) / 10,
+      targetHours: Math.round(entry.targetHours * 10) / 10,
       deviation: Math.round(deviationPercent * 10) / 10,
       deviationType: deviationPercent > 10 ? 'over' : deviationPercent < -10 ? 'under' : 'equal',
       projectedBalance: Math.round(entry.projectedBalance * 10) / 10,
@@ -81,7 +84,7 @@ export function FairnessMeter({ employees, roles, employeeFairness }: FairnessMe
           <div className="w-3 h-3 rounded-full bg-purple-500" />
           <CardTitle>Fairness-Meter</CardTitle>
         </div>
-        <CardDescription>Geplante Stunden vs. Vertragsstunden pro Mitarbeiter (nach Skill-Gruppen)</CardDescription>
+        <CardDescription>Geplante Stunden, Vertragsstunden und Fairness-Soll pro Mitarbeiter</CardDescription>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={Math.max(200, chartData.length * 50)}>
@@ -100,6 +103,7 @@ export function FairnessMeter({ employees, roles, employeeFairness }: FairnessMe
             <ReferenceLine x={0} stroke="#666" />
             <Bar dataKey="plannedHours" fill="#3b82f6" name="Geplant" radius={[0, 4, 4, 0]} />
             <Bar dataKey="contractHours" fill="#22c55e" name="Vertrag" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="targetHours" fill="#a855f7" name="Soll" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
 
@@ -108,7 +112,10 @@ export function FairnessMeter({ employees, roles, employeeFairness }: FairnessMe
             <span className="w-3 h-3 rounded bg-blue-500" /> Geplante Stunden
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded bg-green-500" /> Vertragsstunden (soll)
+            <span className="w-3 h-3 rounded bg-green-500" /> Vertragsstunden
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded bg-purple-500" /> Soll (Fairness)
           </span>
           <span className="flex items-center gap-1 text-red-600">
             ⚠ Abweichung &gt;10%

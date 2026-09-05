@@ -39,7 +39,8 @@ const roles: Role[] = [
 const fairnessEntry: EmployeeFairnessEntry = {
   currentBalanceHours: 5,
   scheduledHours: 40,
-  targetHours: 40,
+  contractHours: 40,
+  targetHours: 20,
   projectedBalance: 2.5,
   fairnessDeviation: 0,
 }

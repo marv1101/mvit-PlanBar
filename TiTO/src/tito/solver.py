@@ -1210,12 +1210,14 @@ def solve_model(model: dict, timeout_seconds: float = 300) -> dict:
         emp_id = str(employee.get("id"))
         balance = float(employee.get("currentBalanceHours") or 0.0)
         scheduled = employee_utilization.get(emp_id, 0.0)
+        contract_hours = _emp_contract_hours(employee, ctx["default_weekly_hours"])
         target_hours = artifacts["fairness_targets"].get(emp_idx, 0) / 60.0
         projected = balance + (scheduled - target_hours)
         deviation = abs(scheduled - target_hours + balance)
         employee_fairness[emp_id] = {
             "currentBalanceHours": round(balance, 2),
             "scheduledHours": round(scheduled, 2),
+            "contractHours": round(contract_hours, 2),
             "targetHours": round(target_hours, 2),
             "projectedBalance": round(projected, 2),
             "fairnessDeviation": round(deviation, 2),
