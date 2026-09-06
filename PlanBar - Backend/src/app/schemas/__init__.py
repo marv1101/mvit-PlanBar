@@ -40,11 +40,19 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
+from app.schemas.report import (
+    ComplianceReportResponse,
+    ComplianceViolation,
+    OvertimeEmployeeEntry,
+    OvertimeReportResponse,
+)
 
 __all__ = [
     "AvailabilityEntry",
     "AvailabilityResponse",
     "AvailabilityUpdate",
+    "ComplianceReportResponse",
+    "ComplianceViolation",
     "ContractCreate",
     "ContractResponse",
     "ContractUpdate",
@@ -54,6 +62,8 @@ __all__ = [
     "ErrorResponse",
     "MyOvertimeResponse",
     "MyShiftResponse",
+    "OvertimeEmployeeEntry",
+    "OvertimeReportResponse",
     "PaginationResponse",
     "ScheduleCreate",
     "ScheduleResponse",
