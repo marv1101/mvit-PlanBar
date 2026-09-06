@@ -99,6 +99,7 @@
     }
   },
   "resolutions": {
-    "fast-uri": "3.1.7"
+    "fast-uri": "4.1.4",
+    "postcss": "8.5.23"
   }
 }
