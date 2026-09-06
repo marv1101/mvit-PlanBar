@@ -10,6 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
  && rm -rf /var/lib/apt/lists/*
 
+# Create non-root user
+RUN addgroup --system --gid 1001 appuser && \
+    adduser --system --uid 1001 --ingroup appuser --no-create-home appuser
+
 WORKDIR /app
 
 COPY requirements.txt .
@@ -18,6 +22,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/app ./app
 COPY alembic.ini .
 COPY README.md .
+
+# Set ownership for appuser
+RUN chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8000
 

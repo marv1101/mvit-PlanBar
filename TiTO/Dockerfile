@@ -1,17 +1,29 @@
 # Use an official Python runtime as a parent image
 FROM python:3.11-slim
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Create non-root user
+RUN addgroup --system --gid 1001 appuser && \
+    adduser --system --uid 1001 --ingroup appuser --no-create-home appuser
 
-# Set the working directory in the container
-WORKDIR /app
-
-# Install system dependencies and Python packages
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
- && rm -rf /var/lib/apt/lists/* \
- && pip install --no-cache-dir -r requirements.txt
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY main.py .
+COPY src/ ./src/
+
+# Set ownership for appuser
+RUN chown -R appuser:appuser /app
+
+USER appuser
 
 # Make port 5001 available to the world outside this container
 EXPOSE 5001
