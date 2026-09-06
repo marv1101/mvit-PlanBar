@@ -74,7 +74,7 @@ services:
       - POSTGRES_DB=tito
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro,z
+      - ./init-init-db.sh:/docker-entrypoint-initdb.d/init-init-db.sh:ro,z
     ports:
       - "5432:5432"
     healthcheck:

@@ -229,6 +229,7 @@ def seed_initial_users() -> None:
                     password=test_password,
                 ),
             )
+
             if env == "development":
                 print(f"\n{'=' * 60}")
                 print(f"Initial-Passwort fuer testuser@mphion.de: {test_password}")
