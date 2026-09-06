@@ -1,6 +1,5 @@
 import csv
 import io
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -9,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.models.user import User
 from app.dependencies import get_db, require_admin
 from app.schemas.audit import (
+    AuditLogFilter,
     AuditLogListResponse,
     AuditLogResponse,
     SuspiciousPatternResponse,
@@ -36,21 +36,15 @@ def get_suspicious_patterns(
 
 @router.get("/audit-logs/export")
 def export_audit_logs(
-    action: str | None = None,
-    resource_type: str | None = None,
-    start_date: datetime | None = None,
-    end_date: datetime | None = None,
+    filters: AuditLogFilter = Depends(),
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    items, _ = audit_service.query(
+    items, _ = audit_service.query_with_filter(
         db,
+        filters,
         offset=0,
         limit=10000,
-        action=action,
-        resource_type=resource_type,
-        start_date=start_date,
-        end_date=end_date,
     )
 
     output = io.StringIO()
@@ -95,25 +89,15 @@ def export_audit_logs(
 def list_audit_logs(
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=200),
-    user_id: int | None = None,
-    action: str | None = None,
-    resource_type: str | None = None,
-    resource_id: str | None = None,
-    start_date: datetime | None = None,
-    end_date: datetime | None = None,
+    filters: AuditLogFilter = Depends(),
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    items, pagination = audit_service.query(
+    items, pagination = audit_service.query_with_filter(
         db,
+        filters,
         offset=offset,
         limit=limit,
-        user_id=user_id,
-        action=action,
-        resource_type=resource_type,
-        resource_id=resource_id,
-        start_date=start_date,
-        end_date=end_date,
     )
     return {"items": items, "total": pagination["total"], "offset": pagination["offset"], "limit": pagination["limit"]}
 

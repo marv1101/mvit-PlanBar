@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
@@ -36,3 +36,21 @@ class SuspiciousPatternResponse(BaseModel):
     description: str
     count: int
     details: list[AuditLogResponse]
+
+
+class AuditLogFilter(BaseModel):
+    """Filter schema for audit log queries.
+    
+    Replaces the previous 10-parameter endpoint signature with a single
+    filter object. Use with FastAPI Depends() for query parameter binding.
+    """
+    user_id: int | None = None
+    action: str | None = None
+    resource_type: str | None = None
+    resource_id: str | None = None
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dict, excluding None values for flexible SQLAlchemy filtering."""
+        return {k: v for k, v in self.model_dump().items() if v is not None}
