@@ -113,7 +113,11 @@ def test_delete_user(db_session):
     )
     user_id = created.id
     delete_user(db_session, created)
-    assert get_user_by_id(db_session, user_id) is None
+    # Soft-delete: user still exists but is marked as deleted
+    user = get_user_by_id(db_session, user_id)
+    assert user is not None
+    assert user.is_deleted is True
+    assert user.deleted_at is not None
 
 
 def test_change_password_success(db_session):

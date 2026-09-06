@@ -34,3 +34,5 @@ class User(Base):
         lazy="selectin",
         post_update=True,
     )
+    is_deleted = Column(Boolean, nullable=False, default=False, index=True)
+    deleted_at = Column(DateTime, nullable=True)

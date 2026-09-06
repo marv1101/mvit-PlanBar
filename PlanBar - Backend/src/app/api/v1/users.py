@@ -149,6 +149,16 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_current_user(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """GDPR Right to Deletion: Users can delete their own account."""
+    delete_user(db, current_user, deletion_type="self_service")
+    return None
+
+
 @router.post("/refresh-token", response_model=TokenResponse)
 @limiter.limit("1000/minute")
 def refresh_token(request: Request, token_data: TokenRefreshRequest, db: Session = Depends(get_db)):
