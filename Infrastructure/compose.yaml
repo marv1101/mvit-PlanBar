@@ -38,6 +38,18 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: '512M'
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    networks:
+      - planbar_net
     
   tito_worker:
     build:
@@ -63,6 +75,17 @@ services:
     deploy:
       mode: replicated
       replicas: 2
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: '512M'
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    networks:
+      - planbar_net
 
   # PostgreSQL Database Service
   db:
@@ -83,6 +106,18 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: '512M'
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    networks:
+      - planbar_net
 
   # PostgreSQL Database Service for PlanBar Backend
   db_backend:
@@ -102,6 +137,18 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: '512M'
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    networks:
+      - planbar_net
 
   planbar_backend:
     build:
@@ -133,6 +180,18 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: '512M'
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    networks:
+      - planbar_net
 
   # PlanBar Frontend Service (statisch, gebaut und von nginx ausgeliefert)
   planbar_frontend:
@@ -157,8 +216,24 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: '256M'
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    networks:
+      - planbar_net
 
 volumes:
   postgres_data:
   planbar_postgres_data:
   pinboard_uploads:
+
+networks:
+  planbar_net:
+    driver: bridge
