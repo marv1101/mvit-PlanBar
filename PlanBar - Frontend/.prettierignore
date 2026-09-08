@@ -1,0 +1,6 @@
+dist/
+node_modules/
+coverage/
+*.cjs
+*.mjs
+pnpm-lock.yaml
