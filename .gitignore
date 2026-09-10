@@ -29,6 +29,8 @@ PlanBar - Backend/src/app/middleware/__pycache__/*
 PlanBar - Backend/src/app/utils/__pycache__/*
 PlanBar - Frontend/dist/assets/*
 node_modules*
+coverage/
+dist/
 Docs/github-issues-go-live.md
 
 # SQLite databases
