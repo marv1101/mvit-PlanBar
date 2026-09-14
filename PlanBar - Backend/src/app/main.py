@@ -118,7 +118,8 @@ def _repair_one_sided_user_employee_links() -> None:
 
     Legacy data only set the reverse FK (employees.user_id), leaving
     users.employee_id NULL, which broke planer team-scope. Runs only in
-    development/test environments; production relies on migration 0014.
+    development/test environments; production relies on the squashed
+    initial migration (0001) creating consistent FK links.
     """
     if settings.environment not in ("development", "test"):
         return

@@ -9,6 +9,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "s
 
 from app.config import settings
 from app.db.base import Base
+# Models importieren, damit Base.metadata gefüllt ist (sonst sieht Alembic
+# keine Tabellen: Autogenerate erzeugt leere Revisionen, create_all nichts).
+import app.db.models  # noqa: F401  (registriert alle Tabellen in Base.metadata)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
