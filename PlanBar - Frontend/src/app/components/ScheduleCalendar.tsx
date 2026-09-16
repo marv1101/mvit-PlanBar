@@ -6,7 +6,8 @@ import { de } from 'date-fns/locale';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import { Button } from './ui/button';
 import { getWeekType, weekTypeOfDateStr } from '../lib/week';
-import { Coffee, LayoutGrid, CalendarDays } from 'lucide-react';
+import { Coffee, LayoutGrid, CalendarDays, Maximize2 } from 'lucide-react';
+import { DayDetailDialog } from './schedule/day-popout/DayDetailDialog';
 
 interface ScheduleCalendarProps {
   shifts: Shift[];
@@ -30,6 +31,7 @@ export function ScheduleCalendar({ shifts, startDate, endDate, currentWeek }: Sc
   const { employees } = useApp();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [viewMode, setViewMode] = useState<'timeline' | 'swimlane'>('swimlane');
+  const [fullscreen, setFullscreen] = useState(false);
 
   const start = parseISO(startDate);
   const end = parseISO(endDate);
@@ -82,7 +84,7 @@ export function ScheduleCalendar({ shifts, startDate, endDate, currentWeek }: Sc
 
   const cols = isMobile ? 'grid-cols-1' : 'grid-cols-7';
 
-  return (
+  const renderCalendar = (showExpand: boolean) => (
     <div className="space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
         <Button
@@ -96,6 +98,16 @@ export function ScheduleCalendar({ shifts, startDate, endDate, currentWeek }: Sc
             <><CalendarDays className="h-4 w-4 mr-2" />Timeline-Ansicht</>
           )}
         </Button>
+        {showExpand && (
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label="Kalenderansicht vergrößern"
+            onClick={() => setFullscreen(true)}
+          >
+            <Maximize2 className="h-4 w-4 mr-2" />Vollbild
+          </Button>
+        )}
       </div>
 
       {viewMode === 'swimlane' ? (
@@ -264,5 +276,23 @@ export function ScheduleCalendar({ shifts, startDate, endDate, currentWeek }: Sc
         ))}
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {renderCalendar(true)}
+      <DayDetailDialog
+        open={fullscreen}
+        onOpenChange={setFullscreen}
+        title="Kalenderansicht – vergrößert"
+        showNavigation={false}
+        hasPrev={false}
+        hasNext={false}
+        onPrev={() => {}}
+        onNext={() => {}}
+      >
+        {renderCalendar(false)}
+      </DayDetailDialog>
+    </>
   );
 }
