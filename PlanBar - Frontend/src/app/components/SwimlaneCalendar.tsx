@@ -7,7 +7,7 @@ import { Button } from './ui/button';
 import { getWeekType } from '../lib/week';
 import { TIMEZONE } from '../lib/timezone';
 import { sanitizeLabel } from '../lib/sanitize';
-import { Pencil, Trash2, Coffee } from 'lucide-react';
+import { Pencil, Trash2, Coffee, Maximize2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Employee } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
@@ -23,6 +23,9 @@ import type { DragItem, EmployeeDragItem, BreakDragItem } from './schedule/share
 import { BreakStartHandle, BreakEndHandle } from './schedule/shared/CalendarComponents';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { useApprovedWishes } from '../hooks/useShiftWishes';
+import { DayDetailDialog } from './schedule/day-popout/DayDetailDialog';
+import { useMeasuredSize } from './schedule/day-popout/useMeasuredSize';
+import { computePopoutSizes, barTextClass } from './schedule/day-popout/popoutSizes';
 
 const HOUR_WIDTH = 64;
 const EMPLOYEE_ROW_HEIGHT = 44;
@@ -36,14 +39,14 @@ const WISH_LABELS: Record<string, string> = {
   'bevorzugt': 'Bevorzugt',
   'nicht-verfügbar': 'Nicht verfügbar',
 };
-function getBreakStyleHorizontal(shift: Shift) {
+function getBreakStyleHorizontal(shift: Shift, hourWidth: number) {
   if (!shift.breakStart || !shift.breakEnd) return null;
   const shiftStart = toMinutes(shift.startTime);
   const breakStart = toMinutes(shift.breakStart);
   const breakEnd = toMinutes(shift.breakEnd);
   if (breakStart <= shiftStart || breakEnd <= breakStart || breakEnd > toMinutes(shift.endTime)) return null;
-  const left = ((breakStart - shiftStart) / 60) * HOUR_WIDTH;
-  const width = Math.max(((breakEnd - breakStart) / 60) * HOUR_WIDTH, 16);
+  const left = ((breakStart - shiftStart) / 60) * hourWidth;
+  const width = Math.max(((breakEnd - breakStart) / 60) * hourWidth, 16);
   return { left, width };
 }
 type HoverInfo = {
@@ -73,11 +76,15 @@ function ShiftBar({
   onEdit,
   onDelete,
   top = 4,
+  hourWidth = HOUR_WIDTH,
+  barHeight = 36,
 }: {
   shift: Shift;
   onEdit: (shift: Shift) => void;
   onDelete: (shift: Shift) => void;
   top?: number;
+  hourWidth?: number;
+  barHeight?: number;
 }) {
   const { employees } = useApp();
   const employee = employees.find(e => e.id === shift.employeeId);
@@ -94,9 +101,9 @@ function ShiftBar({
 
   const startMin = toMinutes(shift.startTime);
   const endMin = toMinutes(shift.endTime);
-  const left = ((startMin - START_HOUR * 60) / 60) * HOUR_WIDTH;
-  const width = Math.max(((endMin - startMin) / 60) * HOUR_WIDTH, 20);
-  const breakStyle = getBreakStyleHorizontal(shift);
+  const left = ((startMin - START_HOUR * 60) / 60) * hourWidth;
+  const width = Math.max(((endMin - startMin) / 60) * hourWidth, 20);
+  const breakStyle = getBreakStyleHorizontal(shift, hourWidth);
 
   return (
     <motion.div
@@ -119,7 +126,7 @@ function ShiftBar({
         left: `${left}px`,
         width: `${width}px`,
         top: `${top}px`,
-        height: '36px',
+        height: `${barHeight}px`,
         position: 'absolute',
         backgroundColor: employee.color + '20',
         borderLeft: `3px solid ${employee.color}`,
@@ -129,7 +136,7 @@ function ShiftBar({
         onEdit(shift);
       }}
     >
-      <div className="flex flex-col justify-center h-full px-1.5 text-[10px] leading-tight min-w-0">
+      <div className={`flex flex-col justify-center h-full px-1.5 leading-tight min-w-0 ${barTextClass(barHeight)}`}>
         {shift.label && (
           <span className="font-semibold truncate text-gray-800 leading-tight">
             {shift.label}
@@ -206,12 +213,16 @@ interface DayBlockProps {
   onDelete: (shift: Shift) => void;
   approvedWishes: Request[];
   onWishClick: (employeeId: string, date: Date) => void;
+  onExpand?: (date: Date) => void;
+  hourWidth?: number;
+  rowHeight?: number;
+  barHeight?: number;
 }
 
 function DayBlock({
   date, shifts, employees, onDrop, onDropInDay, onDropOnEmployee,
   onEmployeeDrop, onBreakUpdate, onClick, onEdit, onDelete,
-  approvedWishes, onWishClick
+  approvedWishes, onWishClick, onExpand, hourWidth = HOUR_WIDTH, rowHeight = EMPLOYEE_ROW_HEIGHT, barHeight = 36
 }: DayBlockProps) {
   const dateStr = date.toISOString().split('T')[0];
   const dayShifts = shifts.filter(s => s.date === dateStr);
@@ -243,8 +254,8 @@ function DayBlock({
       const rect = containerRef.current.getBoundingClientRect();
       const x = offset.x - rect.left;
       const y = offset.y - rect.top;
-      const fromLeftMinutes = (x / HOUR_WIDTH) * 60;
-      const employeeIndex = Math.floor((y - 40) / EMPLOYEE_ROW_HEIGHT);
+      const fromLeftMinutes = (x / hourWidth) * 60;
+      const employeeIndex = Math.floor((y - 40) / rowHeight);
       const clampedEmployeeIndex = Math.max(0, Math.min(employeeIndex, sortedEmployees.length - 1));
       const emp = sortedEmployees[clampedEmployeeIndex];
       const empColor = emp?.color || '#3b82f6';
@@ -262,7 +273,7 @@ function DayBlock({
         return;
       }
 
-      const hoverTop = 40 + clampedEmployeeIndex * EMPLOYEE_ROW_HEIGHT + 4;
+      const hoverTop = 40 + clampedEmployeeIndex * rowHeight + 4;
 
       if ('shift' in item) {
         const snapped = snapMinutes(fromLeftMinutes + START_HOUR * 60, SNAP_MINUTES_SHIFT);
@@ -294,8 +305,8 @@ function DayBlock({
       const rect = containerRef.current.getBoundingClientRect();
       const x = offset.x - rect.left;
       const y = offset.y - rect.top;
-      const fromLeftMinutes = (x / HOUR_WIDTH) * 60;
-      const employeeIndex = Math.floor((y - 40) / EMPLOYEE_ROW_HEIGHT);
+      const fromLeftMinutes = (x / hourWidth) * 60;
+      const employeeIndex = Math.floor((y - 40) / rowHeight);
       const clampedEmployeeIndex = Math.max(0, Math.min(employeeIndex, sortedEmployees.length - 1));
       const targetEmployee = sortedEmployees[clampedEmployeeIndex];
 
@@ -358,9 +369,30 @@ function DayBlock({
   }, [isOver]);
 
   return (
-    <div className="border rounded-lg mb-4 overflow-hidden">
-      <div className="bg-gray-50 px-4 py-2 font-medium text-sm border-b">
-        {date.toLocaleDateString('de-DE', { timeZone: TIMEZONE, weekday: 'long', day: 'numeric', month: 'long' })}
+    <div className="group border rounded-lg mb-4 overflow-hidden">
+      <div className="bg-gray-50 px-4 py-2 font-medium text-sm border-b flex items-center justify-between">
+        <span>
+          {date.toLocaleDateString('de-DE', { timeZone: TIMEZONE, weekday: 'long', day: 'numeric', month: 'long' })}
+        </span>
+        {onExpand && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-blue-100 text-blue-600 bg-white/80"
+                aria-label="Tag vergrößern"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExpand(date);
+                }}
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Tag in der Großansicht öffnen</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
       <div className="flex">
         <div className="w-40 border-r flex-shrink-0">
@@ -368,8 +400,8 @@ function DayBlock({
           {sortedEmployees.map(emp => (
             <div
               key={emp.id}
-              className="h-[44px] border-b flex items-center px-3 text-sm"
-              style={{ borderLeft: `3px solid ${emp.color}` }}
+              className="border-b flex items-center px-3 text-sm"
+              style={{ borderLeft: `3px solid ${emp.color}`, height: `${rowHeight}px` }}
             >
               <span className="truncate">{emp.name}</span>
             </div>
@@ -382,7 +414,7 @@ function DayBlock({
               drop(node);
             }}
             className="relative cursor-pointer"
-            style={{ minWidth: `${HOURS.length * HOUR_WIDTH}px` }}
+            style={{ minWidth: `${HOURS.length * hourWidth}px` }}
             onClick={() => onClick(date)}
           >
             <div className="flex h-[40px] border-b bg-gray-50">
@@ -390,7 +422,7 @@ function DayBlock({
                 <div
                   key={hour}
                   className="flex-shrink-0 text-[10px] text-gray-400 flex items-center justify-center border-r border-gray-100"
-                  style={{ width: `${HOUR_WIDTH}px` }}
+                  style={{ width: `${hourWidth}px` }}
                 >
                   {`${String(hour).padStart(2, '0')}:00`}
                 </div>
@@ -402,13 +434,13 @@ function DayBlock({
               <div
                 key={emp.id}
                 className="relative border-b border-gray-100"
-                style={{ height: `${EMPLOYEE_ROW_HEIGHT}px` }}
+                style={{ height: `${rowHeight}px` }}
               >
                 {HOURS.map(hour => (
                   <div
                     key={hour}
                     className="absolute top-0 bottom-0 border-r border-gray-100"
-                    style={{ left: `${(hour - START_HOUR) * HOUR_WIDTH}px`, width: `${HOUR_WIDTH}px` }}
+                    style={{ left: `${(hour - START_HOUR) * hourWidth}px`, width: `${hourWidth}px` }}
                   />
                 ))}
                 {empWish && (
@@ -451,10 +483,10 @@ function DayBlock({
                 transition={{ duration: 0.12 }}
                 className="absolute rounded pointer-events-none z-20"
                 style={{
-                  left: `${(hoverInfo.minutes / 60) * HOUR_WIDTH}px`,
-                  width: `${Math.max((hoverInfo.duration / 60) * HOUR_WIDTH, 20)}px`,
+                  left: `${(hoverInfo.minutes / 60) * hourWidth}px`,
+                  width: `${Math.max((hoverInfo.duration / 60) * hourWidth, 20)}px`,
                   top: `${hoverInfo.top}px`,
-                  height: '36px',
+                  height: `${barHeight}px`,
                   backgroundColor: hoverInfo.color + '18',
                   borderTop: `2px solid ${hoverInfo.color}50`,
                   borderBottom: `2px solid ${hoverInfo.color}50`,
@@ -470,7 +502,7 @@ function DayBlock({
                 transition={{ duration: 0.1 }}
                 className="absolute pointer-events-none z-30"
                 style={{
-                  left: `${((hoverInfo.minutes - START_HOUR * 60) / 60) * HOUR_WIDTH}px`,
+                  left: `${((hoverInfo.minutes - START_HOUR * 60) / 60) * hourWidth}px`,
                   width: '2px',
                   top: '4px',
                   bottom: '4px',
@@ -487,7 +519,7 @@ function DayBlock({
             <AnimatePresence mode="popLayout">
               {dayShifts.map((shift) => {
                 const empIdx = sortedEmployees.findIndex(e => e.id === shift.employeeId);
-                const shiftTop = 40 + (empIdx >= 0 ? empIdx : 0) * EMPLOYEE_ROW_HEIGHT + 4;
+                const shiftTop = 40 + (empIdx >= 0 ? empIdx : 0) * rowHeight + 4;
                 return (
                   <ShiftBar
                     key={shift.id}
@@ -495,6 +527,7 @@ function DayBlock({
                     onEdit={onEdit}
                     onDelete={onDelete}
                     top={shiftTop}
+                    hourWidth={hourWidth}
                   />
                 );
               })}
@@ -923,6 +956,15 @@ export function SwimlaneCalendar({
   }
   const days = allDays.filter(day => getWeekType(day) === currentWeek);
 
+  const [popoutDate, setPopoutDate] = useState<Date | null>(null);
+  const popoutIndex = popoutDate ? days.findIndex(d => d.toISOString() === popoutDate.toISOString()) : -1;
+
+  const popoutContentRef = useRef<HTMLDivElement>(null);
+  const popoutSize = useMeasuredSize(popoutContentRef);
+  const popoutSizes = computePopoutSizes(popoutSize.width, popoutSize.height, employees.length);
+
+  const handleExpandDay = (date: Date) => setPopoutDate(date);
+
   return (
     <div className="space-y-4 select-none">
       <div>
@@ -942,9 +984,50 @@ export function SwimlaneCalendar({
             onDelete={handleDelete}
             approvedWishes={approvedWishes}
             onWishClick={handleWishClick}
+            onExpand={handleExpandDay}
           />
         ))}
       </div>
+
+      <DayDetailDialog
+        open={popoutDate !== null}
+        onOpenChange={(open) => !open && setPopoutDate(null)}
+        title={
+          popoutDate
+            ? popoutDate.toLocaleDateString('de-DE', { timeZone: TIMEZONE, weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })
+            : ''
+        }
+        description="Vergrößerte Tagesansicht – Schichten verschieben, bearbeiten und hinzufügen"
+        showNavigation
+        fullScreen
+        hasPrev={popoutIndex > 0}
+        hasNext={popoutIndex >= 0 && popoutIndex < days.length - 1}
+        onPrev={() => setPopoutDate(days[popoutIndex - 1] ?? null)}
+        onNext={() => setPopoutDate(days[popoutIndex + 1] ?? null)}
+      >
+        <div ref={popoutContentRef} className="h-full min-h-0">
+          {popoutDate && (
+            <DayBlock
+              date={popoutDate}
+              shifts={schedule.shifts}
+              employees={employees}
+              onDrop={handleDrop}
+              onDropInDay={handleDropInDay}
+              onDropOnEmployee={handleDropOnEmployee}
+              onEmployeeDrop={handleEmployeeDrop}
+              onBreakUpdate={handleBreakUpdate}
+              onClick={handleDayClick}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              approvedWishes={approvedWishes}
+              onWishClick={handleWishClick}
+              hourWidth={popoutSizes.hourWidth}
+              rowHeight={popoutSizes.rowHeight}
+              barHeight={popoutSizes.barHeight}
+            />
+          )}
+        </div>
+      </DayDetailDialog>
 
       <EditShiftDialog
         shift={editingShift}

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { SwimlaneCalendar } from './SwimlaneCalendar';
 import { TestWrapper, mockSchedule } from '../../test/test-utils';
 
@@ -60,5 +61,68 @@ describe('SwimlaneCalendar', () => {
     expect(screen.queryByText(/15\.?\s*Juni/)).not.toBeInTheDocument();
     expect(screen.queryByText(/16\.?\s*Juni/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Schicht.*bearbeiten/)).not.toBeInTheDocument();
+  });
+});
+
+describe('SwimlaneCalendar - Tages-Popout', () => {
+  it('zeigt für jeden Tag einen Übergrößern-Trigger mit aria-label', () => {
+    renderSwimlane();
+    const triggers = screen.getAllByRole('button', { name: 'Tag vergrößern' });
+    expect(triggers.length).toBe(7);
+    expect(triggers[0]).toHaveAttribute('aria-label', 'Tag vergrößern');
+  });
+
+  it('öffnet das Tages-Popout mit Blur-Overlay', async () => {
+    const user = userEvent.setup();
+    renderSwimlane();
+    await user.click(screen.getAllByRole('button', { name: 'Tag vergrößern' })[0]);
+
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay!.className).toContain('backdrop-blur-sm');
+
+    expect(screen.getByRole('heading', { level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('zeigt den vergrößerten Tag mit Mitarbeiter-Zeilen und Schichten', async () => {
+    const user = userEvent.setup();
+    renderSwimlane();
+    await user.click(screen.getAllByRole('button', { name: 'Tag vergrößern' })[0]);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('navigiert im Popout mit Vor/Zurück-Buttons zum nächsten Tag', async () => {
+    const user = userEvent.setup();
+    renderSwimlane();
+    await user.click(screen.getAllByRole('button', { name: 'Tag vergrößern' })[0]);
+
+    expect(screen.getByRole('button', { name: 'Voriger Tag' })).toBeDisabled();
+
+    const nextButton = screen.getByRole('button', { name: 'Nächster Tag' });
+    await user.click(nextButton);
+
+    const heading = screen.getByRole('heading', { level: 2 });
+    expect(heading).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Voriger Tag' })).toBeEnabled();
+  });
+
+  it('öffnet weiterhin den Schicht-hinzufügen-Dialog bei Klick auf den Tag', async () => {
+    const user = userEvent.setup();
+    renderSwimlane();
+    await user.click(screen.getAllByText('09:00')[0]);
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 2 })).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Schicht hinzufügen/)).toBeInTheDocument();
+  });
+
+  it('schließt das Popout mit dem Schließen-Button', async () => {
+    const user = userEvent.setup();
+    renderSwimlane();
+    await user.click(screen.getAllByRole('button', { name: 'Tag vergrößern' })[0]);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
