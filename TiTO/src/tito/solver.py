@@ -243,7 +243,8 @@ def _emp_contract_hours(employee: dict, default_weekly: float) -> float:
 def _slot_required_skills(req: dict, template: dict) -> list[str]:
     needed = req.get("neededSkills")
     if isinstance(needed, dict) and needed:
-        return list(needed.keys())
+        # Fix 4: Skill-Zähler 0 stellt keine Anforderung dar und wird ignoriert
+        return [str(s) for s, cnt in needed.items() if int(cnt) > 0]
     skills = req.get("skills")
     if isinstance(skills, list) and skills:
         return [str(s) for s in skills]
@@ -302,10 +303,18 @@ def _prepare(model: dict) -> dict:
 
         needed = req.get("neededSkills")
         if isinstance(needed, dict) and needed:
+            # Fix 4: Skills mit Zaehler 0 erzeugen keinen Slot; ein Requirement
+            # ohne positive Anforderung liefert gar keinen Slot (statt einen
+            # unsichtbaren mandatory-Slot).
             per_skill = []
-            for skill, count in needed.items():
-                per_skill.extend([str(skill)] * max(1, int(count)))
-            count = req.get("count")
+            for skill, skill_count in needed.items():
+                positive = int(skill_count)
+                if positive > 0:
+                    per_skill.extend([str(skill)] * positive)
+            explicit_count = req.get("count")
+            if not per_skill and explicit_count is None:
+                continue
+            count = explicit_count
             if count is None:
                 count = len(per_skill)
             count = max(1, int(count))
@@ -576,7 +585,11 @@ def _build_cp_model(ctx: dict, relaxed: frozenset, with_objective: bool = True) 
     req_days = set(slots_by_date.keys())
 
     # --- Tagesmaximum § 3/§ 4 (Netto; kumulative Pausen pro Arbeitstag; Teilschichten) ---
+    # Die § 4-Pausen-Indikatoren werden pro (MA, Arbeitstag) erstellt und auch vom
+    # Wochenlimit genutzt, damit Tages- und Wochenaccounting konsistent sind (Fix 3):
+    # der Wochenwert ist die Summe der Tagesnetto-Zeiten (Brutto - Tagespausen).
     emp_breaks = [int(e.get("breakMinutes") or 0) for e in employees]
+    day_info: dict[tuple[int, str], dict] = {}
     for emp_idx, employee in enumerate(employees):
         if emp_idx not in valid_slots_by_emp:
             continue
@@ -585,8 +598,6 @@ def _build_cp_model(ctx: dict, relaxed: frozenset, with_objective: bool = True) 
             max_daily = min(max_daily, int(float(employee["maxDailyHours"]) * 60))
         if employee.get("isMinor") and "minor_rules" not in relaxed:
             max_daily = min(max_daily, MINOR_MAX_DAILY_MINUTES)
-        if "daily_max" in relaxed:
-            continue
         for date, indices in slots_by_date.items():
             day_vars = _vars_for(emp_idx, indices)
             if not day_vars:
@@ -596,20 +607,24 @@ def _build_cp_model(ctx: dict, relaxed: frozenset, with_objective: bool = True) 
             brutto_expr = LinearExpr.sum(brutto_terms) + pre_brutto
             brutto_possible = sum(slots[i]["brutto"] for i in indices) + pre_brutto
 
-            b30 = b45 = None
+            law_terms = []
             if brutto_possible > 6 * 60:
                 b30 = cp.new_bool_var(f"b30_e{emp_idx}_{date}")
                 cp.add(brutto_expr >= 6 * 60 + 1).only_enforce_if(b30)
                 cp.add(brutto_expr <= 6 * 60).only_enforce_if(b30.Not())
+                law_terms.append((b30, LAW_BREAK_6H))
             if brutto_possible > 9 * 60:
                 b45 = cp.new_bool_var(f"b45_e{emp_idx}_{date}")
                 cp.add(brutto_expr >= 9 * 60 + 1).only_enforce_if(b45)
                 cp.add(brutto_expr <= 9 * 60).only_enforce_if(b45.Not())
+                law_terms.append((b45, LAW_BREAK_9H_EXTRA))
+            day_info[(emp_idx, date)] = {"brutto_expr": brutto_expr, "law_terms": law_terms}
+
+            if "daily_max" in relaxed:
+                continue
             law_expr = 0
-            if b30 is not None:
-                law_expr += b30 * LAW_BREAK_6H
-            if b45 is not None:
-                law_expr += b45 * LAW_BREAK_9H_EXTRA
+            if law_terms:
+                law_expr = LinearExpr.sum([var * weight for var, weight in law_terms])
             cp.add(brutto_expr - law_expr <= max_daily)
 
             rec_terms = [
@@ -621,28 +636,40 @@ def _build_cp_model(ctx: dict, relaxed: frozenset, with_objective: bool = True) 
                 cp.add(brutto_expr - LinearExpr.sum(rec_terms) <= max_daily)
 
     # --- Wochenstunden: min(Vertrag, § 3 Gesetz, JArbSchG) inkl. preShifts (C8) ---
-    slots_by_week: dict[tuple[int, int], list[int]] = defaultdict(list)
-    for slot in slots:
-        slots_by_week[_date_to_week_key(slot["date"])].append(slot["index"])
-    for emp_idx, employee in enumerate(employees):
-        if emp_idx not in valid_slots_by_emp:
-            continue
-        if "weekly_hours" in relaxed:
-            continue
-        contract = _emp_contract_hours(employee, ctx["default_weekly_hours"])
-        weekly_limit = min(int(contract * 60), ctx["law_weekly_minutes"])
-        if employee.get("isMinor") and "minor_rules" not in relaxed:
-            weekly_limit = min(weekly_limit, MINOR_MAX_WEEKLY_MINUTES)
-        pre_by_week: dict[tuple[int, int], int] = defaultdict(int)
-        for pre in ctx["pre_shifts"].get(emp_idx, []):
-            pre_by_week[pre["week_key"]] += pre["netto"]
-        for week_key in set(list(slots_by_week.keys()) + list(pre_by_week.keys())):
-            week_vars = _vars_for(emp_idx, slots_by_week.get(week_key, []))
-            pre_netto = pre_by_week.get(week_key, 0)
-            if not week_vars and pre_netto == 0:
+    # Wochenlimit als Summe der Tagesnetto-Zeiten (Brutto minus kumulative
+    # Tagespause), damit Tages- und Wochenlimit denselben § 4-Pausenabzug nutzen.
+    if "weekly_hours" not in relaxed:
+        for emp_idx, employee in enumerate(employees):
+            if emp_idx not in valid_slots_by_emp:
                 continue
-            netto_terms = [var * slots[i]["netto"] for var, i in zip(week_vars, slots_by_week.get(week_key, []))]
-            cp.add(LinearExpr.sum(netto_terms) + pre_netto <= weekly_limit)
+            contract = _emp_contract_hours(employee, ctx["default_weekly_hours"])
+            weekly_limit = min(int(contract * 60), ctx["law_weekly_minutes"])
+            if employee.get("isMinor") and "minor_rules" not in relaxed:
+                weekly_limit = min(weekly_limit, MINOR_MAX_WEEKLY_MINUTES)
+
+            emp_date_indices: dict[str, list[int]] = defaultdict(list)
+            for slot_idx in valid_slots_by_emp[emp_idx]:
+                emp_date_indices[slots[slot_idx]["date"]].append(slot_idx)
+            pre_brutto_by_date: dict[str, int] = defaultdict(int)
+            for pre in ctx["pre_shifts"].get(emp_idx, []):
+                pre_brutto_by_date[pre["date"]] += pre["brutto"]
+
+            usage_by_week: dict[tuple[int, int], list] = defaultdict(list)
+            all_dates = set(emp_date_indices) | set(pre_brutto_by_date)
+            for date in all_dates:
+                week_key = _date_to_week_key(date)
+                info = day_info.get((emp_idx, date))
+                pre_brutto = pre_brutto_by_date[date]
+                if info is not None:
+                    if info["law_terms"]:
+                        law_expr = LinearExpr.sum([var * weight for var, weight in info["law_terms"]])
+                        usage_by_week[week_key].append(info["brutto_expr"] - law_expr)
+                    else:
+                        usage_by_week[week_key].append(info["brutto_expr"])
+                else:
+                    usage_by_week[week_key].append(pre_brutto - _law_break_minutes(pre_brutto))
+            for week_key, usage_terms in usage_by_week.items():
+                cp.add(LinearExpr.sum(usage_terms) <= weekly_limit)
 
     # --- Ruhezeit § 5/§ 21/§ 16 JArbSchG (absolute Zeiten, B3; Teilschichten, C6) ---
     if "rest_time" not in relaxed:
@@ -707,6 +734,7 @@ def _build_cp_model(ctx: dict, relaxed: frozenset, with_objective: bool = True) 
             for emp_idx in valid_slots_by_emp:
                 if (emp_idx, date) not in works:
                     continue
+                pre_dates = {p["date"] for p in ctx["pre_shifts"].get(emp_idx, [])}
                 free_vars = []
                 satisfied = False
                 for offset in range(1, window + 1):
@@ -715,7 +743,14 @@ def _build_cp_model(ctx: dict, relaxed: frozenset, with_objective: bool = True) 
                         satisfied = True
                         break
                     target_key = target_dt.strftime("%Y-%m-%d")
-                    if target_key not in req_days or (emp_idx, target_key) not in works:
+                    if target_key not in req_days:
+                        if target_key in pre_dates:
+                            continue
+                        satisfied = True
+                        break
+                    if (emp_idx, target_key) not in works:
+                        if target_key in pre_dates:
+                            continue
                         satisfied = True
                         break
                     free_var = cp.new_bool_var(f"free_e{emp_idx}_d{target_key}")
@@ -1066,6 +1101,7 @@ def solve_model(model: dict, timeout_seconds: float = 300) -> dict:
 
     assignments_solution: list[dict] = []
     assigned_by_orig: dict[int, int] = defaultdict(int)
+    assigned_slots: set[int] = set()
     employees = ctx["employees"]
     for slot in slots:
         for emp_idx in artifacts["valid_by_slot"][slot["index"]]:
@@ -1089,23 +1125,21 @@ def solve_model(model: dict, timeout_seconds: float = 300) -> dict:
                     }
                 )
                 assigned_by_orig[slot["orig_index"]] += 1
+                assigned_slots.add(slot["index"])
 
-    # unassignedRequirements originalgetreu (D7)
+    # unassignedRequirements originalgetreu (D7); Fix 5: Pflicht-/Optional-Slots
+    # werden slot-genau gezählt statt per Count-Differenz geschätzt.
     unassigned_requirements: list[dict] = []
     violations: list[dict] = []
-    orig_counts: dict[int, int] = defaultdict(int)
-    orig_total_slots: dict[int, int] = defaultdict(int)
+    slots_by_orig: dict[int, list[dict]] = defaultdict(list)
     for slot in slots:
-        if slot["mandatory"]:
-            orig_counts[slot["orig_index"]] += 1
-        orig_total_slots[slot["orig_index"]] += 1
+        slots_by_orig[slot["orig_index"]].append(slot)
     for orig_index, req in enumerate(ctx["requirements"]):
-        expected = orig_total_slots[orig_index]
-        assigned = assigned_by_orig.get(orig_index, 0)
-        missing = expected - assigned
+        orig_slots = slots_by_orig.get(orig_index, [])
+        missing = sum(1 for s in orig_slots if s["index"] not in assigned_slots)
         if missing <= 0:
             continue
-        mandatory_missing = max(0, orig_counts[orig_index] - min(assigned, orig_counts[orig_index]))
+        mandatory_missing = sum(1 for s in orig_slots if s["mandatory"] and s["index"] not in assigned_slots)
         unassigned_requirements.append(
             {
                 "date": req.get("date"),
@@ -1193,11 +1227,14 @@ def solve_model(model: dict, timeout_seconds: float = 300) -> dict:
 
     employee_utilization: dict[str, float] = {str(e.get("id")): 0.0 for e in employees}
     utilization_by_idx: dict[int, float] = defaultdict(float)
+    mandatory_utilization_by_idx: dict[int, float] = defaultdict(float)
     for slot in slots:
         for emp_idx in artifacts["valid_by_slot"][slot["index"]]:
             var = artifacts["assignments"].get((emp_idx, slot["index"]))
             if var is not None and solver.Value(var) == 1:
                 utilization_by_idx[emp_idx] += slot["netto"] / 60.0
+                if slot["mandatory"]:
+                    mandatory_utilization_by_idx[emp_idx] += slot["netto"] / 60.0
     for emp_idx, employee in enumerate(employees):
         employee_utilization[str(employee.get("id"))] = round(utilization_by_idx.get(emp_idx, 0.0), 2)
 
@@ -1209,7 +1246,11 @@ def solve_model(model: dict, timeout_seconds: float = 300) -> dict:
         contract_hours = _emp_contract_hours(employee, ctx["default_weekly_hours"])
         target_hours = artifacts["fairness_targets"].get(emp_idx, 0) / 60.0
         projected = balance + (scheduled - target_hours)
-        deviation = abs(scheduled - target_hours + balance)
+        # Fix 1: Fairness-Abweichung deckungsgleich zum Modell (Zielfunktion misst
+        # nur die Abweichung der Pflicht-Slots vom Vertragsanteil; optionale Slots
+        # und der Zeitkontostand fliessen nicht in die Strafe ein).
+        mandatory_scheduled = mandatory_utilization_by_idx.get(emp_idx, 0.0)
+        deviation = abs(mandatory_scheduled - target_hours)
         employee_fairness[emp_id] = {
             "currentBalanceHours": round(balance, 2),
             "scheduledHours": round(scheduled, 2),

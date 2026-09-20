@@ -281,6 +281,20 @@ def _sundays_in_period(period_start: date, period_end: date) -> list[date]:
 
 
 # ── Public validation functions (4 core checks) ─────────────────────────────
+def _from_current_plan(shift: dict[str, Any]) -> bool:
+    """Cross-plan attribution: False for shifts loaded from other plans."""
+    return shift.get("_source") != "other"
+
+
+def _tagged(shifts: list[dict[str, Any]], source: str) -> list[dict[str, Any]]:
+    tagged: list[dict[str, Any]] = []
+    for s in shifts:
+        copy = dict(s)
+        copy["_source"] = source
+        tagged.append(copy)
+    return tagged
+
+
 def validate_rest_time(shifts: list[dict[str, Any]]) -> list[ArbZgViolation]:
     """Check § 5 ArbZG: minimum 11h rest between consecutive shifts for each employee.
 
@@ -294,6 +308,8 @@ def validate_rest_time(shifts: list[dict[str, Any]]) -> list[ArbZgViolation]:
         for i in range(1, len(sorted_shifts)):
             prev_end = _shift_end_datetime(sorted_shifts[i - 1])
             curr_start = _shift_start_datetime(sorted_shifts[i])
+            if not _from_current_plan(sorted_shifts[i]) and not _from_current_plan(sorted_shifts[i - 1]):
+                continue  # fully inside other plans: already accepted
             gap = curr_start - prev_end
             gap_hours = gap.total_seconds() / 3600.0
             if gap_hours < MIN_REST_HOURS:
@@ -400,10 +416,15 @@ def validate_consecutive_days(shifts: list[dict[str, Any]]) -> list[ArbZgViolati
     After 6 consecutive working days the 7th+ day is a violation.
     """
     violations: list[ArbZgViolation] = []
+    cross_plan = any(not _from_current_plan(s) for s in shifts)
     for eid, emp_shifts in _shifts_by_employee(shifts).items():
         working_dates: set[date] = set()
+        current_dates: set[date] = set()
         for s in emp_shifts:
-            working_dates.update(_covered_days(s))
+            covered = _covered_days(s)
+            working_dates.update(covered)
+            if _from_current_plan(s):
+                current_dates.update(covered)
 
         if not working_dates:
             continue
@@ -416,7 +437,7 @@ def validate_consecutive_days(shifts: list[dict[str, Any]]) -> list[ArbZgViolati
             else:
                 streak = 1
 
-            if streak > MAX_CONSECUTIVE_DAYS:
+            if streak > MAX_CONSECUTIVE_DAYS and (not cross_plan or current_dates & set(sorted_dates[i - streak + 1 : i + 1])):
                 violations.append(
                     ArbZgViolation(
                         rule="consecutive_days",
@@ -500,14 +521,19 @@ def validate_weekly_hours(
     """
     emp_index = {_employee_id(e): e for e in (employees or [])}
     weekly: dict[tuple[int, int], dict[int, float]] = {}
+    current_weeks: set[tuple[int, int, int]] = set()
     for s in shifts:
         year, week, _ = _to_date(s["date"]).isocalendar()
         weekly.setdefault((year, week), {}).setdefault(s["employee_id"], 0.0)
         weekly[(year, week)][s["employee_id"]] += _shift_net_hours(s)
+        if _from_current_plan(s):
+            current_weeks.add((year, week, s["employee_id"]))
 
     violations: list[ArbZgViolation] = []
     for (year, week), emp_hours in sorted(weekly.items()):
         for eid, net_hours in emp_hours.items():
+            if (year, week, eid) not in current_weeks:
+                continue  # week fully planned in other plans: already accepted
             contract = _employee_weekly_hours(emp_index.get(eid))
             if net_hours > MAX_WEEKLY_HOURS_LAW:
                 violations.append(
@@ -775,6 +801,8 @@ def validate_minor_rules(
         # rest time (12h)
         sorted_shifts = sorted(emp_shifts, key=lambda s: _shift_start_datetime(s))
         for i in range(1, len(sorted_shifts)):
+            if not _from_current_plan(sorted_shifts[i]) and not _from_current_plan(sorted_shifts[i - 1]):
+                continue
             gap = _shift_start_datetime(sorted_shifts[i]) - _shift_end_datetime(sorted_shifts[i - 1])
             gap_hours = gap.total_seconds() / 3600.0
             if gap_hours < MINOR_MIN_REST_HOURS:
@@ -891,6 +919,7 @@ def validate_schedule(
     night_window_start: str | None = None,
     night_window_end: str | None = None,
     weekly_history: dict[int, list[tuple[int, int, float]]] | None = None,
+    planned_shifts: list[dict[str, Any]] | None = None,
 ) -> ArbZgResult:
     """Run all ArbZG validations on a schedule (manual path AND TiTO callback path).
 
@@ -906,6 +935,12 @@ def validate_schedule(
       - night_window_start/night_window_end: § 6 night window ("HH:MM")
       - weekly_history: {employee_id: [(iso_year, iso_week, hours)]} from
         Timecards for the rolling 24-week average (§ 3 S. 2)
+      - planned_shifts: shifts from other existing plans (same employees);
+        they extend § 5 rest, § 3 + § 9 consecutive days and § 3 weekly
+        hours across plan boundaries. Not-yet-planned weeks contribute
+        nothing and are assumed valid ("Rahmenbedingungen"). Violations
+        are only flagged when at least one involved shift belongs to the
+        caller's plan.
 
     Returns an ArbZgResult; use ``has_hard_violations`` to decide rejection.
     """
@@ -921,25 +956,33 @@ def validate_schedule(
     else:
         all_shifts = list(schedule_shifts)
 
+    if planned_shifts is not None:
+        if not all_shifts:
+            return ArbZgResult(is_valid=True, violations=[])
+        all_shifts = _tagged(all_shifts, "current") + _tagged(planned_shifts, "other")
+        current_shifts = [s for s in all_shifts if _from_current_plan(s)]
+    else:
+        current_shifts = all_shifts
+
     if not all_shifts:
         return ArbZgResult(is_valid=True, violations=[])
 
-    p_start, p_end = _period_bounds(all_shifts, period_start, period_end)
+    p_start, p_end = _period_bounds(current_shifts, period_start, period_end)
     n_start = time.fromisoformat(night_window_start) if night_window_start else None
     n_end = time.fromisoformat(night_window_end) if night_window_end else None
 
     violations: list[ArbZgViolation] = []
     violations.extend(validate_rest_time(all_shifts))
-    violations.extend(validate_max_daily_hours(all_shifts))
-    violations.extend(validate_breaks(all_shifts))
+    violations.extend(validate_max_daily_hours(current_shifts))
+    violations.extend(validate_breaks(current_shifts))
     violations.extend(validate_consecutive_days(all_shifts))
     violations.extend(validate_weekly_hours(all_shifts, employees))
-    violations.extend(validate_sunday_quota(all_shifts, p_start, p_end))
-    violations.extend(validate_night_work(all_shifts, employees, n_start, n_end))
-    violations.extend(validate_ersatzruhetag(all_shifts, holidays, p_end))
+    violations.extend(validate_sunday_quota(current_shifts, p_start, p_end))
+    violations.extend(validate_night_work(current_shifts, employees, n_start, n_end))
+    violations.extend(validate_ersatzruhetag(current_shifts, holidays, p_end))
     violations.extend(validate_weekly_average(weekly_history, p_start))
     violations.extend(validate_minor_rules(all_shifts, employees, holidays))
-    violations.extend(validate_muschg(all_shifts, employees))
+    violations.extend(validate_muschg(current_shifts, employees))
 
     is_valid = len(violations) == 0
     if not is_valid:

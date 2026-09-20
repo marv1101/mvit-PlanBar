@@ -282,3 +282,83 @@ def test_replace_all_shifts_not_found(client, auth_headers):
         headers=auth_headers,
     )
     assert response.status_code == 404
+
+
+def _shiftplan_payload(employee_id, d, start, end, break_start=None, break_end=None):
+    return {
+        "employee_id": employee_id,
+        "date": d,
+        "shift_id": "früh",
+        "start_time": start,
+        "end_time": end,
+        "break_start": break_start,
+        "break_end": break_end,
+    }
+
+
+def test_single_shift_hard_violation_from_other_plan_blocked(client, auth_headers):
+    """Cross-plan: REST-Verstoß gegen einen existenten anderen Plan → 422."""
+    other = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Cross Other Oct",
+            "start_date": "2026-10-05",
+            "end_date": "2026-10-11",
+            "shiftplans": [_shiftplan_payload(1, "2026-10-05", "06:00:00", "22:00:00")],
+        },
+        headers=auth_headers,
+    )
+    assert other.status_code == 201
+
+    target = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Cross Target Oct",
+            "start_date": "2026-10-05",
+            "end_date": "2026-10-11",
+            "shiftplans": [_shiftplan_payload(1, "2026-10-06", "12:00", "20:00", "16:00", "16:30")],
+        },
+        headers=auth_headers,
+    )
+    assert target.status_code == 201
+    target_id = target.json()["id"]
+    shiftplan_id = target.json()["shiftplans"][0]["id"]
+
+    response = client.put(
+        f"/api/v1/schedules/{target_id}/shifts/{shiftplan_id}",
+        json={"start_time": "06:00:00", "end_time": "14:00:00", "break_start": "10:00", "break_end": "10:30"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+    violations = response.json()["detail"]["violations"]
+    assert any(v["rule"] == "rest_time" for v in violations)
+
+
+def test_single_shift_ok_when_violation_only_inside_other_plans(client, auth_headers):
+    """Ein Verstoß, der nur innerhalb existenter Pläne entsteht, blockt nicht."""
+    other = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Cross Bad Oct",
+            "start_date": "2026-11-02",
+            "end_date": "2026-11-08",
+            "shiftplans": [
+                _shiftplan_payload(1, "2026-11-02", "06:00", "22:00:00"),
+                _shiftplan_payload(1, "2026-11-03", "05:00", "14:00"),
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert other.status_code == 201
+
+    target = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Cross Target Nov",
+            "start_date": "2026-11-02",
+            "end_date": "2026-11-08",
+            "shiftplans": [_shiftplan_payload(1, "2026-11-06", "08:00", "16:00", "12:00", "12:30")],
+        },
+        headers=auth_headers,
+    )
+    assert target.status_code == 201
