@@ -103,21 +103,46 @@ def test_empty_without_schedule_period(db_session):
 # ── combine_weekly_history (rolling average across plans) ───────────────────
 
 
-
 def test_planned_past_weeks_added_to_history():
-    cross = [{"employee_id": 1, "date": date(2026, 5, 11), "start_time": time(8, 0), "end_date": date(2026, 5, 11), "end_time": time(16, 0), "break_start": "12:00", "break_end": "12:30"}]
+    cross = [
+        {
+            "employee_id": 1,
+            "date": date(2026, 5, 11),
+            "start_time": time(8, 0),
+            "end_date": date(2026, 5, 11),
+            "end_time": time(16, 0),
+            "break_start": "12:00",
+            "break_end": "12:30",
+        }
+    ]
     history = combine_weekly_history({}, cross, date(2026, 6, 1))
     assert history == {1: [(2026, 20, 7.5)]}
 
 
 def test_timecard_wins_over_planned_hours():
-    cross = [{"employee_id": 1, "date": date(2026, 5, 11), "start_time": time(8, 0), "end_date": date(2026, 5, 11), "end_time": time(16, 0)}]
+    cross = [
+        {
+            "employee_id": 1,
+            "date": date(2026, 5, 11),
+            "start_time": time(8, 0),
+            "end_date": date(2026, 5, 11),
+            "end_time": time(16, 0),
+        }
+    ]
     history = combine_weekly_history({1: [(2026, 20, 30.0)]}, cross, date(2026, 6, 1))
     assert history == {1: [(2026, 20, 30.0)]}
 
 
 def test_weeks_from_current_period_ignored():
-    cross = [{"employee_id": 1, "date": date(2026, 6, 2), "start_time": time(8, 0), "end_date": date(2026, 6, 2), "end_time": time(16, 0)}]
+    cross = [
+        {
+            "employee_id": 1,
+            "date": date(2026, 6, 2),
+            "start_time": time(8, 0),
+            "end_date": date(2026, 6, 2),
+            "end_time": time(16, 0),
+        }
+    ]
     assert combine_weekly_history({}, cross, date(2026, 6, 1)) == {}
 
 

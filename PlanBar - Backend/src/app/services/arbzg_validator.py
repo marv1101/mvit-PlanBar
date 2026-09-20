@@ -437,7 +437,9 @@ def validate_consecutive_days(shifts: list[dict[str, Any]]) -> list[ArbZgViolati
             else:
                 streak = 1
 
-            if streak > MAX_CONSECUTIVE_DAYS and (not cross_plan or current_dates & set(sorted_dates[i - streak + 1 : i + 1])):
+            if streak > MAX_CONSECUTIVE_DAYS and (
+                not cross_plan or current_dates & set(sorted_dates[i - streak + 1 : i + 1])
+            ):
                 violations.append(
                     ArbZgViolation(
                         rule="consecutive_days",
