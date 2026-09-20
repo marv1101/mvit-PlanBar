@@ -9,6 +9,7 @@ from app.config import settings
 from app.db.models.employee import Contract, Employee, Timecard
 from app.db.models.schedule import Schedule, Shiftplan
 from app.schemas.tito import TiTOAssignment, TiTOCallbackPayload
+from app.services.arbzg_cross_plan import collect_cross_plan_shifts, combine_weekly_history
 from app.services.arbzg_rules import required_break_minutes
 from app.services.arbzg_validator import ArbZgResult, validate_schedule
 from app.services.holiday_service import get_german_holidays
@@ -287,6 +288,10 @@ def _arbzg_context(db: Session, parsed: list[_ParsedAssignment], schedule: Sched
             hours = tc.actual_hours if (tc.actual_hours or 0) > 0 else (tc.scheduled_hours or 0)
             weekly_history.setdefault(tc.employee_id, []).append((tc.year, tc.week, float(hours)))
 
+    cross_plan_shifts = collect_cross_plan_shifts(db, schedule, seen)
+    if schedule.start_date and cross_plan_shifts:
+        weekly_history = combine_weekly_history(weekly_history, cross_plan_shifts, schedule.start_date)
+
     return {
         "employees": employees,
         "holidays": holiday_dates,
@@ -295,6 +300,7 @@ def _arbzg_context(db: Session, parsed: list[_ParsedAssignment], schedule: Sched
         "night_window_start": settings.night_window_start,
         "night_window_end": settings.night_window_end,
         "weekly_history": weekly_history,
+        "planned_shifts": cross_plan_shifts,
     }
 
 

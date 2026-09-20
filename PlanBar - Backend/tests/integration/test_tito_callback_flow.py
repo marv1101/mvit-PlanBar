@@ -895,3 +895,51 @@ def test_callback_auth_no_key_rejects_in_production(client, db_session, test_sch
     finally:
         settings.tito_api_key = original_key
         settings.environment = original_env
+
+
+def test_callback_hard_violation_from_other_plan_rejects_solution(
+    client,
+    db_session: Session,
+    test_schedule: Schedule,
+    test_employee: Employee,
+):
+    """Cross-plan: HARD violation caused by a shift in ANOTHER plan → 'failed'."""
+    other = Schedule(
+        name="Cross Other",
+        status="completed",
+        start_date=date(2026, 5, 23),
+        end_date=date(2026, 5, 29),
+    )
+    db_session.add(other)
+    db_session.commit()
+    db_session.add(
+        Shiftplan(
+            schedule_id=other.id,
+            employee_id=test_employee.id,
+            date=date(2026, 5, 23),
+            shift_id="evening",
+            start_time=time(6, 0),
+            end_time=time(22, 0),
+        )
+    )
+    db_session.commit()
+
+    test_schedule.status = "submitted"
+    test_schedule.tito_job_id = 350
+    db_session.commit()
+
+    response = client.post(
+        "/api/v1/callbacks/tito",
+        json=_callback_payload(
+            350,
+            assignments=[
+                _assignment(test_employee, "2026-05-24", start="06:00", end="14:00", break_minutes=30),
+            ],
+        ),
+    )
+    assert response.status_code == 200
+
+    db_session.refresh(test_schedule)
+    assert test_schedule.status == "failed"
+    arbzg = test_schedule.diagnostics_json["arbZgViolations"]
+    assert any(v["rule"] == "rest_time" and v["severity"] == "HARD" for v in arbzg)

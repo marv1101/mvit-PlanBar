@@ -15,6 +15,7 @@ from app.db.models.shift_wish import ShiftWish
 from app.db.models.team import employee_teams
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ShiftplanCreate
 from app.services import audit_service, team_service
+from app.services.arbzg_cross_plan import CROSS_PLAN_WINDOW_DAYS, collect_cross_plan_shifts, combine_weekly_history
 from app.services.arbzg_validator import ArbZgResult, validate_schedule
 from app.services.holiday_service import get_german_holidays
 from app.services.notification_service import create_notification_and_push
@@ -76,6 +77,12 @@ def _build_arbzg_validation_kwargs(db: Session, schedule: Schedule, employee_ids
             hours = tc.actual_hours if (tc.actual_hours or 0) > 0 else (tc.scheduled_hours or 0)
             weekly_history.setdefault(tc.employee_id, []).append((tc.year, tc.week, float(hours)))
 
+    cross_plan_shifts = collect_cross_plan_shifts(db, schedule, employee_ids)
+    if schedule.start_date and cross_plan_shifts:
+        combined = combine_weekly_history(weekly_history, cross_plan_shifts, schedule.start_date)
+    else:
+        combined = weekly_history
+
     return {
         "employees": employees,
         "holidays": holidays,
@@ -83,7 +90,8 @@ def _build_arbzg_validation_kwargs(db: Session, schedule: Schedule, employee_ids
         "period_end": schedule.end_date,
         "night_window_start": settings.night_window_start,
         "night_window_end": settings.night_window_end,
-        "weekly_history": weekly_history,
+        "weekly_history": combined,
+        "planned_shifts": cross_plan_shifts,
     }
 
 
@@ -611,20 +619,22 @@ def _build_pre_shifts(db: Session | None, schedule: Schedule, employees: list[Em
     """C4a: existing shifts of the payload employees as preShifts for the solver.
 
     Includes ALL shiftplans (other schedules AND this schedule's draft) in
-    the planning period plus the 7-day window before start_date, so the
+    the same ±14-day window as the cross-plan ArbZG validator, so the
     solver can enforce rest time / consecutive days / weekly hours across
-    schedule boundaries. Format: {"employeeId", "date", "startTime", "endTime"}.
+    schedule boundaries and PlanBar's validator does not reject plans the
+    solver could have avoided. Format: {"employeeId", "date", "startTime", "endTime"}.
     """
     if db is None or not employees or not schedule.start_date or not schedule.end_date:
         return []
     employee_ids = [emp.id for emp in employees]
-    window_start = schedule.start_date - timedelta(days=7)
+    window_start = schedule.start_date - timedelta(days=CROSS_PLAN_WINDOW_DAYS)
+    window_end = schedule.end_date + timedelta(days=CROSS_PLAN_WINDOW_DAYS)
     rows = (
         db.query(Shiftplan)
         .filter(
             Shiftplan.employee_id.in_(employee_ids),
             Shiftplan.date >= window_start,
-            Shiftplan.date <= schedule.end_date,
+            Shiftplan.date <= window_end,
         )
         .order_by(Shiftplan.employee_id, Shiftplan.date)
         .all()

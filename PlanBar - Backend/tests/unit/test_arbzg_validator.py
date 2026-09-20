@@ -117,6 +117,144 @@ class TestValidSchedulePasses:
         assert result.is_valid, [v.message for v in result.violations]
 
 
+# ── Cross-plan validation (planned_shifts) ──────────────────────────────────
+class TestCrossPlanValidation:
+    """Rules evaluated across plan boundaries; attribution to the current plan."""
+
+    D = date(2026, 6, 1)  # Monday, ISO week 23
+
+    def test_rest_time_violation_across_plan_boundary(self):
+        """Other plan ends 22:00, new plan starts 05:00 next day → HARD rest_time."""
+        d = self.D
+        other = [_shift(1, d, time(6, 0), d, time(22, 0))]
+        current = [_shift(1, d + timedelta(days=1), time(5, 0), d + timedelta(days=1), time(14, 0))]
+        result = validate_schedule(current, planned_shifts=other)
+        rules = _rules(result)
+        assert ("rest_time", "HARD") in rules
+
+    def test_sufficient_rest_across_plan_boundary_passes(self):
+        d = self.D
+        other = [_shift(1, d, time(6, 0), d, time(22, 0))]
+        current = [_shift(1, d + timedelta(days=1), time(9, 30), d + timedelta(days=1), time(14, 0))]
+        result = validate_schedule(current, planned_shifts=other)
+        assert result.is_valid, [v.message for v in result.violations]
+
+    def test_rest_violation_inside_other_plan_only_not_flagged(self):
+        """A violation fully contained in existing plans must not block the new plan."""
+        d = self.D
+        other = [
+            _shift(1, d, time(6, 0), d, time(22, 0)),
+            _shift(1, d + timedelta(days=1), time(5, 0), d + timedelta(days=1), time(14, 0)),
+        ]
+        current = [_shift(1, d + timedelta(days=5), time(8, 0), d + timedelta(days=5), time(16, 0), "12:00", "12:30")]
+        result = validate_schedule(current, planned_shifts=other)
+        assert result.is_valid, [v.message for v in result.violations]
+
+    def test_consecutive_days_across_boundary(self):
+        """Other plan: Sat+Sun; new plan: Mon..Thu → 6 days allowed... 7th flagged."""
+        d = self.D  # Mon 2026-06-01 → Sat = d+5, Sun = d+6
+        other = [
+            _shift(1, d + timedelta(days=5), time(8, 0), d + timedelta(days=5), time(16, 0), "12:00", "12:30"),
+            _shift(1, d + timedelta(days=6), time(8, 0), d + timedelta(days=6), time(16, 0), "12:00", "12:30"),
+        ]
+        six_days = [
+            _shift(1, d + timedelta(days=7 + i), time(8, 0), d + timedelta(days=7 + i), time(16, 0), "12:00", "12:30")
+            for i in range(4)
+        ]
+        result = validate_schedule(six_days, planned_shifts=other)
+        assert result.is_valid, [v.message for v in result.violations]
+
+        seven_days = [
+            _shift(1, d + timedelta(days=7 + i), time(8, 0), d + timedelta(days=7 + i), time(16, 0), "12:00", "12:30")
+            for i in range(5)
+        ]
+        result = validate_schedule(seven_days, planned_shifts=other)
+        rules = _rules(result)
+        assert ("consecutive_days", "HARD") in rules
+
+    def test_consecutive_days_inside_other_plan_not_flagged(self):
+        d = self.D
+        other = [
+            _shift(1, d + timedelta(days=5), time(6, 0), d + timedelta(days=5), time(22, 0)),
+            _shift(1, d + timedelta(days=6), time(5, 0), d + timedelta(days=6), time(14, 0)),
+            _shift(1, d + timedelta(days=7), time(5, 0), d + timedelta(days=7), time(14, 0)),
+            _shift(1, d + timedelta(days=8), time(5, 0), d + timedelta(days=8), time(14, 0)),
+            _shift(1, d + timedelta(days=9), time(5, 0), d + timedelta(days=9), time(14, 0)),
+            _shift(1, d + timedelta(days=10), time(5, 0), d + timedelta(days=10), time(14, 0)),
+            _shift(1, d + timedelta(days=11), time(5, 0), d + timedelta(days=11), time(14, 0)),
+        ]
+        current = [_shift(2, d, time(8, 0), d, time(16, 0), "12:00", "12:30")]
+        result = validate_schedule(current, planned_shifts=other, employees=[_emp(1), _emp(2)])
+        assert result.is_valid, [v.message for v in result.violations]
+
+    def test_weekly_hours_exceeded_across_plans(self):
+        """Other plan 50h + new plan 3h in same ISO week → weekly_hours_law (HARD)."""
+        monday = date(2026, 6, 1)
+        other = [
+            _shift(1, monday + timedelta(days=i), time(7, 0), monday + timedelta(days=i), time(17, 0))
+            for i in range(5)  # 5 × 10h = 50h
+        ]
+        current = [
+            _shift(1, monday + timedelta(days=i), time(9, 0), monday + timedelta(days=i), time(12, 0))
+            for i in range(5, 6)  # Sun? no — d+5 = Saturday 3h...
+        ]
+        result = validate_schedule(current, planned_shifts=other)
+        rules = _rules(result)
+        assert ("weekly_hours_law", "HARD") in rules
+
+    def test_week_without_current_plan_shifts_not_flagged(self):
+        """Other plan alone exceeds the weekly limit; new plan only in another week → ok."""
+        d = self.D
+        other = [
+            _shift(1, d + timedelta(days=i), time(7, 0), d + timedelta(days=i), time(20, 0), "12:00", "12:45")
+            for i in range(5)  # 5 × 13h = 65h
+        ]
+        next_monday = date(2026, 6, 8)
+        current = [
+            _shift(1, next_monday, time(8, 0), next_monday, time(16, 0), "12:00", "12:30"),
+        ]
+        result = validate_schedule(current, planned_shifts=other)
+        assert result.is_valid, [v.message for v in result.violations]
+
+    def test_unplanned_week_neutral(self):
+        """Weeks with no planned shifts are assumed valid (no blocking)."""
+        d = self.D
+        current = [
+            _shift(1, d, time(8, 0), d, time(16, 0), "12:00", "12:30"),
+        ]
+        result = validate_schedule(current, planned_shifts=[])
+        assert result.is_valid, [v.message for v in result.violations]
+
+    def test_same_day_reconstruction_only_current_aggregates_for_daily_hours(self):
+        """Daily max uses current plan shifts only; cross shifts don't add up."""
+        d = self.D
+        other = [_shift(1, d, time(6, 0), d, time(13, 0))]  # 7h
+        current = [_shift(1, d, time(13, 30), d, time(19, 0))]  # 5.5h (gap < 11h -> rest violation expected)
+        result = validate_schedule(current, planned_shifts=other)
+        rules = _rules(result)
+        assert "max_daily_hours" not in [r for r, _ in rules]
+        assert "rest_time" in [r for r, _ in rules]
+
+    def test_attributed_rest_violation_when_other_shift_second(self):
+        """New plan ends late; other plan starts early next day → also flagged."""
+        d = self.D + timedelta(days=3)  # Thursday
+        current = [_shift(1, d, time(12, 0), d, time(22, 0))]
+        other = [_shift(1, d + timedelta(days=1), time(6, 0), d + timedelta(days=1), time(14, 0))]
+        result = validate_schedule(current, planned_shifts=other)
+        rules = _rules(result)
+        assert ("rest_time", "HARD") in rules
+
+    def test_behaviour_unchanged_without_planned_shifts(self):
+        """No planned_shifts kwarg → classic per-schedule result."""
+        d = self.D
+        shifts = [
+            _shift(1, d, time(6, 0), d, time(22, 0)),
+            _shift(1, d + timedelta(days=1), time(5, 0), d + timedelta(days=1), time(14, 0)),
+        ]
+        violations = validate_rest_time(shifts)
+        assert len(violations) == 1
+
+
 # ── test_violates_rest_time ─────────────────────────────────────────────────
 class TestViolatesRestTime:
     def test_two_shifts_with_less_than_11h_gap(self):

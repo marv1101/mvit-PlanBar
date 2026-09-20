@@ -1293,7 +1293,7 @@ def test_build_tito_payload_holiday_subdivision(db_session, monkeypatch):
 
 
 def test_build_tito_payload_pre_shifts(db_session):
-    """C4a: bestehende Shiftplans (andere + eigener Draft) als preShifts, 7-Tage-Fenster vor start."""
+    """C4a: bestehende Shiftplans (andere + eigener Draft) als preShifts, ±14-Tage-Fenster."""
     emp = Employee(first_name="Pre", last_name="Shift")
     db_session.add(emp)
     db_session.commit()
@@ -1316,7 +1316,11 @@ def test_build_tito_payload_pre_shifts(db_session):
     db_session.add_all(
         [
             _sp(other.id, date(2026, 5, 26), "in-window"),  # 6 Tage vor start → enthalten
-            _sp(other.id, date(2026, 5, 20), "too-old"),  # > 7 Tage vor start → draußen
+            _sp(other.id, date(2026, 5, 23), "deep-history"),  # 11 Tage vor start → alt 7-Tage-Fenster, neu enthalten
+            _sp(other.id, date(2026, 5, 18), "window-start-boundary"),  # genau start-14 → enthalten
+            _sp(other.id, date(2026, 5, 17), "too-old"),  # 15 Tage vor start → draußen
+            _sp(other.id, date(2026, 6, 9), "after-end"),  # 2 Tage nach end → neu enthalten
+            _sp(other.id, date(2026, 6, 22), "far-future"),  # > end+14 → draußen
             _sp(own.id, date(2026, 6, 2), "own-draft"),  # eigener Draft → enthalten
         ]
     )
@@ -1326,8 +1330,12 @@ def test_build_tito_payload_pre_shifts(db_session):
     pre = payload["preShifts"]
     dates = {(p["employeeId"], p["date"], p["startTime"], p["endTime"]) for p in pre}
     assert (f"emp_{emp.id:03d}", "2026-05-26", "08:00", "16:00") in dates
+    assert (f"emp_{emp.id:03d}", "2026-05-23", "08:00", "16:00") in dates
+    assert (f"emp_{emp.id:03d}", "2026-05-18", "08:00", "16:00") in dates
+    assert (f"emp_{emp.id:03d}", "2026-06-09", "08:00", "16:00") in dates
     assert (f"emp_{emp.id:03d}", "2026-06-02", "08:00", "16:00") in dates
-    assert all(p["date"] != "2026-05-20" for p in pre)
+    for excluded in ("2026-05-17", "2026-06-22"):
+        assert all(p["date"] != excluded for p in pre)
     assert all(p["employeeId"] == f"emp_{emp.id:03d}" for p in pre)
 
 
