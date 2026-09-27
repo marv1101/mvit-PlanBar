@@ -51,6 +51,8 @@ services:
       - API_URL=http://tito:5001
       - API_TOKEN=${TITO_API_KEY}
       - WORKER_API_TOKEN=${TITO_WORKER_API_KEY}
+      # F7: Callback-Auth-Header (deckt denselben Key ab wie API_TOKEN)
+      - TITO_CALLBACK_API_KEY=${TITO_API_KEY}
       - QUEUE_TABLE=job_queue
       - CALLBACK_QUEUE=callback_queue
       - MAX_JOBS=10
@@ -121,6 +123,7 @@ services:
       - TITO_API_URL=http://tito:5001
       - TITO_API_KEY=${TITO_API_KEY}
       - BACKEND_CALLBACK_URL=http://planbar_backend:8000
+      - UPLOAD_DIR=/app/uploads/pinboard
     depends_on:
       db_backend:
         condition: service_healthy
