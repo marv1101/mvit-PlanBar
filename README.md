@@ -25,6 +25,7 @@ Das System besteht aus drei Komponenten:
 - [Multi-Tenancy](#multi-tenancy)
 - [Umgebungsvariablen](#umgebungsvariablen)
 - [API-Endpunkte](#api-endpunkte)
+- [Kiosk Mode](#kiosk-mode)
 - [TiTO-Integrationsfluss](#tito-integrationsfluss)
 - [Tests](#tests)
 - [CI/CD](#cicd)
@@ -44,6 +45,7 @@ Das System besteht aus drei Komponenten:
 - **Status-Management** – Entwurf → eingereicht → abgeschlossen/fehlgeschlagen, mit Wiederholungsfunktion
 - **Automatische Optimierung** – Beachtet ArbZG (11h Ruhezeit, max. 10h Arbeitstag, Sonntagsruhe etc.)
 - **Admin-Bereich** – Benutzerverwaltung, Rollen-Rechte
+- **Kiosk Mode** – Read-Only-Dienstplananzeige (aktuelle + nächste Woche) für ein Team auf einem Tablett, Aktualisierung 1×/h
 - **Dark Mode** – Unterstützt helles/dunkles Thema
 
 ---
@@ -507,6 +509,7 @@ Siehe `TiTO/.env.example` für alle TiTO-spezifischen Variablen (Datenbank, Queu
 | POST | `/schedules/{id}/retry` | Wiederholen | Admin |
 | PUT | `/schedules/{id}/shifts` | Schichten bearbeiten | User |
 | POST | `/callbacks/tito` | TiTO-Callback | Intern |
+| GET | `/kiosk/board` | Kiosk-Dienstplan (2 Wochen, read-only) | User |
 
 ### TiTO
 
@@ -520,6 +523,38 @@ Siehe `TiTO/.env.example` für alle TiTO-spezifischen Variablen (Datenbank, Queu
 | GET | `/dlq` | Dead Letter Queue |
 | POST | `/workers/register` | Worker registrieren |
 | POST | `/workers/heartbeat` | Heartbeat senden |
+
+---
+
+## Kiosk Mode
+
+Der Kiosk Mode zeigt auf einem Tablett (z. B. an der Wand im Teamraum) den **Dienstplan der aktuellen und der nächsten Woche** (Montag–Sonntag, 14 Tage) – read-only, ohne Bearbeitungsmöglichkeiten.
+
+### Verhalten
+
+- **Zeitraum**: Aktueller ISO-Wochenbeginn (Montag) bis Sonntag der Folgewoche; filtert strikt nach Datum (nicht nach A/B-Wochen-Parität)
+- **Status**: Nur fertige Dienstpläne (`status = completed`), keine Entwürfe
+- **Team**: Per URL-Parameter wählbar – `/kiosk?team=3`. Ohne Parameter zeigt der Kiosk alle Teams des angemeldeten Users; ist der User in keinem Team (z. B. Kiosk-User ohne Mitarbeiter-Verknüpfung), werden **alle Kollegen** angezeigt
+- **Aktualisierung**: Automatisch 1× pro Stunde (`refetchInterval`), plus Anzeige „Zuletzt aktualisiert"
+- **Session**: Einmalige Anmeldung auf dem Tablett; HttpOnly-Cookies werden durch den stündlichen Abruf per Refresh-Token am Leben gehalten. Ein evtl. erzwungener Passwortwechsel (`must_change_password`) wird im Kiosk bewusst ignoriert
+
+### Einrichtung
+
+1. Im Admin-Bereich (**Benutzer**) einen dedizierten Kiosk-Benutzer anlegen, z. B. `kiosk@kunde.de`:
+   - Rolle **Kiosk** wählen
+   - Keine Mitarbeiter-Verknüpfung nötig (Kiosk-Rolle sieht alle Teams/Daten)
+   - Passwort direkt setzen (`must_change_password` kann beim Anlegen deaktiviert werden)
+2. Tablett mit der Instanz verbinden und `/kiosk` öffnen (ggf. `?team=<id>` anhängen)
+3. Im Kiosk-Loginformular einmalig die Kiosk-Zugangsdaten eingeben – danach zeigt das Tablett dauerhaft den Dienstplan
+
+### Zugriffslogik (Backend `GET /api/v1/kiosk/board`)
+
+| Rolle | `team_id` gesetzt | ohne `team_id` |
+|-------|-------------------|----------------|
+| `kiosk` / `admin` | beliebiges Team | alle Employees |
+| `planer` / `user` | nur eigenes Team (sonst 403) | eigene Teams; falls keine → alle Employees |
+
+Unbekannte `team_id` → 404. Antwort enthält `Cache-Control: no-store` (keine veralteten Daten auf dem Tablett).
 
 ---
 

@@ -30,6 +30,17 @@ class ResizeObserverMock {
 }
 window.ResizeObserver = ResizeObserverMock as any
 
+// Radix UI (Select etc.) relies on DOM APIs jsdom does not implement
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false
+}
+if (!Element.prototype.releasePointerCapture) {
+  Element.prototype.releasePointerCapture = () => {}
+}
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {}
+}
+
 // Mock window.matchMedia for useMediaQuery hook
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

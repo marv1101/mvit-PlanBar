@@ -159,11 +159,11 @@ export const handlers = [
   }),
 
   http.post(`${base}/users/admin-create`, async ({ request }) => {
-    const body = await request.json() as { username: string; email: string; role: string; employee_id?: number }
+    const body = await request.json() as { username: string; email: string; role: string; employee_id?: number; must_change_password?: boolean }
     const id = ++nextId
     const newUser: AdminUserCreateResponseDTO = {
       id, username: body.username, email: body.email, role: body.role,
-      must_change_password: true,
+      must_change_password: body.must_change_password ?? true,
       employee_id: body.employee_id ?? null,
       created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       last_login: null, initial_password: 'geheim123',

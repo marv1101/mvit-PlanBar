@@ -39,7 +39,7 @@ function AppContent() {
     <QueryProvider>
       <TeamProvider>
         <AppProvider>
-          {mustChangePassword && <ChangePasswordDialog />}
+          {mustChangePassword && window.location.pathname !== '/kiosk' && <ChangePasswordDialog />}
           <RouterProvider router={router} />
           <Toaster />
         </AppProvider>

@@ -124,6 +124,14 @@ export const mockPlanerUser = {
   employeeId: '2',
 }
 
+export const mockKioskUser = {
+  id: '4',
+  name: 'Kiosk Display',
+  email: 'kiosk@example.com',
+  role: 'kiosk' as const,
+  employeeId: undefined,
+}
+
 export const mockUser = mockAdminUser
 
 // ---------------------------------------------------------------------------

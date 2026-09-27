@@ -18,6 +18,7 @@ const PinboardPage = lazy(() => import('./pages/PinboardPage').then(m => ({ defa
 const TimeAccounts = lazy(() => import('./pages/TimeAccounts').then(m => ({ default: m.TimeAccounts })));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })));
 const SelfService = lazy(() => import('./pages/SelfService').then(m => ({ default: m.SelfService })));
+const Kiosk = lazy(() => import('./pages/Kiosk').then(m => ({ default: m.Kiosk })));
 
 function LazyPage({ children }: { children: React.ReactNode }) {
   return (
@@ -28,6 +29,12 @@ function LazyPage({ children }: { children: React.ReactNode }) {
 }
 
 export const router = createBrowserRouter([
+  {
+    // Standalone full-screen kiosk route — OUTSIDE the Layout route so the
+    // kiosk display has no sidebar/navigation.
+    path: 'kiosk',
+    element: <LazyPage><Kiosk /></LazyPage>,
+  },
   {
     path: '/',
     Component: Layout,

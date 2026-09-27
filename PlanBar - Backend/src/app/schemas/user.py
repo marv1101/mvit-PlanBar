@@ -59,7 +59,7 @@ class UserUpdate(BaseModel):
     username: str | None = Field(None, min_length=3, max_length=64)
     email: EmailStr | None = None
     password: str | None = Field(None, min_length=8)
-    role: str | None = Field(None, pattern=r"^(admin|user|planer)$")
+    role: str | None = Field(None, pattern=r"^(admin|user|planer|kiosk)$")
     employee_id: int | None = None
     team_ids: list[int] | None = None
 
@@ -111,7 +111,8 @@ class ChangePasswordRequest(BaseModel):
 class AdminUserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=64)
     email: EmailStr
-    role: str = Field(default="user", pattern="^(admin|user|planer)$")
+    role: str = Field(default="user", pattern="^(admin|user|planer|kiosk)$")
+    must_change_password: bool = True
     employee_id: int | None = None
     team_ids: list[int] = []
 

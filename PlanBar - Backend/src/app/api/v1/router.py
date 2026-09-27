@@ -13,6 +13,7 @@ from app.api.v1.exports import router as exports_router
 from app.api.v1.gdpr import admin_router as gdpr_admin_router
 from app.api.v1.gdpr import router as gdpr_router
 from app.api.v1.health import router as health_router
+from app.api.v1.kiosk import router as kiosk_router
 from app.api.v1.metrics import router as metrics_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.pinboard import router as pinboard_router
@@ -50,5 +51,6 @@ api_router.include_router(gdpr_router, prefix="/gdpr", tags=["gdpr"])
 api_router.include_router(gdpr_admin_router, prefix="/admin", tags=["admin"])
 api_router.include_router(shift_swaps_router, prefix="/shift-swaps", tags=["shift-swaps"])
 api_router.include_router(self_service_router, prefix="/my", tags=["self-service"])
+api_router.include_router(kiosk_router, prefix="/kiosk", tags=["kiosk"])
 api_router.include_router(teams_router, prefix="/teams", tags=["teams"])
 api_router.include_router(time_tracking_router, prefix="/time-tracking", tags=["time-tracking"])

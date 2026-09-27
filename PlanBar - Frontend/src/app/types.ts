@@ -144,7 +144,7 @@ export interface AppUser {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'planer' | 'employee';
+  role: 'admin' | 'planer' | 'employee' | 'kiosk';
   mustChangePassword: boolean;
   lastLogin: string | null;
   employeeId?: number | null;

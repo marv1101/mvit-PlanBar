@@ -7,6 +7,7 @@ export interface AdminUserCreateDTO {
   role: string;
   employee_id?: number;
   team_ids?: number[];
+  must_change_password?: boolean;
 }
 
 export interface UserUpdateDTO {

@@ -222,7 +222,7 @@ import {
 } from '../types';
 
 export function userFromResponse(dto: UserResponseDTO): AppUser {
-  const role: AppUser['role'] = dto.role === 'admin' ? 'admin' : dto.role === 'planer' ? 'planer' : 'employee';
+  const role: AppUser['role'] = dto.role === 'admin' ? 'admin' : dto.role === 'planer' ? 'planer' : dto.role === 'kiosk' ? 'kiosk' : 'employee';
   return {
     id: String(dto.id),
     username: dto.username,

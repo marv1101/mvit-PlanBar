@@ -128,7 +128,7 @@ def admin_create_user(db: Session, admin_user: AdminUserCreate, actor_id: int | 
         email=admin_user.email,
         password_hash=hash_password(password),
         role=admin_user.role,
-        must_change_password=True,
+        must_change_password=admin_user.must_change_password,
     )
     db.add(user)
     db.flush()

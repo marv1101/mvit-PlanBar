@@ -146,7 +146,7 @@ export function Users() {
                   <CardTitle className="flex items-center gap-2">
                     {user.username}
                     <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                      {user.role === 'admin' ? 'Administrator' : user.role === 'planer' ? 'Planer' : 'Mitarbeiter'}
+                      {user.role === 'admin' ? 'Administrator' : user.role === 'planer' ? 'Planer' : user.role === 'kiosk' ? 'Kiosk' : 'Mitarbeiter'}
                     </Badge>
                   </CardTitle>
                   <p className="text-sm text-gray-600 mt-1">{user.email}</p>
@@ -254,7 +254,7 @@ interface UserEditFormProps {
 function UserEditForm({ user, allTeams, allEmployees, onSuccess }: UserEditFormProps) {
   const [username, setUsername] = useState(user.username);
   const [email, setEmail] = useState(user.email);
-  const [role, setRole] = useState(user.role === 'admin' ? 'admin' : user.role === 'planer' ? 'planer' : 'user');
+  const [role, setRole] = useState(user.role === 'admin' ? 'admin' : user.role === 'planer' ? 'planer' : user.role === 'kiosk' ? 'kiosk' : 'user');
   const [employeeId, setEmployeeId] = useState<string>(user.employeeId ? String(user.employeeId) : 'none');
   const [teamIds, setTeamIds] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -333,6 +333,7 @@ function UserEditForm({ user, allTeams, allEmployees, onSuccess }: UserEditFormP
           <SelectContent>
             <SelectItem value="user">Mitarbeiter</SelectItem>
             <SelectItem value="planer">Planer</SelectItem>
+            <SelectItem value="kiosk">Kiosk</SelectItem>
             <SelectItem value="admin">Administrator</SelectItem>
           </SelectContent>
         </Select>
@@ -463,6 +464,9 @@ function UserCreateForm({ onSuccess, allEmployees }: UserCreateFormProps) {
         role,
         employee_id: employeeId !== 'none' ? Number(employeeId) : undefined,
         team_ids: role === 'planer' && employeeId !== 'none' ? teamIds : undefined,
+        // Kiosk-Zugänge sind reine Anzeige-Accounts (Tablett) und dürfen
+        // nicht in den Passwort-Wechsel-Zwang bei der ersten Anmeldung laufen.
+        must_change_password: role === 'kiosk' ? false : undefined,
       });
       setResult(res);
     } catch (err: any) {
@@ -500,7 +504,9 @@ function UserCreateForm({ onSuccess, allEmployees }: UserCreateFormProps) {
             </Button>
           </div>
           <p className="text-xs text-gray-500">
-            Der Benutzer muss bei der ersten Anmeldung ein neues Passwort vergeben.
+            {result.must_change_password
+              ? 'Der Benutzer muss bei der ersten Anmeldung ein neues Passwort vergeben.'
+              : 'Der Benutzer kann sich direkt mit dem initialen Passwort anmelden (kein Passwortwechsel erzwungen).'}
           </p>
         </div>
         <div className="flex justify-end">
@@ -544,9 +550,16 @@ function UserCreateForm({ onSuccess, allEmployees }: UserCreateFormProps) {
           <SelectContent>
             <SelectItem value="user">Mitarbeiter</SelectItem>
             <SelectItem value="planer">Planer</SelectItem>
+            <SelectItem value="kiosk">Kiosk</SelectItem>
             <SelectItem value="admin">Administrator</SelectItem>
           </SelectContent>
         </Select>
+        {role === 'kiosk' && (
+          <p className="text-xs text-gray-500">
+            Kiosk-Benutzer sind reine Anzeige-Zugänge (z.&nbsp;B. Tablett an der Wand). Sie sehen den Dienstplan
+            ohne Bearbeitungsrechte; das initiale Passwort bleibt gültig (kein Wechsel bei der ersten Anmeldung).
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">

@@ -9,6 +9,9 @@ export function Home() {
   }
 
   // Redirect based on user role
+  if (user.role === 'kiosk') {
+    return <Navigate to="/kiosk" replace />;
+  }
   if (user.role === 'employee') {
     return <Navigate to="/employee-view" replace />;
   }

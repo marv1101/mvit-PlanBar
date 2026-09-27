@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles: ('admin' | 'planer' | 'employee')[];
+  allowedRoles: ('admin' | 'planer' | 'employee' | 'kiosk')[];
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
@@ -20,6 +20,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     }
     if (user.role === 'planer') {
       return <Navigate to="/schedule" replace />;
+    }
+    if (user.role === 'kiosk') {
+      return <Navigate to="/kiosk" replace />;
     }
     return <Navigate to="/" replace />;
   }

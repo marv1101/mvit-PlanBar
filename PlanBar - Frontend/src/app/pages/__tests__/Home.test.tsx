@@ -4,13 +4,13 @@ import { AuthContext } from '../../context/AuthContext'
 import { Routes, Route } from 'react-router'
 import { Home } from '../Home'
 import { describe, it, expect, vi } from 'vitest'
-import { mockAdminUser, mockEmployeeUser, mockPlanerUser } from '../../../test/test-utils'
+import { mockAdminUser, mockEmployeeUser, mockPlanerUser, mockKioskUser } from '../../../test/test-utils'
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 
-type MockUser = typeof mockAdminUser | typeof mockEmployeeUser | typeof mockPlanerUser | null;
+type MockUser = typeof mockAdminUser | typeof mockEmployeeUser | typeof mockPlanerUser | typeof mockKioskUser | null;
 
 function renderHome(user: MockUser = mockAdminUser) {
   const authValue = {
@@ -30,6 +30,7 @@ function renderHome(user: MockUser = mockAdminUser) {
           <Route path="/dashboard" element={<div data-testid="dashboard-page" />} />
           <Route path="/employee-view" element={<div data-testid="employee-view-page" />} />
           <Route path="/schedule" element={<div data-testid="schedule-page" />} />
+          <Route path="/kiosk" element={<div data-testid="kiosk-page" />} />
         </Routes>
       </AuthContext.Provider>
     </MemoryRouter>,
@@ -50,6 +51,11 @@ describe('Home', () => {
   it('leitet Planer zum Schichtplan weiter', () => {
     renderHome(mockPlanerUser)
     expect(screen.getByTestId('schedule-page')).toBeInTheDocument()
+  })
+
+  it('leitet Kiosk-Benutzer zur Kiosk-Ansicht weiter', () => {
+    renderHome(mockKioskUser)
+    expect(screen.getByTestId('kiosk-page')).toBeInTheDocument()
   })
 
   it('leitet ohne Benutzer zur Startseite weiter', () => {

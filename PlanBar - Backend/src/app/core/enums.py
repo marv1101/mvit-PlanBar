@@ -5,6 +5,7 @@ class UserRole(str, Enum):
     USER = "user"
     ADMIN = "admin"
     PLANNER = "planer"
+    KIOSK = "kiosk"
 
 
 class ScheduleStatus(str, Enum):
