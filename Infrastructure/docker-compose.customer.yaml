@@ -47,6 +47,9 @@ services:
       DATABASE_URL: postgresql://tito:${TITO_DB_PASSWORD:?}@db_tito:5432/${TITO_DB_NAME:?}
       API_URL: http://tito:5001
       WORKER_API_TOKEN: ${TITO_WORKER_API_KEY:?}
+      # F7: Callback-Auth-Header — ohne diesen Key sendet der Worker keinen
+      # Authorization-Header und der Backend-Callback schlaegt mit 401 fehl.
+      TITO_CALLBACK_API_KEY: ${TITO_API_KEY:?}
       QUEUE_TABLE: job_queue
       CALLBACK_QUEUE: callback_queue
       MAX_JOBS: 10
@@ -73,7 +76,12 @@ services:
       CORS_ORIGINS: https://${DOMAIN:?}
       ENVIRONMENT: production
       LOG_LEVEL: INFO
+      UPLOAD_DIR: /app/uploads/pinboard
     restart: unless-stopped
+    volumes:
+      # Persistente Uploads (Pinboard-Bilder): Container-Neustart/Update wuerde
+      # andernfalls alle Dateien verlieren (Default UPLOAD_DIR liegt im Container).
+      - pinboard_uploads:/app/uploads/pinboard
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/health/ping').status == 200 else 1)"]
       interval: 30s
@@ -107,3 +115,6 @@ services:
 networks:
   planbar_shared:
     external: true
+
+volumes:
+  pinboard_uploads:
