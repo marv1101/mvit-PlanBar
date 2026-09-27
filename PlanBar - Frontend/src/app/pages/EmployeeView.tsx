@@ -6,13 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { User, Calendar, Clock, Coffee, Download, Loader2, RotateCcw, AlertTriangle, Building2 } from 'lucide-react';
+import { User, Calendar, Clock, Coffee, Download, Loader2, RotateCcw, AlertTriangle, Building2, Maximize2 } from 'lucide-react';
 import { WeekType, Shift } from '../types';
 import { toast } from 'sonner';
 import { TIMEZONE } from '../lib/timezone';
+import { getWeekType, weekTypeOfDateStr } from '../lib/week';
 import { TimeAccountCard } from '../components/TimeAccountCard';
 import { getMyTeamEmployees } from '../services/selfService';
 import { employeeFromResponse } from '../lib/mappers';
+import { DayDetailDialog } from '../components/schedule/day-popout/DayDetailDialog';
+import { ReadOnlyDayDetail } from '../components/schedule/day-popout/ReadOnlyDayDetail';
 
 export function EmployeeView() {
   const { employees: appEmployees, schedules, roles, loading, error, refresh } = useApp();
@@ -23,6 +26,7 @@ export function EmployeeView() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>('');
   const [currentWeek, setCurrentWeek] = useState<WeekType>('A');
+  const [popoutDate, setPopoutDate] = useState<Date | null>(null);
 
   const isEmployee = user?.role === 'employee';
   const isPlaner = user?.role === 'planer';
@@ -73,11 +77,11 @@ export function EmployeeView() {
   }, [selectedSchedule, selectedEmployeeId]);
 
   const employeeShiftsByWeek = useMemo(() => {
-    return employeeShifts.filter(shift => shift.week === currentWeek);
+    return employeeShifts.filter(shift => weekTypeOfDateStr(shift.date) === currentWeek);
   }, [employeeShifts, currentWeek]);
 
-  const hasWeekA = employeeShifts.some(s => s.week === 'A');
-  const hasWeekB = employeeShifts.some(s => s.week === 'B');
+  const hasWeekA = employeeShifts.some(s => weekTypeOfDateStr(s.date) === 'A');
+  const hasWeekB = employeeShifts.some(s => weekTypeOfDateStr(s.date) === 'B');
 
   useEffect(() => {
     if (employeeShifts.length === 0) return;
@@ -119,8 +123,8 @@ export function EmployeeView() {
     };
 
     const totalHours = employeeShifts.reduce((sum, shift) => sum + calculateHours(shift), 0);
-    const weekAShifts = employeeShifts.filter(s => s.week === 'A').length;
-    const weekBShifts = employeeShifts.filter(s => s.week === 'B').length;
+    const weekAShifts = employeeShifts.filter(s => weekTypeOfDateStr(s.date) === 'A').length;
+    const weekBShifts = employeeShifts.filter(s => weekTypeOfDateStr(s.date) === 'B').length;
 
     return {
       totalShifts: employeeShifts.length,
@@ -143,22 +147,22 @@ export function EmployeeView() {
     return grouped;
   }, [employeeShiftsByWeek]);
 
-  // Generate calendar days for the selected schedule
+  // Generate calendar days for the selected schedule, filtered by week parity
   const calendarDays = useMemo(() => {
     if (!selectedSchedule) return [];
-    
+
     const days: Date[] = [];
     const start = new Date(selectedSchedule.startDate);
     const end = new Date(selectedSchedule.endDate);
-    
+
     let currentDate = new Date(start);
     while (currentDate <= end) {
-      days.push(new Date(currentDate));
+      days.push(new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())));
       currentDate.setDate(currentDate.getDate() + 1);
     }
-    
-    return days;
-  }, [selectedSchedule]);
+
+    return days.filter(day => getWeekType(day) === currentWeek);
+  }, [selectedSchedule, currentWeek]);
 
   // Group calendar days by weeks
   const calendarWeeks = useMemo(() => {
@@ -179,6 +183,10 @@ export function EmployeeView() {
     
     return weeks;
   }, [calendarDays]);
+
+  const popoutIndex = popoutDate
+    ? calendarDays.findIndex(d => d.toISOString() === popoutDate.toISOString())
+    : -1;
 
   const exportPersonalSchedule = () => {
     if (!selectedEmployee || employeeShifts.length === 0) {
@@ -452,13 +460,20 @@ export function EmployeeView() {
                                   {emptyStart.map((_, i) => (
                                     <div key={`empty-${i}`} className="border p-2 bg-gray-50 min-h-[100px]" />
                                   ))}
-                                  <div
-                                    className={`border p-2 min-h-[100px] ${
+                                    <div
+                                      className={`group border p-2 min-h-[100px] ${
                                       isToday ? 'bg-blue-50' : ''
                                     } ${dayShifts.length > 0 ? 'bg-green-50' : ''}`}
                                   >
-                                    <div className="font-medium text-sm mb-2 text-gray-700">
-                                      {day.getDate()}
+                                    <div className="font-medium text-sm mb-2 text-gray-700 flex items-center justify-between">
+                                      <span>{day.getDate()}</span>
+                                      <button
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-blue-100 text-blue-600"
+                                        aria-label="Tag vergrößern"
+                                        onClick={() => setPopoutDate(day)}
+                                      >
+                                        <Maximize2 className="h-3.5 w-3.5" />
+                                      </button>
                                     </div>
                                     {dayShifts.map(shift => (
                                       <div
@@ -566,6 +581,30 @@ export function EmployeeView() {
           )}
         </>
       )}
+
+      <DayDetailDialog
+        open={popoutDate !== null}
+        onOpenChange={(open) => !open && setPopoutDate(null)}
+        title={
+          popoutDate
+            ? popoutDate.toLocaleDateString('de-DE', { timeZone: TIMEZONE, day: 'numeric', month: 'numeric', year: 'numeric' })
+            : ''
+        }
+        description="Vergrößerte Tagesansicht"
+        showNavigation
+        hasPrev={popoutIndex > 0}
+        hasNext={popoutIndex >= 0 && popoutIndex < calendarDays.length - 1}
+        onPrev={() => setPopoutDate(calendarDays[popoutIndex - 1] ?? null)}
+        onNext={() => setPopoutDate(calendarDays[popoutIndex + 1] ?? null)}
+      >
+        {popoutDate && (
+          <ReadOnlyDayDetail
+            date={popoutDate}
+            shifts={employeeShiftsByWeek.filter(s => s.date === popoutDate.toISOString().split('T')[0])}
+            employees={employees}
+          />
+        )}
+      </DayDetailDialog>
 
       {(!selectedEmployee || !selectedSchedule) && (
         <Card>

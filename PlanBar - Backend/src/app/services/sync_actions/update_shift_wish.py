@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
+from app.services.schedule_service import wish_week_for_date
 from app.services.sync_actions.base import RoleRequired
 from app.services.sync_actions.serializers import serialize_wish as _serialize_wish
 
@@ -16,6 +17,8 @@ class UpdateShiftWish(RoleRequired):
 
     @staticmethod
     def execute(db: Session, data: dict[str, Any], user: User) -> dict[str, Any]:
+        from datetime import date as _date
+
         wish_id = data.get("id")
         wish = db.query(ShiftWish).filter(ShiftWish.id == wish_id).first()
         if not wish:
@@ -25,7 +28,11 @@ class UpdateShiftWish(RoleRequired):
         if "employee_id" in data:
             wish.employee_id = data["employee_id"]
         if "date" in data:
-            wish.date = data["date"]
+            date_value = data["date"]
+            if isinstance(date_value, str):
+                date_value = _date.fromisoformat(date_value)
+            wish.date = date_value
+            wish.week = wish_week_for_date(date_value)
         if "type" in data:
             wish.type = data["type"]
         if "note" in data:

@@ -66,6 +66,129 @@ def test_create_schedule_with_shiftplans(db_session):
     assert len(schedule.shiftplans) == 1
 
 
+def test_create_schedule_derives_week_from_date(db_session):
+    """week muss aus dem Datum abgeleitet werden, Client-Werte werden ignoriert."""
+    data = ScheduleCreate(
+        name="Derived Week",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 14),
+        shiftplans=[
+            ShiftplanCreate(
+                employee_id=1,
+                date=date(2026, 6, 1),
+                shift_id="früh",
+                start_time=time(6, 0),
+                end_time=time(14, 0),
+                week="B",
+            ),
+            ShiftplanCreate(
+                employee_id=1,
+                date=date(2026, 6, 8),
+                shift_id="früh",
+                start_time=time(6, 0),
+                end_time=time(14, 0),
+            ),
+        ],
+    )
+    schedule = create_schedule(db_session, data)
+    weeks = {sp.date: sp.week for sp in schedule.shiftplans}
+    assert weeks[date(2026, 6, 1)] == "A"
+    assert weeks[date(2026, 6, 8)] == "B"
+
+
+def test_create_schedule_scope_rejects_other_parity(db_session):
+    """Bei week_type='A' müssen Schichten auf A-Daten liegen."""
+    data = ScheduleCreate(
+        name="Scoped A",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 14),
+        week_type="A",
+        shiftplans=[
+            ShiftplanCreate(
+                employee_id=1,
+                date=date(2026, 6, 10),
+                shift_id="früh",
+                start_time=time(6, 0),
+                end_time=time(14, 0),
+            ),
+        ],
+    )
+    with pytest.raises(ValueError, match="begrenzt"):
+        create_schedule(db_session, data)
+
+
+def test_replace_all_shifts_derives_week(db_session):
+    schedule = create_schedule(
+        db_session,
+        ScheduleCreate(name="Derive", start_date=date(2026, 6, 1), end_date=date(2026, 6, 14)),
+    )
+    new_shifts = [
+        ShiftplanCreate(
+            employee_id=1,
+            date=date(2026, 6, 8),
+            shift_id="spät",
+            start_time=time(14, 0),
+            end_time=time(22, 0),
+            break_start="18:00",
+            break_end="18:30",
+            week="A",
+        ),
+    ]
+    replaced, _ = replace_all_shifts(db_session, schedule, new_shifts)
+    assert replaced.shiftplans[0].week == "B"
+
+
+def test_replace_all_shifts_scope_rejects_other_parity(db_session):
+    schedule = create_schedule(
+        db_session,
+        ScheduleCreate(name="Scoped B", start_date=date(2026, 6, 1), end_date=date(2026, 6, 14), week_type="B"),
+    )
+    new_shifts = [
+        ShiftplanCreate(
+            employee_id=1,
+            date=date(2026, 6, 2),
+            shift_id="spät",
+            start_time=time(14, 0),
+            end_time=time(22, 0),
+        ),
+    ]
+    with pytest.raises(ValueError, match="begrenzt"):
+        replace_all_shifts(db_session, schedule, new_shifts)
+
+
+def test_update_schedule_scope_change_validated(db_session):
+    """Scope-Änderung auf 'A' muss fehlschlagen, wenn B-Schichten existieren."""
+    schedule = create_schedule(
+        db_session,
+        ScheduleCreate(
+            name="Scope Change",
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 6, 14),
+            shiftplans=[
+                ShiftplanCreate(
+                    employee_id=1,
+                    date=date(2026, 6, 10),
+                    shift_id="früh",
+                    start_time=time(6, 0),
+                    end_time=time(14, 0),
+                ),
+            ],
+        ),
+    )
+    with pytest.raises(ValueError, match="unzulässig"):
+        update_schedule(db_session, schedule, ScheduleUpdate(week_type="A"))
+    assert schedule.week_type is None
+
+
+def test_wish_week_for_date_encoding(db_session):
+    from app.services.schedule_service import wish_week_for_date
+
+    assert wish_week_for_date(date(2026, 6, 1)) == 1
+    assert wish_week_for_date(date(2026, 6, 8)) == 2
+    assert wish_week_for_date(date(2026, 6, 7)) == 1
+    assert wish_week_for_date(date(2026, 6, 14)) == 2
+
+
 def test_get_schedule_by_id(db_session):
     data = ScheduleCreate(name="Find Me", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7))
     created = create_schedule(db_session, data)
@@ -253,6 +376,48 @@ def test_build_tito_payload_week_type_b(db_session):
     for req in payload["requirements"]:
         d = date.fromisoformat(req["date"])
         assert date(2026, 6, 8) <= d <= date(2026, 6, 14), f"{d} is not in week B range"
+
+
+def test_build_tito_payload_week_type_filters_wishes(db_session):
+    """week_type='A' muss auch Wünsche auf B-Daten aus dem Payload ausschließen."""
+    schedule = Schedule(
+        name="Wish Scope A",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 14),
+        status="draft",
+        week_type="A",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    wish_a = ShiftWish(employee_id=1, date=date(2026, 6, 3), type="day_off", status="approved")
+    wish_b = ShiftWish(employee_id=1, date=date(2026, 6, 10), type="day_off", status="approved")
+    db_session.add_all([wish_a, wish_b])
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [wish_a, wish_b], db=db_session)
+    wish_dates = [w["date"] for w in payload["wishes"]]
+    assert wish_dates == ["2026-06-03"]
+
+
+def test_build_tito_payload_no_week_type_keeps_all_wishes(db_session):
+    """week_type=None darf Wünsche beider Paritäten einschließen."""
+    schedule = Schedule(
+        name="Wish Scope None",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 14),
+        status="draft",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    wish_a = ShiftWish(employee_id=1, date=date(2026, 6, 3), type="day_off", status="approved")
+    wish_b = ShiftWish(employee_id=1, date=date(2026, 6, 10), type="day_off", status="approved")
+    db_session.add_all([wish_a, wish_b])
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [wish_a, wish_b], db=db_session)
+    assert len(payload["wishes"]) == 2
 
 
 def test_build_tito_payload_with_employees(db_session):
@@ -662,6 +827,7 @@ def _make_team_scope_data(db_session):
         start_date=date(2026, 6, 1),
         end_date=date(2026, 6, 7),
         status="draft",
+        role_requirements={"früh": "1"},
     )
     db_session.add(schedule)
     db_session.commit()
@@ -757,3 +923,608 @@ async def test_submit_tito_planer_no_team_raises(db_session):
         pytest.raises(ValueError, match="not assigned to any team"),
     ):
         await submit_schedule_to_tito(db_session, schedule, user=planer)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# maxCount / maximizeStaffing features
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_build_tito_payload_with_maxCount(db_session):
+    """shift_templates with maxRequirements must produce requirements with maxCount."""
+    schedule = Schedule(
+        name="MaxCount Test",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 3),
+        status="draft",
+        shift_templates=[
+            {
+                "id": "frueh",
+                "name": "Frühschicht",
+                "startTime": "06:00",
+                "endTime": "14:00",
+                "requirements": {"1": 2},
+                "maxRequirements": {"1": 3},
+            },
+        ],
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [], db=db_session)
+    reqs = payload["requirements"]
+    assert len(reqs) == 3
+    assert all(r.get("maxCount") == 3 for r in reqs)
+    assert all(r["count"] == 2 for r in reqs)
+
+
+def test_build_tito_payload_without_maxCount(db_session):
+    """shift_templates without maxRequirements must not set maxCount."""
+    schedule = Schedule(
+        name="No MaxCount Test",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 3),
+        status="draft",
+        shift_templates=[
+            {
+                "id": "frueh",
+                "name": "Frühschicht",
+                "startTime": "06:00",
+                "endTime": "14:00",
+                "requirements": {"1": 2},
+            },
+        ],
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [], db=db_session)
+    reqs = payload["requirements"]
+    assert len(reqs) == 3
+    assert all(r.get("maxCount") is None for r in reqs)
+
+
+def test_build_tito_payload_maximizeStaffing_in_config(db_session):
+    """maximizeStaffing in metadata_json must appear as maximizeStaffing in config."""
+    schedule = Schedule(
+        name="MaxStaffing On",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+        metadata_json={"maximizeStaffing": True},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [])
+    assert payload["config"]["maximizeStaffing"] is True
+
+
+def test_build_tito_payload_maximizeStaffing_false_by_default(db_session):
+    """maximizeStaffing must default to False when not explicitly set."""
+    schedule = Schedule(
+        name="MaxStaffing Default",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [])
+    assert payload["config"]["maximizeStaffing"] is False
+
+
+@pytest.mark.asyncio
+async def test_submit_tito_rejects_non_draft_status(db_session):
+    """submit_schedule_to_tito must raise ValueError for non-draft/non-failed schedules."""
+    for status in ("submitted", "completed"):
+        schedule = Schedule(
+            name=f"Status {status}",
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 6, 7),
+            status=status,
+        )
+        db_session.add(schedule)
+        db_session.commit()
+        db_session.refresh(schedule)
+
+        with pytest.raises(ValueError, match="cannot be submitted"):
+            await submit_schedule_to_tito(db_session, schedule)
+
+
+@pytest.mark.asyncio
+async def test_submit_tito_allows_draft_status(db_session):
+    """submit_schedule_to_tito must proceed for draft schedules."""
+    schedule = Schedule(
+        name="Draft Schedule",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+        role_requirements={"früh": "1"},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+    db_session.refresh(schedule)
+
+    async def fake_submit(payload):
+        return {"jobId": 1}
+
+    with patch("app.services.schedule_service.tito_proxy.submit_job", side_effect=fake_submit):
+        result = await submit_schedule_to_tito(db_session, schedule)
+
+    assert result.status == "submitted"
+    assert result.tito_job_id == 1
+
+
+@pytest.mark.asyncio
+async def test_submit_tito_allows_failed_status(db_session):
+    """submit_schedule_to_tito must proceed for failed schedules (retry via submit path)."""
+    schedule = Schedule(
+        name="Failed Schedule",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="failed",
+        role_requirements={"früh": "1"},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+    db_session.refresh(schedule)
+
+    async def fake_submit(payload):
+        return {"jobId": 2}
+
+    with patch("app.services.schedule_service.tito_proxy.submit_job", side_effect=fake_submit):
+        result = await submit_schedule_to_tito(db_session, schedule)
+
+    assert result.status == "submitted"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# C1: versioned idempotency key + 409 handling
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_build_tito_payload_idempotency_key_first_attempt(db_session):
+    """C1: Erste Submission → deterministischer Key schedule_{id}_1 (kein Zeitstempel)."""
+    schedule = Schedule(
+        name="Idem 1",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [])
+    assert payload["metadata"]["idempotency_key"] == f"schedule_{schedule.id}_1"
+
+
+def test_build_tito_payload_idempotency_key_versioned(db_session):
+    """C1: erneute Submission (nach fehlgeschlagenem Callback) → schedule_{id}_2."""
+    schedule = Schedule(
+        name="Idem 2",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="failed",
+        tito_job_id=17,
+        metadata_json={"submitAttempt": 1},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [])
+    assert payload["metadata"]["idempotency_key"] == f"schedule_{schedule.id}_2"
+
+
+@pytest.mark.asyncio
+async def test_submit_persists_submit_attempt(db_session):
+    """C1: nach erfolgreicher Submission wird submitAttempt persistiert."""
+    schedule = Schedule(
+        name="Attempt",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+        role_requirements={"früh": "1"},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    async def fake_submit(payload):
+        assert payload["metadata"]["idempotency_key"] == f"schedule_{schedule.id}_1"
+        return {"jobId": 99}
+
+    with patch("app.services.schedule_service.tito_proxy.submit_job", side_effect=fake_submit):
+        result = await submit_schedule_to_tito(db_session, schedule)
+
+    assert result.tito_job_id == 99
+    assert result.status == "submitted"
+    assert (result.metadata_json or {}).get("submitAttempt") == 1
+
+    # Resubmission after a failed callback uses the versioned key
+    result.status = "failed"
+    db_session.commit()
+    captured = {}
+
+    async def fake_submit_2(payload):
+        captured["key"] = payload["metadata"]["idempotency_key"]
+        return {"jobId": 100}
+
+    with patch("app.services.schedule_service.tito_proxy.submit_job", side_effect=fake_submit_2):
+        await submit_schedule_to_tito(db_session, result)
+
+    assert captured["key"] == f"schedule_{schedule.id}_2"
+
+
+@pytest.mark.asyncio
+async def test_submit_tito_409_raises_clean_value_error(db_session):
+    """C1: 409 von TiTO → klarer ValueError (kein 500), Status bleibt unverändert."""
+    import httpx
+
+    schedule = Schedule(
+        name="Conflict",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+        role_requirements={"früh": "1"},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    request = httpx.Request("POST", "http://tito/jobs")
+    response = httpx.Response(409, request=request, json={"detail": "idempotency key already used"})
+    exc = httpx.HTTPStatusError("409 Conflict", request=request, response=response)
+
+    with (
+        patch("app.services.schedule_service.tito_proxy.submit_job", side_effect=exc),
+        pytest.raises(ValueError, match="bereits bei TiTO eingereicht"),
+    ):
+        await submit_schedule_to_tito(db_session, schedule)
+
+    db_session.refresh(schedule)
+    assert schedule.status == "draft"  # nicht auf 'failed' gesetzt
+
+
+@pytest.mark.asyncio
+async def test_submit_tito_409_adopts_job_id_if_present(db_session):
+    """C1: liefert TiTO im 409-Body ein jobId, wird es übernommen (Status 'submitted')."""
+    import httpx
+
+    schedule = Schedule(
+        name="Conflict Adopt",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+        role_requirements={"früh": "1"},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    request = httpx.Request("POST", "http://tito/jobs")
+    response = httpx.Response(409, request=request, json={"jobId": 555, "detail": "duplicate"})
+    exc = httpx.HTTPStatusError("409 Conflict", request=request, response=response)
+
+    with patch("app.services.schedule_service.tito_proxy.submit_job", side_effect=exc):
+        result = await submit_schedule_to_tito(db_session, schedule)
+
+    assert result.status == "submitted"
+    assert result.tito_job_id == 555
+
+
+@pytest.mark.asyncio
+async def test_submit_tito_empty_requirements_raises(db_session):
+    """C5: Submission ohne Requirements → ValueError (400/422), kein TiTO-Call."""
+    schedule = Schedule(
+        name="No Reqs",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    with (
+        patch("app.services.schedule_service.tito_proxy.submit_job") as mock_submit,
+        pytest.raises(ValueError, match="Requirements"),
+    ):
+        await submit_schedule_to_tito(db_session, schedule)
+
+    mock_submit.assert_not_called()
+    db_session.refresh(schedule)
+    assert schedule.status == "draft"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# C2/C3: solver config + state holidays in payload
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_build_tito_payload_solver_config(db_session):
+    """C2: ArbZG-/Solver-Parameter aus den Backend-Settings im config-Abschnitt."""
+    schedule = Schedule(
+        name="Config Test",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+        role_requirements={"früh": "1"},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [], [])
+    config = payload["config"]
+    assert config["min_rest_time_hours"] == 11
+    assert config["max_daily_work_hours"] == 10
+    assert config["max_consecutive_days"] == 6
+    assert config["min_free_sundays_per_year"] == 15
+    assert config["night_window_start"] == "23:00"
+    assert config["night_window_end"] == "06:00"
+    assert config["night_work_max_hours"] == 10
+    assert config["rest_time_shift_workers_hours"] is None
+    assert config["max_weekly_hours_law"] == 48
+
+
+def test_build_tito_payload_holiday_subdivision(db_session, monkeypatch):
+    """C3: german_state='BW' → Fronleichnam (2026-06-04) in holidayDates."""
+    from app.config import settings
+
+    schedule = Schedule(
+        name="BW Holidays",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+        role_requirements={"früh": "1"},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    monkeypatch.setattr(settings, "german_state", None)
+    payload = _build_tito_payload(schedule, [], [])
+    assert "2026-06-04" not in payload["config"]["holidayDates"]  # nur bundesweit
+
+    monkeypatch.setattr(settings, "german_state", "BW")
+    payload = _build_tito_payload(schedule, [], [])
+    assert "2026-06-04" in payload["config"]["holidayDates"]  # Fronleichnam in BW
+
+
+# ─────────────────────────────────────────────────────────────────────
+# C4: preShifts + overlap warning + additive timecards
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_build_tito_payload_pre_shifts(db_session):
+    """C4a: bestehende Shiftplans (andere + eigener Draft) als preShifts, ±14-Tage-Fenster."""
+    emp = Employee(first_name="Pre", last_name="Shift")
+    db_session.add(emp)
+    db_session.commit()
+
+    other = Schedule(name="Other", start_date=date(2026, 5, 25), end_date=date(2026, 5, 31), status="completed")
+    own = Schedule(name="Own", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7), status="draft")
+    db_session.add_all([other, own])
+    db_session.commit()
+
+    def _sp(sched_id, d, shift_id):
+        return Shiftplan(
+            schedule_id=sched_id,
+            employee_id=emp.id,
+            date=d,
+            shift_id=shift_id,
+            start_time=time(8, 0),
+            end_time=time(16, 0),
+        )
+
+    db_session.add_all(
+        [
+            _sp(other.id, date(2026, 5, 26), "in-window"),  # 6 Tage vor start → enthalten
+            _sp(other.id, date(2026, 5, 23), "deep-history"),  # 11 Tage vor start → alt 7-Tage-Fenster, neu enthalten
+            _sp(other.id, date(2026, 5, 18), "window-start-boundary"),  # genau start-14 → enthalten
+            _sp(other.id, date(2026, 5, 17), "too-old"),  # 15 Tage vor start → draußen
+            _sp(other.id, date(2026, 6, 9), "after-end"),  # 2 Tage nach end → neu enthalten
+            _sp(other.id, date(2026, 6, 22), "far-future"),  # > end+14 → draußen
+            _sp(own.id, date(2026, 6, 2), "own-draft"),  # eigener Draft → enthalten
+        ]
+    )
+    db_session.commit()
+
+    payload = _build_tito_payload(own, [emp], [], db=db_session)
+    pre = payload["preShifts"]
+    dates = {(p["employeeId"], p["date"], p["startTime"], p["endTime"]) for p in pre}
+    assert (f"emp_{emp.id:03d}", "2026-05-26", "08:00", "16:00") in dates
+    assert (f"emp_{emp.id:03d}", "2026-05-23", "08:00", "16:00") in dates
+    assert (f"emp_{emp.id:03d}", "2026-05-18", "08:00", "16:00") in dates
+    assert (f"emp_{emp.id:03d}", "2026-06-09", "08:00", "16:00") in dates
+    assert (f"emp_{emp.id:03d}", "2026-06-02", "08:00", "16:00") in dates
+    for excluded in ("2026-05-17", "2026-06-22"):
+        assert all(p["date"] != excluded for p in pre)
+    assert all(p["employeeId"] == f"emp_{emp.id:03d}" for p in pre)
+
+
+def test_build_tito_payload_pre_shifts_empty_without_db(db_session):
+    schedule = Schedule(name="No DB", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7), status="draft")
+    db_session.add(schedule)
+    db_session.commit()
+    payload = _build_tito_payload(schedule, [], [])
+    assert payload["preShifts"] == []
+
+
+def test_create_schedule_overlap_warning(db_session):
+    """C4b: überlappender Zeitraum → Warning in Response-Metadaten (kein 422)."""
+    first = create_schedule(
+        db_session,
+        ScheduleCreate(name="First", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)),
+    )
+    overlapping = create_schedule(
+        db_session,
+        ScheduleCreate(name="Second", start_date=date(2026, 6, 5), end_date=date(2026, 6, 12)),
+    )
+    disjoint = create_schedule(
+        db_session,
+        ScheduleCreate(name="Third", start_date=date(2026, 6, 15), end_date=date(2026, 6, 21)),
+    )
+
+    assert first.metadata_json is None or "overlapWarnings" not in (first.metadata_json or {})
+    warnings = (overlapping.metadata_json or {}).get("overlapWarnings", [])
+    assert len(warnings) == 1
+    assert str(first.id) in warnings[0]
+    assert "overlapWarnings" not in (disjoint.metadata_json or {})
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Employee payload extension (ArbZG fields + protectedDaysWorkedYTD)
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_build_tito_payload_employee_arbzg_fields(db_session):
+    from datetime import date as date_cls
+
+    emp = Employee(
+        first_name="Minor",
+        last_name="Night",
+        is_minor=True,
+        is_night_worker=True,
+        is_shift_worker=True,
+        night_worker_exam_date=date_cls(2026, 2, 1),
+        protection_until=date_cls(2026, 6, 15),
+    )
+    db_session.add(emp)
+    db_session.commit()
+
+    schedule = Schedule(
+        name="Emp ArbZG",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 7),
+        status="draft",
+        role_requirements={"früh": "1"},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [emp], [], db=db_session)
+    entry = payload["employees"][0]
+    assert entry["isMinor"] is True
+    assert entry["isNightWorker"] is True
+    assert entry["isShiftWorker"] is True
+    assert entry["nightWorkerExamDate"] == "2026-02-01"
+    assert entry["protectionUntil"] == "2026-06-15"
+    assert entry["protectedDaysWorkedYTD"] == 0  # keine Historie
+
+
+def test_build_tito_payload_protected_days_worked_ytd(db_session):
+    """protectedDaysWorkedYTD: Arbeitstage an Sonntagen/Feiertagen des laufenden Jahres bis heute."""
+    from datetime import date as date_cls
+
+    emp = Employee(first_name="Sun", last_name="Worker")
+    db_session.add(emp)
+    db_session.commit()
+
+    other = Schedule(name="Hist", start_date=date(2026, 1, 1), end_date=date(2026, 6, 7), status="completed")
+    db_session.add(other)
+    db_session.commit()
+
+    def _sp(d):
+        return Shiftplan(
+            schedule_id=other.id,
+            employee_id=emp.id,
+            date=d,
+            shift_id="x",
+            start_time=time(8, 0),
+            end_time=time(16, 0),
+        )
+
+    # 2026-06-07 ist ein Sonntag im laufenden Jahr (vor heute), 2026-06-03 ein Werktag
+    db_session.add_all([_sp(date_cls(2026, 6, 7)), _sp(date_cls(2026, 6, 3))])
+    db_session.commit()
+
+    schedule = Schedule(
+        name="YTD",
+        start_date=date(2026, 9, 7),
+        end_date=date(2026, 9, 13),
+        status="draft",
+        role_requirements={"früh": "1"},
+    )
+    db_session.add(schedule)
+    db_session.commit()
+
+    payload = _build_tito_payload(schedule, [emp], [], db=db_session)
+    entry = payload["employees"][0]
+    assert entry["protectedDaysWorkedYTD"] == 1
+
+
+# ─────────────────────────────────────────────────────────────────────
+# B5: manual PUT path blocks HARD violations
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_replace_all_shifts_hard_violation_raises(db_session):
+    """B5: HARD-Verstoß im manuellen PUT → ArbZgHardViolationError, nichts geschrieben."""
+    from app.services.schedule_service import ArbZgHardViolationError
+
+    emp = Employee(first_name="Hard", last_name="Case")
+    db_session.add(emp)
+    db_session.commit()
+
+    schedule = create_schedule(
+        db_session,
+        ScheduleCreate(name="Hard Block", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)),
+    )
+    existing = Shiftplan(
+        schedule_id=schedule.id,
+        employee_id=emp.id,
+        date=date(2026, 6, 2),
+        shift_id="keep",
+        start_time=time(8, 0),
+        end_time=time(16, 0),
+    )
+    db_session.add(existing)
+    db_session.commit()
+
+    with pytest.raises(ArbZgHardViolationError):
+        replace_all_shifts(
+            db_session,
+            schedule,
+            [
+                ShiftplanCreate(
+                    employee_id=emp.id,
+                    date=date(2026, 6, 3),
+                    shift_id="früh",
+                    start_time=time(6, 0),
+                    end_time=time(18, 0),  # 12h ohne Pause → HARD
+                ),
+            ],
+        )
+
+    # Bestehende Shiftplans bleiben unangetastet
+    remaining = db_session.query(Shiftplan).filter(Shiftplan.schedule_id == schedule.id).all()
+    assert len(remaining) == 1
+    assert remaining[0].shift_id == "keep"
+
+
+def test_replace_all_shifts_soft_violation_only_warns(db_session):
+    """B5: Nur SOFT-Verstöße → übernehmen, als Warnungen im Ergebnis zurückgeben."""
+    emp = Employee(first_name="Soft", last_name="Case")
+    db_session.add(emp)
+    db_session.commit()
+
+    schedule = create_schedule(
+        db_session,
+        ScheduleCreate(name="Soft Ok", start_date=date(2026, 6, 1), end_date=date(2026, 6, 7)),
+    )
+
+    replaced, result = replace_all_shifts(
+        db_session,
+        schedule,
+        [
+            ShiftplanCreate(
+                employee_id=emp.id,
+                date=date(2026, 6, 7),  # Sonntag → sunday_quota SOFT
+                shift_id="früh",
+                start_time=time(8, 0),
+                end_time=time(16, 0),
+                break_start="12:00",
+                break_end="12:30",
+            ),
+        ],
+    )
+    assert len(replaced.shiftplans) == 1
+    assert not result.has_hard_violations
+    assert any(v.rule == "sunday_quota" for v in result.violations)

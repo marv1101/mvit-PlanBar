@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.v1.requests import ShiftWishResponse
@@ -21,9 +22,10 @@ from app.schemas.schedule import (
     ShiftplanResponse,
     ShiftplanUpdate,
 )
-from app.services.arbzg_validator import validate_schedule
+from app.services.arbzg_validator import ArbZgResult, validate_schedule
 from app.services.notification_service import create_notification_and_push
 from app.services.schedule_service import (
+    ArbZgHardViolationError,
     assert_team_write_on_shiftplans,
     create_schedule,
     delete_schedule,
@@ -37,7 +39,44 @@ from app.services.schedule_service import (
     update_schedule,
 )
 
+
+class SubmitRequest(BaseModel):
+    maximize_staffing: bool = False
+
+
 router = APIRouter()
+
+
+def _violation_responses(arbzg_result: ArbZgResult | None) -> list[ArbZgViolationResponse]:
+    return [
+        ArbZgViolationResponse(
+            rule=v.rule,
+            message=v.message,
+            employee_id=v.employee_id,
+            shift_date=v.shift_date,
+            details=v.details,
+            severity=v.severity,
+        )
+        for v in (arbzg_result.violations if arbzg_result else [])
+    ]
+
+
+def _hard_violation_detail(exc: ArbZgHardViolationError) -> dict:
+    """422 detail payload for blocked manual shift updates (B5)."""
+    return {
+        "message": str(exc),
+        "violations": [
+            ArbZgViolationResponse(
+                rule=v.rule,
+                message=v.message,
+                employee_id=v.employee_id,
+                shift_date=v.shift_date,
+                details=v.details,
+                severity=v.severity,
+            ).model_dump(mode="json")
+            for v in exc.result.hard_violations
+        ],
+    }
 
 
 def _build_shift_dicts_from_schedule(schedule) -> list[dict]:
@@ -55,19 +94,19 @@ def _build_shift_dicts_from_schedule(schedule) -> list[dict]:
     ]
 
 
-def _build_schedule_with_arbzg_response(schedule) -> ScheduleWithArbzgResponse:
+def _validate_schedule_shifts(db, schedule, shift_dicts: list[dict]) -> ArbZgResult | None:
+    """Validate with the full rule context (employees, holidays, period, history)."""
+    if not shift_dicts:
+        return None
+    from app.services.schedule_service import _build_arbzg_validation_kwargs
+
+    kwargs = _build_arbzg_validation_kwargs(db, schedule, {s["employee_id"] for s in shift_dicts})
+    return validate_schedule(shift_dicts, **kwargs)
+
+
+def _build_schedule_with_arbzg_response(db, schedule) -> ScheduleWithArbzgResponse:
     shift_dicts = _build_shift_dicts_from_schedule(schedule)
-    arbzg_result = validate_schedule(shift_dicts) if shift_dicts else None
-    warnings = [
-        ArbZgViolationResponse(
-            rule=v.rule,
-            message=v.message,
-            employee_id=v.employee_id,
-            shift_date=v.shift_date,
-            details=v.details,
-        )
-        for v in (arbzg_result.violations if arbzg_result else [])
-    ]
+    arbzg_result = _validate_schedule_shifts(db, schedule, shift_dicts)
     return ScheduleWithArbzgResponse(
         id=schedule.id,
         name=schedule.name,
@@ -84,7 +123,7 @@ def _build_schedule_with_arbzg_response(schedule) -> ScheduleWithArbzgResponse:
         shiftplans=schedule.shiftplans,
         created_at=schedule.created_at,
         updated_at=schedule.updated_at,
-        arbZgWarnings=warnings,
+        arbZgWarnings=_violation_responses(arbzg_result),
     )
 
 
@@ -102,8 +141,11 @@ def create_schedule_endpoint(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Planer may only schedule for employees in their own teams",
         )
-    schedule = create_schedule(db, data, user.id)
-    return _build_schedule_with_arbzg_response(schedule)
+    try:
+        schedule = create_schedule(db, data, user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    return _build_schedule_with_arbzg_response(db, schedule)
 
 
 @router.get("", response_model=PaginatedResponse[ScheduleResponse])
@@ -162,7 +204,10 @@ def update_schedule_endpoint(
             detail="Schedule was modified by another user. Please refresh and try again.",
         )
 
-    updated = update_schedule(db, schedule, data, actor_id=user.id)
+    try:
+        updated = update_schedule(db, schedule, data, actor_id=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     if response is not None:
         set_etag_response(response, updated, "name", "status", "week_type")
     return updated
@@ -187,6 +232,7 @@ def delete_schedule_endpoint(
 @router.post("/{schedule_id}/submit", response_model=ScheduleResponse)
 async def submit_schedule_endpoint(
     schedule_id: int,
+    body: SubmitRequest = SubmitRequest(),
     db: Session = Depends(get_db),
     user: User = Depends(require_admin_or_planer),
 ):
@@ -198,7 +244,7 @@ async def submit_schedule_endpoint(
             detail="Schedule is not in your team scope",
         )
     try:
-        return await submit_schedule_to_tito(db, schedule, user=user)
+        return await submit_schedule_to_tito(db, schedule, user=user, maximize_staffing=body.maximize_staffing)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
@@ -297,15 +343,20 @@ def update_shiftplan(
     if data.employee_id is not None:
         shiftplan.employee_id = data.employee_id
     if data.date is not None:
+        from app.services.schedule_service import _assert_date_in_scope, _get_week_type
+
+        try:
+            _assert_date_in_scope(schedule, data.date)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
         shiftplan.date = data.date
+        shiftplan.week = _get_week_type(data.date)
     if data.shift_id is not None:
         shiftplan.shift_id = data.shift_id
     if data.start_time is not None:
         shiftplan.start_time = data.start_time
     if data.end_time is not None:
         shiftplan.end_time = data.end_time
-    if data.week is not None:
-        shiftplan.week = data.week
     if data.break_start is not None:
         shiftplan.break_start = data.break_start
     if data.break_end is not None:
@@ -315,6 +366,31 @@ def update_shiftplan(
     if data.notes is not None:
         shiftplan.notes = data.notes
     db.add(shiftplan)
+    db.flush()
+
+    # B5: manual PUT path blocks HARD ArbZG violations before committing.
+    shift_dicts = _build_shift_dicts_from_schedule(schedule)
+    arbzg_result = _validate_schedule_shifts(db, schedule, shift_dicts)
+    if arbzg_result is not None and arbzg_result.has_hard_violations:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "message": "Shift update verletzt ArbZG-HARD-Regeln",
+                "violations": [
+                    ArbZgViolationResponse(
+                        rule=v.rule,
+                        message=v.message,
+                        employee_id=v.employee_id,
+                        shift_date=v.shift_date,
+                        details=v.details,
+                        severity=v.severity,
+                    ).model_dump(mode="json")
+                    for v in arbzg_result.hard_violations
+                ],
+            },
+        )
+
     db.commit()
     db.refresh(shiftplan)
 
@@ -339,7 +415,7 @@ def update_shiftplan(
 
     # Reload schedule with all shiftplans for ArbZG validation and full response
     schedule = get_schedule_by_id(db, schedule_id)
-    return _build_schedule_with_arbzg_response(schedule)
+    return _build_schedule_with_arbzg_response(db, schedule)
 
 
 @router.put("/{schedule_id}/shifts", response_model=ScheduleWithArbzgResponse)
@@ -363,17 +439,16 @@ def replace_all_shifts_endpoint(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Planer may only schedule for employees in their own teams",
         )
-    schedule, arbzg_result = replace_all_shifts(db, schedule, data.shiftplans, actor_id=user.id)
-    warnings = [
-        ArbZgViolationResponse(
-            rule=v.rule,
-            message=v.message,
-            employee_id=v.employee_id,
-            shift_date=v.shift_date,
-            details=v.details,
+    try:
+        schedule, arbzg_result = replace_all_shifts(db, schedule, data.shiftplans, actor_id=user.id)
+    except ArbZgHardViolationError as e:
+        # B5: HARD violations are rejected with the violation list (422)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=_hard_violation_detail(e),
         )
-        for v in arbzg_result.violations
-    ]
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     return ScheduleWithArbzgResponse(
         id=schedule.id,
         name=schedule.name,
@@ -389,7 +464,7 @@ def replace_all_shifts_endpoint(
         shiftplans=schedule.shiftplans,
         created_at=schedule.created_at,
         updated_at=schedule.updated_at,
-        arbZgWarnings=warnings,
+        arbZgWarnings=_violation_responses(arbzg_result),
     )
 
 

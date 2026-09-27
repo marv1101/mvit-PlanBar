@@ -612,9 +612,7 @@ def test_vacation_wish_blocks_assignment():
     assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
     for assignment in result["solution"]["assignments"]:
         if assignment["employeeId"] == "emp_001":
-            assert assignment["date"] != "2026-01-02", (
-                "emp_001 should NOT be assigned on 2026-01-02 (vacation wish)"
-            )
+            assert assignment["date"] != "2026-01-02", "emp_001 should NOT be assigned on 2026-01-02 (vacation wish)"
 
 
 def test_unavailable_wish_blocks_assignment():
@@ -643,9 +641,7 @@ def test_unavailable_wish_blocks_assignment():
     assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
     for assignment in result["solution"]["assignments"]:
         if assignment["employeeId"] == "emp_001":
-            assert assignment["date"] != "2026-01-02", (
-                "emp_001 should NOT be assigned on 2026-01-02 (unavailable wish)"
-            )
+            assert assignment["date"] != "2026-01-02", "emp_001 should NOT be assigned on 2026-01-02 (unavailable wish)"
 
 
 def test_preferred_wish_without_shift_id_influences_assignment():
@@ -674,12 +670,9 @@ def test_preferred_wish_without_shift_id_influences_assignment():
 
     assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
     emp_001_assignments = [
-        a for a in result["solution"]["assignments"]
-        if a["employeeId"] == "emp_001" and a["date"] == "2026-01-02"
+        a for a in result["solution"]["assignments"] if a["employeeId"] == "emp_001" and a["date"] == "2026-01-02"
     ]
-    assert len(emp_001_assignments) > 0, (
-        "emp_001 should be assigned on 2026-01-02 due to preferred wish"
-    )
+    assert len(emp_001_assignments) > 0, "emp_001 should be assigned on 2026-01-02 due to preferred wish"
 
 
 def test_vacation_wish_fulfillment_rate_not_always_100():
@@ -890,8 +883,7 @@ def test_off_wish_vs_prefer_shift():
     for assignment in result["solution"]["assignments"]:
         if assignment["employeeId"] == "emp_001":
             assert assignment["date"] != "2026-01-02", (
-                "OFF wish should take priority over PREFER_SHIFT, "
-                "but emp_001 was assigned on 2026-01-02"
+                "OFF wish should take priority over PREFER_SHIFT, but emp_001 was assigned on 2026-01-02"
             )
 
 
@@ -905,8 +897,7 @@ def test_holiday_treated_like_sunday():
     - Period: 2026-01-01 (Thu/holiday) through 2026-01-11 (Sun)
     - Sundays in period: Jan 4, Jan 11 (2 Sundays)
     - Holiday in period: Jan 1 (Neujahr)
-    - minFreeSundaysPerYear=49 → allows 1 protected day work per employee
-      (required_free = round(49*3/52)=3, allowed = 3 - min(3,2) = 1)
+    - minFreeSundaysPerYear=34 → allowed protected workdays = floor(3*(52-34)/52) = 1
 
     Without holiday awareness: employee could work Jan 1 (holiday, not counted)
     + Jan 4 (Sunday, counted) = 2 protected days.
@@ -919,7 +910,7 @@ def test_holiday_treated_like_sunday():
         "config": {
             "startDate": "2026-01-01",
             "endDate": "2026-01-11",
-            "minFreeSundaysPerYear": 49,
+            "minFreeSundaysPerYear": 34,
             "holidayDates": ["2026-01-01"],
         },
         "shiftTemplates": [
@@ -954,7 +945,7 @@ def test_holiday_treated_like_sunday():
     for emp_id, count in emp_protected_count.items():
         assert count <= 1, (
             f"Employee {emp_id} worked on {count} protected days (Sunday/holiday). "
-            f"With minFreeSundaysPerYear=49 and holidayDates=[2026-01-01], "
+            f"With minFreeSundaysPerYear=34 and holidayDates=[2026-01-01], "
             f"should work on at most 1 protected day total (ArbZG §9)"
         )
 
@@ -1003,15 +994,215 @@ def test_holiday_rest_constraint():
     assignments = result["solution"]["assignments"]
     for emp_id in ["emp_001", "emp_002"]:
         emp_assignments = [a for a in assignments if a["employeeId"] == emp_id]
-        works_late_jan1 = any(
-            a["date"] == "2026-01-01" and a["shiftId"] == "S_SPAET"
-            for a in emp_assignments
-        )
-        works_early_jan2 = any(
-            a["date"] == "2026-01-02" and a["shiftId"] == "S_FRUEH"
-            for a in emp_assignments
-        )
+        works_late_jan1 = any(a["date"] == "2026-01-01" and a["shiftId"] == "S_SPAET" for a in emp_assignments)
+        works_early_jan2 = any(a["date"] == "2026-01-02" and a["shiftId"] == "S_FRUEH" for a in emp_assignments)
         assert not (works_late_jan1 and works_early_jan2), (
             f"Employee {emp_id} must not work S_SPAET on Jan 1 (holiday, ends 22:00) "
             f"and S_FRUEH on Jan 2 (starts 06:00) — only 8h rest, violates 11h minimum"
         )
+
+
+def test_solver_maxCount_expands_optional_slots():
+    """count=1, maxCount=3 with maximizeStaffing=False: only mandatory (1) filled."""
+    payload = {
+        "metadata": {"jobId": "job-maxcount-1"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 1,
+                "maxCount": 3,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    # Without maximizeStaffing, only mandatory slots (count=1) are filled
+    assert len(result["solution"]["assignments"]) == 1
+
+
+def test_solver_maxCount_fills_mandatory_only_when_not_enough_employees():
+    """count=2, maxCount=5 with maximizeStaffing=True and 3 employees: should fill 3."""
+    payload = {
+        "metadata": {"jobId": "job-maxcount-2"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07", "maximizeStaffing": True},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 2,
+                "maxCount": 5,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    # maxCount=5 but only 3 qualified employees, so max 3 assignments
+    assert len(result["solution"]["assignments"]) == 3
+
+
+def test_solver_maximizeStaffing_fills_optional_slots():
+    """maximizeStaffing=True with maxCount set should fill optional slots."""
+    payload = {
+        "metadata": {"jobId": "job-maxstaff-1"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07", "maximizeStaffing": True},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 1,
+                "maxCount": 3,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    assert len(result["solution"]["assignments"]) > 1
+
+
+def test_solver_maximizeStaffing_false_does_not_fill_optional():
+    """maximizeStaffing=False with maxCount set should assign approximately count (mandatory only)."""
+    payload = {
+        "metadata": {"jobId": "job-maxstaff-2"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07", "maximizeStaffing": False},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 1,
+                "maxCount": 3,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    assert len(result["solution"]["assignments"]) == 1
+
+
+def test_solver_maximizeStaffing_without_maxCount_auto_expands():
+    """maximizeStaffing=True without maxCount should auto-expand optional slots to number of qualified employees."""
+    payload = {
+        "metadata": {"jobId": "job-maxstaff-3"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07", "maximizeStaffing": True},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 1,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_004", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_005", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    assert len(result["solution"]["assignments"]) > 1
+
+
+def test_solver_optional_unassigned_slot_reported_as_SOFT():
+    """Optional (non-mandatory) unfilled slots should have SOFT severity, not HARD."""
+    # count=1, maxCount=3, but only 1 employee available → 2 optional slots unfilled
+    payload = {
+        "metadata": {"jobId": "job-opt-soft"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 1,
+                "maxCount": 3,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    violations = result["metrics"]["violations"]
+    soft_violations = [v for v in violations if v["severity"] == "SOFT"]
+    hard_unassigned = [v for v in violations if v["type"] == "UNASSIGNED_REQUIREMENT" and v["severity"] == "HARD"]
+    # The mandatory slot is filled, optional slots unfilled → SOFT violations
+    assert len(soft_violations) > 0
+    assert all(v["type"] == "UNASSIGNED_REQUIREMENT" for v in soft_violations)
+    assert len(hard_unassigned) == 0
+
+
+def test_solver_maxCount_clamped_when_less_than_count():
+    """maxCount < count is silently clamped to count (defensive guard)."""
+    # maxCount=2 < count=3 → should be clamped to 3 mandatory slots
+    payload = {
+        "metadata": {"jobId": "job-clamp"},
+        "config": {"startDate": "2026-01-01", "endDate": "2026-01-07"},
+        "shiftTemplates": [{"id": "S_FRUEH", "startTime": "06:00", "endTime": "14:00"}],
+        "requirements": [
+            {
+                "date": "2026-01-02",
+                "shiftId": "S_FRUEH",
+                "count": 3,
+                "maxCount": 2,
+            },
+        ],
+        "employees": [
+            {"id": "emp_001", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_002", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+            {"id": "emp_003", "skills": ["Apotheker"], "forbiddenDates": [], "contractHours": 40.0},
+        ],
+        "wishes": [],
+    }
+    model = build_model(payload)
+    result = solve_model(model, timeout_seconds=10)
+
+    assert result["metadata"]["status"] in ("SUCCESS", "FEASIBLE")
+    # All 3 employees assigned despite maxCount < count
+    assert len(result["solution"]["assignments"]) == 3

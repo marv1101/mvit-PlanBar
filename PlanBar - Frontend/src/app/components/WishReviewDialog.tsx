@@ -100,8 +100,8 @@ export function WishReviewDialog({ scheduleId, open, onOpenChange, onComplete, o
             {loading
               ? 'Lade ausstehende Wünsche...'
               : allReviewed
-                ? 'Alle Wünsche wurden geprüft. Der Submit kann fortgesetzt werden.'
-                : `${wishes.length} Wunsch/Wünsche müssen vor dem Submit freigegeben oder abgelehnt werden.`
+                ? 'Alle Wünsche wurden geprüft. Die Übermittlung kann fortgesetzt werden.'
+                : `${wishes.length} Wunsch/Wünsche müssen vor der Übermittlung freigegeben oder abgelehnt werden.`
             }
           </DialogDescription>
         </DialogHeader>
@@ -195,7 +195,7 @@ export function WishReviewDialog({ scheduleId, open, onOpenChange, onComplete, o
             Abbrechen
           </Button>
           <Button onClick={onComplete} disabled={!allReviewed}>
-            {allReviewed ? 'Weiter zum Submit' : `${wishes.length} Wunsch/Wünsche prüfen`}
+            {allReviewed ? 'Weiter zur Übermittlung' : `${wishes.length} Wunsch/Wünsche prüfen`}
           </Button>
         </DialogFooter>
       </DialogContent>

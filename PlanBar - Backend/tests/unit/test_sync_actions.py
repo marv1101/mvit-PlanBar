@@ -66,6 +66,7 @@ class TestCreateShiftWish:
         assert result["type"] == "preferred"
         assert result["note"] == "Test note"
         assert result["status"] == "pending"
+        assert result["week"] == 1
         assert "id" in result
         w = db_session.query(ShiftWish).filter(ShiftWish.id == result["id"]).first()
         assert w is not None
@@ -99,6 +100,12 @@ class TestUpdateShiftWish:
             UpdateShiftWish.execute(db_session, {"id": 99999, "note": "x"}, admin_user)
         assert e.value.status_code == 404
         assert "Shift wish not found" in str(e.value)
+
+    def test_update_shift_wish_derives_week_from_date(self, db_session, employee_user, admin_user):
+        c = CreateShiftWish.execute(db_session, {"date": "2026-06-01", "type": "preferred"}, employee_user)
+        r = UpdateShiftWish.execute(db_session, {"id": c["id"], "date": "2026-06-08"}, admin_user)
+        assert r["date"] == "2026-06-08"
+        assert r["week"] == 2
 
 
 class TestDeleteShiftWish:
@@ -168,10 +175,44 @@ class TestUpdateShift:
         assert r["shift_id"] == "morning"
         assert r["start_time"] == "09:00"
         assert r["end_time"] == "17:00"
+        assert r["week"] == "A"
         assert r["break_start"] == "12:00"
         assert r["break_end"] == "13:00"
         assert r["label"] == "Workday"
         assert r["notes"] == "Important tasks"
+
+    def test_update_shift_derives_week_on_date_change(self, db_session, admin_user):
+        sp = Shiftplan(
+            schedule_id=1,
+            employee_id=2,
+            date=_date(2026, 6, 2),
+            shift_id="evening",
+            start_time=_time(14, 0),
+            end_time=_time(22, 0),
+        )
+        db_session.add(sp)
+        db_session.commit()
+        r = UpdateShift.execute(db_session, {"id": sp.id, "date": "2026-06-10"}, admin_user)
+        assert r["date"] == "2026-06-10"
+        assert r["week"] == "B"
+
+    def test_update_shift_scope_rejects_other_parity(self, db_session, admin_user):
+        s = Schedule(name="Scoped", status="draft", week_type="A")
+        db_session.add(s)
+        db_session.commit()
+        sp = Shiftplan(
+            schedule_id=s.id,
+            employee_id=3,
+            date=_date(2026, 6, 3),
+            shift_id="night",
+            start_time=_time(22, 0),
+            end_time=_time(6, 0),
+        )
+        db_session.add(sp)
+        db_session.commit()
+        with pytest.raises(HTTPException) as e:
+            UpdateShift.execute(db_session, {"id": sp.id, "date": "2026-06-10"}, admin_user)
+        assert e.value.status_code == 422
 
 
 class TestSyncActionRegistry:

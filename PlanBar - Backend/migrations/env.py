@@ -11,8 +11,7 @@ from app.config import settings
 from app.db.base import Base
 
 config = context.config
-section = config.get_section(config.config_ini_section)
-section["sqlalchemy.url"] = settings.database_url
+config.set_main_option("sqlalchemy.url", settings.database_url)
 fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata

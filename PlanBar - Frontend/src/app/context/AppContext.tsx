@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Employee, Request, Schedule, WeekType, Role } from '../types';
-import { getWeekType } from '../lib/week';
+import { getWeekType, weekTypeOfDateStr } from '../lib/week';
 import { toast } from 'sonner';
 import * as employeeService from '../services/employeeService';
 import * as roleService from '../services/roleService';
@@ -9,6 +9,7 @@ import * as scheduleService from '../services/scheduleService';
 import {
   employeeFromResponse,
   employeeToCreate,
+  employeeToUpdate,
   roleFromResponse,
   roleToCreate,
   requestFromResponse,
@@ -99,6 +100,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => { mounted = false; };
   }, [refresh]);
 
+  useEffect(() => {
+    if (!currentSchedule?.startDate) return;
+    if (currentSchedule.weekType) {
+      setCurrentWeek(currentSchedule.weekType);
+      return;
+    }
+    const shiftParities = new Set(currentSchedule.shifts.map(s => weekTypeOfDateStr(s.date)));
+    if (shiftParities.size === 1) {
+      setCurrentWeek([...shiftParities][0]);
+      return;
+    }
+    setCurrentWeek(weekTypeOfDateStr(currentSchedule.startDate));
+  }, [currentSchedule]);
+
   const addEmployee = useCallback((employee: Employee) => {
     const dto = employeeToCreate(employee);
     employeeService.createEmployee(dto)
@@ -110,8 +125,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateEmployee = useCallback((id: string, employee: Employee) => {
-    const dto = employeeToCreate(employee);
-    employeeService.updateEmployee(Number(id), dto)
+    employeeService.getEmployee(Number(id))
+      .then(() => {
+        const dto = employeeToUpdate(employee);
+        return employeeService.updateEmployee(Number(id), dto);
+      })
       .then(res => {
         setEmployees(prev => prev.map(e => e.id === id ? employeeFromResponse(res) : e));
         toast.success('Mitarbeiter aktualisiert');

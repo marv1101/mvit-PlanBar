@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +26,12 @@ import {
   RotateCcw,
   Sparkles,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '../ui/dropdown-menu';
 import { Schedule as ScheduleType, WeekType, Employee, Role } from '../../types';
 import { ScheduleCalendar } from '../ScheduleCalendar';
 import { EditableScheduleCalendar } from '../EditableScheduleCalendar';
@@ -33,6 +40,7 @@ import { toast } from 'sonner';
 import * as scheduleService from '../../services/scheduleService';
 import * as requestService from '../../services/requestService';
 import { scheduleFromResponse } from '../../lib/mappers';
+import { getWeekType } from '../../lib/week';
 import { TIMEZONE } from '../../lib/timezone';
 import { exportShiftsCSV } from '../../lib/csv';
 import { StatusBadge } from './StatusBadge';
@@ -54,6 +62,52 @@ interface ScheduleManageListProps {
   setCurrentScheduleId: (v: string | null) => void;
   setCurrentScheduleStatus: (v: string | null) => void;
   onCreateTab: () => void;
+}
+
+const FAMILY_HINTS: Record<string, string> = {
+  'Qualifikation/Verfügbarkeit (Skills, Rollen, forbiddenDates)':
+    'Die Qualifikationsanforderungen sind zu streng — prüfen Sie, ob genug Mitarbeiter die benötigten Skills haben und verfügbar sind.',
+  'OFF-/Urlaubs-/Unavailable-Wünsche':
+    'Es sind zu viele Abwesenheiten gleichzeitig geplant.',
+  'Mutterschutz (protectionUntil)':
+    'Mutterschutz-Beschränkungen verhindern eine gültige Planung.',
+  'Ruhezeit § 5/§ 21/§ 16 JArbSchG':
+    'Die Ruhezeiten zwischen den Schichten können nicht eingehalten werden.',
+  'Tagesmaximum § 3 ArbZG':
+    'Die maximalen täglichen Arbeitszeiten werden überschritten.',
+  'Wochenstunden (Vertrag/§ 3/JArbSchG)':
+    'Die Wochenstunden können nicht im Rahmen gehalten werden.',
+  'Sonn-/Feiertagsschonung § 9/§ 11':
+    'Die Sonn-/Feiertagsregeln können nicht eingehalten werden.',
+  'max. aufeinanderfolgende Arbeitstage':
+    'Die maximalen aufeinanderfolgenden Arbeitstage werden überschritten.',
+  'Schicht-Rotation (maxSameShiftConsecutive)':
+    'Die Schicht-Rotationsregeln können nicht eingehalten werden.',
+  'Nachtarbeit § 6 ArbZG':
+    'Die Nachtarbeit-Regeln werden verletzt.',
+  'JArbSchG-Regeln für Minderjährige':
+    'Die Schutzregeln für minderjährige Mitarbeiter können nicht eingehalten werden.',
+  'Ersatzruhetag § 11 Abs. 3':
+    'Die Ersatzruhetags-Regeln können nicht eingehalten werden.',
+};
+
+function translateReason(reason: string): string {
+  if (reason.startsWith('SKILL_COVERAGE:')) {
+    const match = reason.match(/Requirement (\S+)\/(\S+) \(Skills: (.+)\) kann von keinem Mitarbeiter gedeckt werden/);
+    if (match) {
+      const [, date, shift, skills] = match;
+      return `Am ${date} (${shift}) fehlt ein Mitarbeiter mit den Qualifikationen: ${skills}.`;
+    }
+  }
+  const familyMatch = reason.match(/INFEASIBLE vermutlich verursacht durch: (.+?) \(ohne diese/);
+  if (familyMatch) {
+    const familyLabel = familyMatch[1];
+    const hint = FAMILY_HINTS[familyLabel];
+    if (hint) {
+      return hint;
+    }
+  }
+  return reason;
 }
 
 export function ScheduleManageList({
@@ -78,19 +132,28 @@ export function ScheduleManageList({
   const [arbZgWarnings, setArbZgWarnings] = useState<ArbZgWarning[]>([]);
   const [pendingShiftplans, setPendingShiftplans] = useState<scheduleService.ShiftplanCreateDTO[]>([]);
 
-  const isDraft = selectedSchedule?.status === 'draft';
-  const hasWeekA = selectedSchedule?.shifts.some(s => s.week === 'A') ?? false;
-  const hasWeekB = selectedSchedule?.shifts.some(s => s.week === 'B') ?? false;
-  const showTabs = isDraft || hasWeekA || hasWeekB;
+  const rangeWeeks = useMemo(() => {
+    const weeks = new Set<WeekType>();
+    if (!selectedSchedule?.startDate || !selectedSchedule?.endDate) return weeks;
+    const end = new Date(`${selectedSchedule.endDate}T00:00:00Z`);
+    for (let d = new Date(`${selectedSchedule.startDate}T00:00:00Z`); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+      weeks.add(getWeekType(d));
+    }
+    return weeks;
+  }, [selectedSchedule]);
+  const scope = selectedSchedule?.weekType ?? null;
+  const hasWeekA = scope ? scope === 'A' : rangeWeeks.has('A');
+  const hasWeekB = scope ? scope === 'B' : rangeWeeks.has('B');
+  const showTabs = hasWeekA || hasWeekB;
 
   useEffect(() => {
-    if (!selectedSchedule || isDraft) return;
+    if (!selectedSchedule) return;
     if (currentWeek === 'A' && !hasWeekA && hasWeekB) {
       setCurrentWeek('B');
     } else if (currentWeek === 'B' && !hasWeekB && hasWeekA) {
       setCurrentWeek('A');
     }
-  }, [selectedSchedule, currentWeek, setCurrentWeek, hasWeekA, hasWeekB, isDraft]);
+  }, [selectedSchedule, currentWeek, setCurrentWeek, hasWeekA, hasWeekB]);
 
   const handleViewSchedule = async (schedule: ScheduleType) => {
     try {
@@ -169,7 +232,6 @@ export function ScheduleManageList({
       shift_id: s.id,
       start_time: s.startTime,
       end_time: s.endTime,
-      week: s.week,
       break_start: s.breakStart,
       break_end: s.breakEnd,
     }));
@@ -273,7 +335,12 @@ export function ScheduleManageList({
                   {schedule.endDate ? new Date(schedule.endDate).toLocaleDateString('de-DE', { timeZone: TIMEZONE }) : '-'}
                 </p>
                 <p>{schedule.shifts.length} Schichten</p>
-                <StatusBadge status={schedule.status || 'draft'} />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <StatusBadge status={schedule.status || 'draft'} />
+                  {schedule.weekType && (
+                    <Badge variant="outline">Nur Woche {schedule.weekType}</Badge>
+                  )}
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -284,6 +351,7 @@ export function ScheduleManageList({
                   <Eye className="h-4 w-4 mr-1" />
                   {selectedSchedule?.id === schedule.id ? 'Ausgewählt' : 'Ansehen'}
                 </Button>
+                {schedule.status === 'draft' && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -293,30 +361,33 @@ export function ScheduleManageList({
                   <Send className="h-4 w-4 mr-1" />
                   TiTO
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => exportShiftsCSV(schedule.shifts, schedule.name, employees)}
-                  aria-label="Schichtplan exportieren"
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleExportPdf(schedule)}
-                  aria-label="PDF exportieren"
-                >
-                  <FileText className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleExportIcal(schedule)}
-                  aria-label="iCal exportieren"
-                >
-                  <FileUp className="h-4 w-4" />
-                </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label="Exportieren"
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Export
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleExportPdf(schedule)}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExportIcal(schedule)}>
+                      <FileUp className="mr-2 h-4 w-4" />
+                      iCal
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => exportShiftsCSV(schedule.shifts, schedule.name, employees)}>
+                      <Download className="mr-2 h-4 w-4" />
+                      CSV
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                   size="sm"
                   variant="destructive"
@@ -338,6 +409,9 @@ export function ScheduleManageList({
               <div className="flex items-center gap-3 flex-wrap">
                 <CardTitle>{selectedSchedule.name}</CardTitle>
                 <StatusBadge status={selectedSchedule.status} />
+                {selectedSchedule.weekType && (
+                  <Badge variant="outline">Nur Woche {selectedSchedule.weekType}</Badge>
+                )}
                 {selectedSchedule.status === 'draft' && (
                   <Button
                     size="sm"
@@ -398,8 +472,8 @@ export function ScheduleManageList({
                 {showTabs && (
                   <Tabs value={currentWeek} onValueChange={(v) => setCurrentWeek(v as WeekType)}>
                     <TabsList>
-                      {(isDraft || hasWeekA) && <TabsTrigger value="A">Woche A</TabsTrigger>}
-                      {(isDraft || hasWeekB) && <TabsTrigger value="B">Woche B</TabsTrigger>}
+                      {hasWeekA && <TabsTrigger value="A">Woche A</TabsTrigger>}
+                      {hasWeekB && <TabsTrigger value="B">Woche B</TabsTrigger>}
                     </TabsList>
                   </Tabs>
                 )}
@@ -408,16 +482,31 @@ export function ScheduleManageList({
           </CardHeader>
           <CardContent className="space-y-4">
             {selectedSchedule.status === 'failed' && selectedSchedule.diagnostics && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
                 <div className="flex items-center gap-2 text-red-800 font-medium">
                   <span className="text-lg">⚠️</span>
                   <span>Berechnung fehlgeschlagen</span>
                 </div>
-                <p className="text-red-700 text-sm">{selectedSchedule.diagnostics.info}</p>
+                <p className="text-red-700 text-sm">
+                  TiTO konnte keine gültige Schichtplanung finden.
+                </p>
+                {selectedSchedule.diagnostics?.infeasibilityReasons && selectedSchedule.diagnostics.infeasibilityReasons.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-red-700 text-sm font-medium">Mögliche Ursachen:</p>
+                    <ul className="space-y-1">
+                      {selectedSchedule.diagnostics.infeasibilityReasons.map((reason, i) => (
+                        <li key={i} className="text-red-600 text-sm flex items-start gap-2">
+                          <span className="mt-0.5 shrink-0">•</span>
+                          <span>{translateReason(reason)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {selectedSchedule.metrics?.violations && selectedSchedule.metrics.violations.length > 0 && (
                   <details className="mt-2">
                     <summary className="text-red-600 text-sm cursor-pointer hover:underline">
-                      Details ({selectedSchedule.metrics.violations.length} Verletzungen)
+                      Technische Details ({selectedSchedule.metrics.violations.length} Verletzungen)
                     </summary>
                     <ul className="mt-2 space-y-1">
                       {selectedSchedule.metrics.violations.map((v, i) => (
@@ -440,7 +529,7 @@ export function ScheduleManageList({
                 onUpdateSchedule={handleUpdateSchedule}
                 onSaveShifts={handleManageSave}
               />
-            ) : !hasWeekA && !hasWeekB ? (
+            ) : selectedSchedule.shifts.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12 text-gray-500">
                   <Calendar className="h-12 w-12 mb-4 opacity-50" />

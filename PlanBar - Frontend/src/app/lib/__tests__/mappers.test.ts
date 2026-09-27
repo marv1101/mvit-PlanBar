@@ -280,12 +280,12 @@ describe('requestFromResponse', () => {
     rejection_reason: null,
   };
 
-  it('bildet einen vacation-Request (week=1 -> A) ab', () => {
+  it('bildet einen vacation-Request ab und leitet week aus dem Datum ab', () => {
     const result = requestFromResponse(baseDto);
     expect(result.id).toBe('10');
     expect(result.employeeId).toBe('3');
     expect(result.date).toBe('2024-06-15');
-    expect(result.week).toBe('A');
+    expect(result.week).toBe('B');
     expect(result.type).toBe('urlaubswunsch');
     expect(result.notes).toBe('Urlaub');
     expect(result.status).toBe('approved');
@@ -305,16 +305,18 @@ describe('requestFromResponse', () => {
     expect(result.type).toBe('nicht-verfügbar');
   });
 
-  it('setzt week=A bei week=2 -> B', () => {
+  it('ignoriert dto.week und leitet week aus dem Datum ab', () => {
     const dto = { ...baseDto, week: 2 };
     const result = requestFromResponse(dto);
     expect(result.week).toBe('B');
+    const dtoA = { ...baseDto, date: '2024-06-18', week: 2 };
+    expect(requestFromResponse(dtoA).week).toBe('A');
   });
 
-  it('setzt week=A bei week=null', () => {
+  it('leitet week auch bei week=null aus dem Datum ab', () => {
     const dto = { ...baseDto, week: null };
     const result = requestFromResponse(dto);
-    expect(result.week).toBe('A');
+    expect(result.week).toBe('B');
   });
 
   it('setzt notes=undefined bei null', () => {
@@ -343,7 +345,7 @@ describe('requestToCreate', () => {
     const result = requestToCreate(req);
     expect(result.employee_id).toBe(3);
     expect(result.date).toBe('2024-06-15');
-    expect(result.week).toBe(1);
+    expect(result.week).toBe(2);
     expect(result.type).toBe('vacation');
     expect(result.note).toBe('Bitte genehmigen');
   });
@@ -372,24 +374,24 @@ describe('requestToCreate', () => {
     expect(result.type).toBe('unavailable');
   });
 
-  it('setzt week=2 bei week=B', () => {
+  it('leitet week=2 aus B-Wochen-Datum ab (req.week wird ignoriert)', () => {
     const req = {
       id: '13',
       employeeId: '6',
-      date: '2024-06-18',
-      week: 'B' as const,
+      date: '2024-06-15',
+      week: 'A' as const,
       type: 'urlaubswunsch' as const,
     };
     const result = requestToCreate(req);
     expect(result.week).toBe(2);
   });
 
-  it('setzt week=1 bei week=A', () => {
+  it('leitet week=1 aus A-Wochen-Datum ab', () => {
     const req = {
       id: '14',
       employeeId: '7',
       date: '2024-06-19',
-      week: 'A' as const,
+      week: 'B' as const,
       type: 'urlaubswunsch' as const,
     };
     const result = requestToCreate(req);

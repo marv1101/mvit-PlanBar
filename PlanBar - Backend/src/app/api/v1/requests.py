@@ -14,6 +14,7 @@ from app.dependencies import get_current_user, get_db, require_admin_or_planer
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services import team_service
 from app.services.notification_service import create_notification_and_push
+from app.services.schedule_service import wish_week_for_date
 
 router = APIRouter()
 
@@ -69,7 +70,7 @@ def create_shift_wish(
     wish = ShiftWish(
         employee_id=data.employee_id,
         date=data.date,
-        week=data.week,
+        week=wish_week_for_date(data.date),
         type=data.type,
         note=data.note,
         status="pending",
@@ -158,8 +159,7 @@ def update_shift_wish(
         wish.employee_id = data.employee_id
     if data.date is not None:
         wish.date = data.date
-    if data.week is not None:
-        wish.week = data.week
+        wish.week = wish_week_for_date(data.date)
     if data.type is not None:
         wish.type = data.type
     if data.note is not None:

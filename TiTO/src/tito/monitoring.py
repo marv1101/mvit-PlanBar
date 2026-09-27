@@ -38,22 +38,34 @@ def _parse_timestamp(value: Any) -> datetime | None:
     return None
 
 
-def _fetch_job_rows(connection: sqlite3.Connection | Any, queue_table: str) -> list[dict]:
-    query = f"SELECT status, result, created_at, updated_at FROM {queue_table} "
+def _fetch_job_rows(connection: sqlite3.Connection | Any, queue_table: str, tenant_id: str | None = None) -> list[dict]:
+    query = f"SELECT status, result, created_at, updated_at FROM {queue_table}"
+    params: tuple = ()
+    if tenant_id:
+        query += " WHERE tenant_id = ?"
+        params = (tenant_id,)
     if isinstance(connection, sqlite3.Connection):
-        cursor = connection.execute(query)
+        cursor = connection.execute(query, params)
         rows = [dict(row) for row in cursor.fetchall()]
     else:
         cursor = connection.cursor()
-        cursor.execute(query)
+        if tenant_id:
+            cursor.execute(
+                f"SELECT status, result, created_at, updated_at FROM {queue_table} WHERE tenant_id = %s",
+                (tenant_id,),
+            )
+        else:
+            cursor.execute(query)
         rows = [dict(row) for row in cursor.fetchall()]
         cursor.close()
     return rows
 
 
-def _compute_duration_metrics(connection: sqlite3.Connection | Any, queue_table: str) -> dict:
+def _compute_duration_metrics(
+    connection: sqlite3.Connection | Any, queue_table: str, tenant_id: str | None = None
+) -> dict:
     durations = []
-    for row in _fetch_job_rows(connection, queue_table):
+    for row in _fetch_job_rows(connection, queue_table, tenant_id):
         created_at = _parse_timestamp(row.get("created_at"))
         updated_at = _parse_timestamp(row.get("updated_at"))
         if created_at is None or updated_at is None:
@@ -78,14 +90,14 @@ def _compute_duration_metrics(connection: sqlite3.Connection | Any, queue_table:
 
 
 def _compute_timeout_metrics(
-    connection: sqlite3.Connection | Any, queue_table: str, timeout_seconds: int | None
+    connection: sqlite3.Connection | Any, queue_table: str, timeout_seconds: int | None, tenant_id: str | None = None
 ) -> dict:
     if timeout_seconds is None:
         return {"solver_timeout_count": 0, "solver_timeout_rate": 0.0}
 
     timeout_count = 0
     checked = 0
-    for row in _fetch_job_rows(connection, queue_table):
+    for row in _fetch_job_rows(connection, queue_table, tenant_id):
         result = _parse_result(row.get("result"))
         if not isinstance(result, dict):
             continue
@@ -114,18 +126,19 @@ def get_metrics(
     connection: sqlite3.Connection | Any,
     queue_table: str,
     timeout_seconds: int | None = None,
+    tenant_id: str | None = None,
 ) -> dict:
-    """Gibt aktuelle Monitoring-Daten zurück."""
-    workers = get_workers(connection)
-    job_status_counts = fetch_jobs_grouped_by_status(connection, queue_table)
-    callback_counts = fetch_callback_count_grouped_by_status(connection)
-    dlq_count = fetch_dlq_count(connection)
-    duration_metrics = _compute_duration_metrics(connection, queue_table)
-    timeout_metrics = _compute_timeout_metrics(connection, queue_table, timeout_seconds)
+    """Gibt aktuelle Monitoring-Daten zurück, optional mandanten-scoped (B5)."""
+    workers = get_workers(connection) if not tenant_id else []
+    job_status_counts = fetch_jobs_grouped_by_status(connection, queue_table, tenant_id)
+    callback_counts = fetch_callback_count_grouped_by_status(connection, tenant_id)
+    dlq_count = fetch_dlq_count(connection, tenant_id)
+    duration_metrics = _compute_duration_metrics(connection, queue_table, tenant_id)
+    timeout_metrics = _compute_timeout_metrics(connection, queue_table, timeout_seconds, tenant_id)
     error_rate = _compute_error_rate(job_status_counts)
 
     return {
-        "queue_length": count_jobs(connection, queue_table),
+        "queue_length": count_jobs(connection, queue_table, tenant_id),
         "active_workers": len(workers),
         "worker_count": len(workers),
         "workers": workers,
@@ -143,8 +156,9 @@ def export_prometheus(
     queue_table: str,
     timeout_seconds: int | None = None,
     prefix: str = "tito",
+    tenant_id: str | None = None,
 ) -> str:
-    metrics = get_metrics(connection, queue_table, timeout_seconds)
+    metrics = get_metrics(connection, queue_table, timeout_seconds, tenant_id)
     lines = [
         f"# HELP {prefix}_queue_length Anzahl der Jobs in der Warteschlange.",
         f"# TYPE {prefix}_queue_length gauge",

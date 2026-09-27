@@ -43,6 +43,11 @@ def create_employee(db: Session, data: EmployeeCreate, actor_id: int | None = No
         break_start=data.break_start,
         break_end=data.break_end,
         max_work_hours=data.max_work_hours,
+        is_minor=data.is_minor,
+        is_night_worker=data.is_night_worker,
+        night_worker_exam_date=data.night_worker_exam_date,
+        protection_until=data.protection_until,
+        is_shift_worker=data.is_shift_worker,
     )
     if data.role_ids:
         roles = db.query(Role).filter(Role.id.in_(data.role_ids)).all()
@@ -90,6 +95,16 @@ def update_employee(db: Session, employee: Employee, data: EmployeeUpdate, actor
         employee.break_end = data.break_end
     if data.max_work_hours is not None:
         employee.max_work_hours = data.max_work_hours
+    if data.is_minor is not None:
+        employee.is_minor = data.is_minor
+    if data.is_night_worker is not None:
+        employee.is_night_worker = data.is_night_worker
+    if data.night_worker_exam_date is not None:
+        employee.night_worker_exam_date = data.night_worker_exam_date
+    if data.protection_until is not None:
+        employee.protection_until = data.protection_until
+    if data.is_shift_worker is not None:
+        employee.is_shift_worker = data.is_shift_worker
     if data.user_id is not None:
         if employee.user_id is not None and employee.user_id != data.user_id:
             old_user = db.query(User).filter(User.id == employee.user_id).first()

@@ -148,6 +148,8 @@ def test_update_shiftplan(client, auth_headers):
                     "shift_id": "früh",
                     "start_time": "06:00",
                     "end_time": "14:00",
+                    "break_start": "10:00",
+                    "break_end": "10:30",
                 },
             ]
         },
@@ -155,6 +157,113 @@ def test_update_shiftplan(client, auth_headers):
     )
     assert response.status_code == 200
     assert len(response.json()["shiftplans"]) == 1
+    assert response.json()["shiftplans"][0]["week"] == "A"
+
+
+def test_create_schedule_overlap_warning_in_metadata(client, auth_headers):
+    """C4b: überlappender Planungszeitraum → Warning in metadata_json (kein 422)."""
+    client.post(
+        "/api/v1/schedules",
+        json={"name": "Overlap A", "start_date": "2026-06-01", "end_date": "2026-06-07"},
+        headers=auth_headers,
+    )
+    response = client.post(
+        "/api/v1/schedules",
+        json={"name": "Overlap B", "start_date": "2026-06-05", "end_date": "2026-06-12"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    metadata = response.json()["metadata_json"]
+    assert metadata is not None
+    warnings = metadata["overlapWarnings"]
+    assert len(warnings) >= 1
+    assert any("Overlap A" in w for w in warnings)
+
+
+def test_update_single_shift_hard_violation_blocked(client, auth_headers):
+    """B5: auch der einzelne Schicht-PUT blockt HARD-Verstöße (422)."""
+    create_resp = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Single Shift Block",
+            "start_date": "2026-06-01",
+            "end_date": "2026-06-07",
+            "shiftplans": [
+                {
+                    "employee_id": 1,
+                    "date": "2026-06-02",
+                    "shift_id": "keep",
+                    "start_time": "08:00:00",
+                    "end_time": "16:00:00",
+                    "break_start": "12:00",
+                    "break_end": "12:30",
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    schedule_id = create_resp.json()["id"]
+    shiftplan_id = create_resp.json()["shiftplans"][0]["id"]
+
+    response = client.put(
+        f"/api/v1/schedules/{schedule_id}/shifts/{shiftplan_id}",
+        json={"start_time": "06:00:00", "end_time": "19:00:00"},  # 13h ohne Pause → HARD
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+    assert "violations" in response.json()["detail"]
+
+
+def test_create_schedule_scope_rejects_other_parity(client, auth_headers):
+    response = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Scoped A",
+            "week_type": "A",
+            "start_date": "2026-06-01",
+            "end_date": "2026-06-14",
+            "shiftplans": [
+                {
+                    "employee_id": 1,
+                    "date": "2026-06-10",
+                    "shift_id": "früh",
+                    "start_time": "06:00",
+                    "end_time": "14:00",
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+def test_update_schedule_scope_change_rejected_with_other_parity_shifts(client, auth_headers):
+    create_resp = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Scope Change",
+            "start_date": "2026-06-01",
+            "end_date": "2026-06-14",
+            "shiftplans": [
+                {
+                    "employee_id": 1,
+                    "date": "2026-06-10",
+                    "shift_id": "früh",
+                    "start_time": "06:00",
+                    "end_time": "14:00",
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+    schedule_id = create_resp.json()["id"]
+
+    response = client.put(
+        f"/api/v1/schedules/{schedule_id}",
+        json={"week_type": "A"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
 
 
 def test_update_shiftplan_not_found(client, auth_headers):
@@ -173,3 +282,83 @@ def test_replace_all_shifts_not_found(client, auth_headers):
         headers=auth_headers,
     )
     assert response.status_code == 404
+
+
+def _shiftplan_payload(employee_id, d, start, end, break_start=None, break_end=None):
+    return {
+        "employee_id": employee_id,
+        "date": d,
+        "shift_id": "früh",
+        "start_time": start,
+        "end_time": end,
+        "break_start": break_start,
+        "break_end": break_end,
+    }
+
+
+def test_single_shift_hard_violation_from_other_plan_blocked(client, auth_headers):
+    """Cross-plan: REST-Verstoß gegen einen existenten anderen Plan → 422."""
+    other = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Cross Other Oct",
+            "start_date": "2026-10-05",
+            "end_date": "2026-10-11",
+            "shiftplans": [_shiftplan_payload(1, "2026-10-05", "06:00:00", "22:00:00")],
+        },
+        headers=auth_headers,
+    )
+    assert other.status_code == 201
+
+    target = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Cross Target Oct",
+            "start_date": "2026-10-05",
+            "end_date": "2026-10-11",
+            "shiftplans": [_shiftplan_payload(1, "2026-10-06", "12:00", "20:00", "16:00", "16:30")],
+        },
+        headers=auth_headers,
+    )
+    assert target.status_code == 201
+    target_id = target.json()["id"]
+    shiftplan_id = target.json()["shiftplans"][0]["id"]
+
+    response = client.put(
+        f"/api/v1/schedules/{target_id}/shifts/{shiftplan_id}",
+        json={"start_time": "06:00:00", "end_time": "14:00:00", "break_start": "10:00", "break_end": "10:30"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+    violations = response.json()["detail"]["violations"]
+    assert any(v["rule"] == "rest_time" for v in violations)
+
+
+def test_single_shift_ok_when_violation_only_inside_other_plans(client, auth_headers):
+    """Ein Verstoß, der nur innerhalb existenter Pläne entsteht, blockt nicht."""
+    other = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Cross Bad Oct",
+            "start_date": "2026-11-02",
+            "end_date": "2026-11-08",
+            "shiftplans": [
+                _shiftplan_payload(1, "2026-11-02", "06:00", "22:00:00"),
+                _shiftplan_payload(1, "2026-11-03", "05:00", "14:00"),
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert other.status_code == 201
+
+    target = client.post(
+        "/api/v1/schedules",
+        json={
+            "name": "Cross Target Nov",
+            "start_date": "2026-11-02",
+            "end_date": "2026-11-08",
+            "shiftplans": [_shiftplan_payload(1, "2026-11-06", "08:00", "16:00", "12:00", "12:30")],
+        },
+        headers=auth_headers,
+    )
+    assert target.status_code == 201

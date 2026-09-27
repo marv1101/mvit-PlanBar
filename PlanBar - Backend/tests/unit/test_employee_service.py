@@ -271,3 +271,55 @@ def test_update_timecard(db_session):
     assert updated.week == 21
     assert updated.balance == 10.0
     assert updated.scheduled_hours == 35.0
+
+
+# --- ArbZG-relevant employee fields ---
+
+
+def test_create_employee_with_arbzg_fields(db_session):
+    from datetime import date
+
+    data = EmployeeCreate(
+        first_name="Mia",
+        last_name="Minor",
+        is_minor=True,
+        is_night_worker=True,
+        is_shift_worker=True,
+        night_worker_exam_date=date(2026, 2, 1),
+        protection_until=date(2026, 6, 30),
+    )
+    emp = create_employee(db_session, data)
+    assert emp.is_minor is True
+    assert emp.is_night_worker is True
+    assert emp.is_shift_worker is True
+    assert emp.night_worker_exam_date == date(2026, 2, 1)
+    assert emp.protection_until == date(2026, 6, 30)
+
+
+def test_create_employee_arbzg_defaults(db_session):
+    emp = create_employee(db_session, EmployeeCreate(first_name="Def", last_name="Arbzg"))
+    assert emp.is_minor is False
+    assert emp.is_night_worker is False
+    assert emp.is_shift_worker is False
+    assert emp.night_worker_exam_date is None
+    assert emp.protection_until is None
+
+
+def test_update_employee_arbzg_fields(db_session):
+    from datetime import date
+
+    emp = create_employee(db_session, EmployeeCreate(first_name="Upd", last_name="Arbzg"))
+    updated = update_employee(
+        db_session,
+        emp,
+        EmployeeUpdate(
+            is_minor=True,
+            protection_until=date(2026, 6, 30),
+        ),
+    )
+    assert updated.is_minor is True
+    assert updated.protection_until == date(2026, 6, 30)
+
+    updated = update_employee(db_session, emp, EmployeeUpdate(is_minor=False))
+    assert updated.is_minor is False
+    assert updated.protection_until == date(2026, 6, 30)  # unverändert

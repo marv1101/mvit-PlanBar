@@ -1,10 +1,11 @@
 from typing import Any
 
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.db.models.schedule import Shiftplan
+from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.user import User
+from app.services.schedule_service import _assert_date_in_scope, _get_week_type
 from app.services.sync_actions.base import RoleRequired
 from app.services.sync_actions.serializers import serialize_shift as _serialize_shift
 
@@ -19,7 +20,6 @@ class UpdateShift(RoleRequired):
         "shift_id",
         "start_time",
         "end_time",
-        "week",
         "break_start",
         "break_end",
         "label",
@@ -41,11 +41,19 @@ class UpdateShift(RoleRequired):
                 # Coerce ISO date strings to date objects (SQLite Date column)
                 if field == "date" and isinstance(value, str):
                     value = _date.fromisoformat(value)
-                # Coerce HH:MM time strings to time objects (SQLite Time columns)
+                # Coerce HH:MM time strings to time objects (SQLite Time column)
                 if field in ("start_time", "end_time") and isinstance(value, str):
                     hh, mm = value.split(":", 1)
                     value = _time(int(hh), int(mm))
                 setattr(shift, field, value)
+        if "date" in data:
+            schedule = db.query(Schedule).filter(Schedule.id == shift.schedule_id).first()
+            if schedule:
+                try:
+                    _assert_date_in_scope(schedule, shift.date)
+                except ValueError as e:
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+            shift.week = _get_week_type(shift.date)
         db.commit()
         db.refresh(shift)
         return _serialize_shift(shift)

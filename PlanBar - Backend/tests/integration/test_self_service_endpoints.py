@@ -26,6 +26,8 @@ def test_get_my_schedule(client, auth_headers, employee_auth_headers):
                     "shift_id": "morning",
                     "start_time": "08:00:00",
                     "end_time": "16:00:00",
+                    "break_start": "12:00",
+                    "break_end": "12:30",
                 }
             ]
         },

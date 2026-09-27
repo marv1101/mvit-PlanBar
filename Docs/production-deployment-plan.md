@@ -330,6 +330,7 @@ services:
       MAX_JOBS: 20
       TIMEOUT_SECONDS: 300
       API_TOKEN: ${TITO_API_KEY}
+      API_TOKEN_ROLES: "${TITO_API_KEY}=admin,${TITO_WORKER_API_KEY}=worker"
       JWT_SECRET: ${TITO_JWT_SECRET}
       JWT_ALGORITHM: HS256
     depends_on:
@@ -353,6 +354,7 @@ services:
     environment:
       DATABASE_URL: postgresql://tito:${TITO_DB_PASSWORD}@db_tito:5432/${TITO_DB_NAME}
       API_URL: http://tito:5001
+      WORKER_API_TOKEN: ${TITO_WORKER_API_KEY}
       QUEUE_TABLE: job_queue
       CALLBACK_QUEUE: callback_queue
       MAX_JOBS: 10
@@ -452,6 +454,7 @@ PLANBAR_DB_PASSWORD=$(openssl rand -hex 32)
 TITO_DB_PASSWORD=$(openssl rand -hex 32)
 SECRET_KEY=$(openssl rand -hex 32)
 TITO_API_KEY=$(openssl rand -hex 16)
+TITO_WORKER_API_KEY=$(openssl rand -hex 16)
 TITO_JWT_SECRET=$(openssl rand -hex 32)
 EOF
 
@@ -679,14 +682,14 @@ class Settings(BaseSettings):
     cors_origins: str = Field("http://localhost:5173,http://localhost:3000")
     tito_api_key: str | None = Field(None)
 
+
 settings = Settings()
 ```
 
 ```python
 # main.py (nach App-Erstellung)
 if settings.environment in ("production", "demo"):
-    assert settings.secret_key not in ("change-me-in-production", "", None), \
-        "SECRET_KEY must be set in production"
+    assert settings.secret_key not in ("change-me-in-production", "", None), "SECRET_KEY must be set in production"
 ```
 
 ### Umsetzung S5: nginx Security Headers
@@ -805,6 +808,7 @@ docker compose -p planbar-kunde1 logs --tail=50 -f
 # pip install sentry-sdk
 # In main.py:
 import sentry_sdk
+
 sentry_sdk.init(
     dsn=settings.sentry_dsn,
     environment=settings.environment,
@@ -962,6 +966,7 @@ PLANBAR_DB_PASSWORD=<random-64-hex>
 TITO_DB_PASSWORD=<random-64-hex>
 SECRET_KEY=<random-64-hex>
 TITO_API_KEY=<random-32-hex>
+TITO_WORKER_API_KEY=<random-32-hex>
 TITO_JWT_SECRET=<random-64-hex>
 ```
 

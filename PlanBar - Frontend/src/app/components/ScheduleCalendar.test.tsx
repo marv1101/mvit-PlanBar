@@ -3,7 +3,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ScheduleCalendar } from './ScheduleCalendar';
 import { TestWrapper, mockSchedule } from '../../test/test-utils';
-
 function renderCalendar(props = {}) {
   return render(
     <TestWrapper>
@@ -108,5 +107,45 @@ describe('ScheduleCalendar - Week-Filter', () => {
     await user.click(toggleButton);
 
     expect(screen.queryByText(/08:00/)).not.toBeInTheDocument();
+  });
+});
+
+describe('ScheduleCalendar - Vollbild-Kalenderansicht', () => {
+  it('zeigt einen Vergrößern-Button für die Kalenderansicht', () => {
+    renderCalendar();
+    expect(screen.getByRole('button', { name: 'Kalenderansicht vergrößern' })).toBeInTheDocument();
+  });
+
+  it('öffnet die Kalenderansicht im Vollbild-Dialog mit Blur-Overlay', async () => {
+    const user = userEvent.setup();
+    renderCalendar();
+
+    await user.click(screen.getByRole('button', { name: 'Kalenderansicht vergrößern' }));
+
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay!.className).toContain('backdrop-blur-sm');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getAllByText(/Legende/i).length).toBe(2);
+  });
+
+  it('vergrößert die Kalenderansicht unabhängig vom View-Mode', async () => {
+    const user = userEvent.setup();
+    renderCalendar();
+
+    await user.click(screen.getByRole('button', { name: /Timeline-Ansicht/i }));
+    await user.click(screen.getAllByRole('button', { name: 'Kalenderansicht vergrößern' })[0]);
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('schließt das Vollbild mit dem Schließen-Button', async () => {
+    const user = userEvent.setup();
+    renderCalendar();
+
+    await user.click(screen.getByRole('button', { name: 'Kalenderansicht vergrößern' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Close' })[0]);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

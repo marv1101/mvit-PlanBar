@@ -29,7 +29,7 @@ export function useManualScheduleForm(): UseManualScheduleFormReturn {
   const [manualName, setManualName] = useState('');
   const [manualStartDate, setManualStartDate] = useState('');
   const [manualEndDate, setManualEndDate] = useState('');
-  const [manualWeekType, setManualWeekType] = useState('A');
+  const [manualWeekType, setManualWeekType] = useState('');
   const [manuallyCreatedSchedule, setManuallyCreatedSchedule] = useState<ScheduleType | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -57,7 +57,7 @@ export function useManualScheduleForm(): UseManualScheduleFormReturn {
     setManualName('');
     setManualStartDate('');
     setManualEndDate('');
-    setManualWeekType('A');
+    setManualWeekType('');
     setManuallyCreatedSchedule(null);
     setError(null);
   }, []);

@@ -134,9 +134,9 @@ Neue Spalten:
 ```python
 class Timecard(Base):
     # ... bestehende Felder
-    scheduled_hours = Column(Float, default=0.0)   # Vom Solver geplante Stunden
-    actual_hours = Column(Float, default=0.0)       # Tatsächlich geleistet (optional, später)
-    contract_hours = Column(Float, default=0.0)      # Vertragliche Stunden in dieser Woche
+    scheduled_hours = Column(Float, default=0.0)  # Vom Solver geplante Stunden
+    actual_hours = Column(Float, default=0.0)  # Tatsächlich geleistet (optional, später)
+    contract_hours = Column(Float, default=0.0)  # Vertragliche Stunden in dieser Woche
 ```
 
 **Constraint:** `unique(employee_id, week, year)` für Upsert

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
+from app.services.schedule_service import wish_week_for_date
 from app.services.sync_actions.base import RoleRequired
 from app.services.sync_actions.serializers import serialize_wish as _serialize_wish
 
@@ -33,7 +34,7 @@ class CreateShiftWish(RoleRequired):
         wish = ShiftWish(
             employee_id=employee_id,
             date=date_value,
-            week=data.get("week"),
+            week=wish_week_for_date(date_value),
             type=data.get("type", "preferred"),
             note=data.get("note"),
             status="pending",

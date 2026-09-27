@@ -13,7 +13,11 @@ class ShiftplanBase(BaseModel):
     shift_id: str = Field(..., max_length=50)
     start_time: time
     end_time: time
-    week: str | None = Field(None, pattern=r"^[AB]$")
+    week: str | None = Field(
+        None,
+        pattern=r"^[AB]$",
+        description="Read-only: derived from date parity. Supplied values are ignored.",
+    )
     break_start: str | None = None
     break_end: str | None = None
     label: str | None = Field(None, max_length=100)
@@ -55,7 +59,11 @@ class ShiftplanResponse(ShiftplanBase):
 
 class ScheduleBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
-    week_type: str | None = Field(None, pattern=r"^[AB]$")
+    week_type: str | None = Field(
+        None,
+        pattern=r"^[AB]$",
+        description="Planning scope: only dates of this week parity are planned (requirements, wishes, shifts). None = both week types.",
+    )
 
 
 class ScheduleCreate(ScheduleBase):
@@ -64,6 +72,7 @@ class ScheduleCreate(ScheduleBase):
     role_requirements: Any | None = None
     shift_templates: Any | None = None
     shiftplans: list[ShiftplanCreate] = []
+    maximize_staffing: bool = False
 
 
 class ScheduleUpdate(BaseModel):
@@ -107,6 +116,7 @@ class ArbZgViolationResponse(BaseModel):
     employee_id: int
     shift_date: Date | None = None
     details: dict[str, Any] | None = None
+    severity: str = "HARD"
 
 
 class ArbZgCheckResponse(BaseModel):

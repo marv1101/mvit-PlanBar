@@ -7,8 +7,9 @@ interface ShiftTemplateEditorProps {
   roles: unknown[];
   addShiftTemplate: () => void;
   removeShiftTemplate: (index: number) => void;
-  updateShiftTemplate: (index: number, field: string, value: string | Record<string, number>) => void;
+  updateShiftTemplate: (index: number, field: string, value: string | boolean | Record<string, number>) => void;
   updateRequirement: (templateIndex: number, roleId: string, count: number) => void;
+  updateMaxRequirement: (templateIndex: number, roleId: string, count: number) => void;
   submitting: boolean;
 }
 
@@ -19,6 +20,7 @@ export function ShiftTemplateEditor({
   removeShiftTemplate,
   updateShiftTemplate,
   updateRequirement,
+  updateMaxRequirement,
   submitting,
 }: ShiftTemplateEditorProps) {
   return (
@@ -89,7 +91,7 @@ export function ShiftTemplateEditor({
             </div>
 
             <div>
-              <Label className="text-xs">Rollen-Anforderungen pro Tag</Label>
+              <Label className="text-xs">Rollen-Anforderungen pro Tag (Min - Max)</Label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
                 {(roles as { id: string; name: string; color: string }[]).map(role => (
                   <div key={role.id} className="flex items-center gap-2">
@@ -98,15 +100,33 @@ export function ShiftTemplateEditor({
                       style={{ backgroundColor: role.color }}
                     />
                     <span className="text-xs truncate">{role.name}</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="999"
-                      value={st.requirements[role.id] || 0}
-                      onChange={(e) => updateRequirement(index, role.id, Math.min(999, Math.max(0, parseInt(e.target.value) || 0)))}
-                      className="w-16 h-8 text-xs border rounded-md px-1"
-                      disabled={submitting}
-                    />
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="0"
+                        max="999"
+                        value={st.requirements[role.id] || 0}
+                        onChange={(e) => updateRequirement(index, role.id, Math.min(999, Math.max(0, parseInt(e.target.value) || 0)))}
+                        className="w-16 h-8 text-xs border rounded-md px-1"
+                        disabled={submitting}
+                        title="Min. Belegung"
+                      />
+                      <span className="text-xs text-gray-400">-</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="999"
+                        value={st.maxRequirements?.[role.id] || ''}
+                        onChange={(e) => {
+                          const val = Math.min(999, Math.max(0, parseInt(e.target.value) || 0));
+                          updateMaxRequirement(index, role.id, val);
+                        }}
+                        className="w-16 h-8 text-xs border rounded-md px-1"
+                        disabled={submitting}
+                        placeholder="max"
+                        title="Max. Belegung (optional)"
+                      />
+                    </div>
                   </div>
                 ))}
                 {roles.length === 0 && (
@@ -115,6 +135,30 @@ export function ShiftTemplateEditor({
                   </p>
                 )}
               </div>
+            </div>
+
+            <div className="flex items-center gap-4 pt-1">
+              <Label className="text-xs">Wochenendarbeit</Label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={st.saturday || false}
+                  onChange={(e) => updateShiftTemplate(index, 'saturday', e.target.checked)}
+                  disabled={submitting}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span className="text-xs">Samstag</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={st.sunday || false}
+                  onChange={(e) => updateShiftTemplate(index, 'sunday', e.target.checked)}
+                  disabled={submitting}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span className="text-xs">Sonntag</span>
+              </label>
             </div>
           </div>
         ))}

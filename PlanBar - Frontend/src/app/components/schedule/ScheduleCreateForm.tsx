@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import * as scheduleService from '../../services/scheduleService';
 import * as requestService from '../../services/requestService';
 import { exportShiftsCSV } from '../../lib/csv';
+import { weekTypeOfDateStr } from '../../lib/week';
 import { StatusBadge } from './StatusBadge';
 import { ArbZgConfirmDialog } from './ArbZgConfirmDialog';
 import type { ArbZgWarning } from '../../types';
@@ -35,6 +36,52 @@ interface ScheduleCreateFormProps {
   setCurrentScheduleStatus: (v: string | null) => void;
   setPollResult: (v: ScheduleType | null) => void;
   onWishReview: (scheduleId: number) => void;
+}
+
+const FAMILY_HINTS: Record<string, string> = {
+  'Qualifikation/Verfügbarkeit (Skills, Rollen, forbiddenDates)':
+    'Die Qualifikationsanforderungen sind zu streng — prüfen Sie, ob genug Mitarbeiter die benötigten Skills haben und verfügbar sind.',
+  'OFF-/Urlaubs-/Unavailable-Wünsche':
+    'Es sind zu viele Abwesenheiten gleichzeitig geplant.',
+  'Mutterschutz (protectionUntil)':
+    'Mutterschutz-Beschränkungen verhindern eine gültige Planung.',
+  'Ruhezeit § 5/§ 21/§ 16 JArbSchG':
+    'Die Ruhezeiten zwischen den Schichten können nicht eingehalten werden.',
+  'Tagesmaximum § 3 ArbZG':
+    'Die maximalen täglichen Arbeitszeiten werden überschritten.',
+  'Wochenstunden (Vertrag/§ 3/JArbSchG)':
+    'Die Wochenstunden können nicht im Rahmen gehalten werden.',
+  'Sonn-/Feiertagsschonung § 9/§ 11':
+    'Die Sonn-/Feiertagsregeln können nicht eingehalten werden.',
+  'max. aufeinanderfolgende Arbeitstage':
+    'Die maximalen aufeinanderfolgenden Arbeitstage werden überschritten.',
+  'Schicht-Rotation (maxSameShiftConsecutive)':
+    'Die Schicht-Rotationsregeln können nicht eingehalten werden.',
+  'Nachtarbeit § 6 ArbZG':
+    'Die Nachtarbeit-Regeln werden verletzt.',
+  'JArbSchG-Regeln für Minderjährige':
+    'Die Schutzregeln für minderjährige Mitarbeiter können nicht eingehalten werden.',
+  'Ersatzruhetag § 11 Abs. 3':
+    'Die Ersatzruhetags-Regeln können nicht eingehalten werden.',
+};
+
+function translateReason(reason: string): string {
+  if (reason.startsWith('SKILL_COVERAGE:')) {
+    const match = reason.match(/Requirement (\S+)\/(\S+) \(Skills: (.+)\) kann von keinem Mitarbeiter gedeckt werden/);
+    if (match) {
+      const [, date, shift, skills] = match;
+      return `Am ${date} (${shift}) fehlt ein Mitarbeiter mit den Qualifikationen: ${skills}.`;
+    }
+  }
+  const familyMatch = reason.match(/INFEASIBLE vermutlich verursacht durch: (.+?) \(ohne diese/);
+  if (familyMatch) {
+    const familyLabel = familyMatch[1];
+    const hint = FAMILY_HINTS[familyLabel];
+    if (hint) {
+      return hint;
+    }
+  }
+  return reason;
 }
 
 export function ScheduleCreateForm({
@@ -66,8 +113,8 @@ export function ScheduleCreateForm({
   // Auto-switch currentWeek when pollResult only contains shifts from one week
   useEffect(() => {
     if (!pollResult || pollResult.shifts.length === 0) return;
-    const hasWeekA = pollResult.shifts.some(s => s.week === 'A');
-    const hasWeekB = pollResult.shifts.some(s => s.week === 'B');
+    const hasWeekA = pollResult.shifts.some(s => weekTypeOfDateStr(s.date) === 'A');
+    const hasWeekB = pollResult.shifts.some(s => weekTypeOfDateStr(s.date) === 'B');
     if (currentWeek === 'A' && !hasWeekA && hasWeekB) {
       setCurrentWeek('B');
     } else if (currentWeek === 'B' && !hasWeekB && hasWeekA) {
@@ -141,7 +188,6 @@ export function ScheduleCreateForm({
       shift_id: s.id,
       start_time: s.startTime,
       end_time: s.endTime,
-      week: s.week,
       break_start: s.breakStart,
       break_end: s.breakEnd,
     }));
@@ -282,18 +328,31 @@ export function ScheduleCreateForm({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
             <div className="flex items-center gap-2 text-red-800 font-medium">
               <span className="text-lg">⚠️</span>
               <span>Berechnung fehlgeschlagen</span>
             </div>
-            {pollResult.diagnostics && (
-              <p className="text-red-700 text-sm">{pollResult.diagnostics.info}</p>
+            <p className="text-red-700 text-sm">
+              TiTO konnte keine gültige Schichtplanung finden.
+            </p>
+            {pollResult.diagnostics?.infeasibilityReasons && pollResult.diagnostics.infeasibilityReasons.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-red-700 text-sm font-medium">Mögliche Ursachen:</p>
+                <ul className="space-y-1">
+                  {pollResult.diagnostics.infeasibilityReasons.map((reason, i) => (
+                    <li key={i} className="text-red-600 text-sm flex items-start gap-2">
+                      <span className="mt-0.5 shrink-0">•</span>
+                      <span>{translateReason(reason)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             {pollResult.metrics?.violations && pollResult.metrics.violations.length > 0 && (
               <details className="mt-2">
                 <summary className="text-red-600 text-sm cursor-pointer hover:underline">
-                  Details ({pollResult.metrics.violations.length} Verletzungen)
+                  Technische Details ({pollResult.metrics.violations.length} Verletzungen)
                 </summary>
                 <ul className="mt-2 space-y-1">
                   {pollResult.metrics.violations.map((v, i) => (
@@ -431,6 +490,9 @@ export function ScheduleCreateForm({
               removeShiftTemplate={titoForm.removeShiftTemplate}
               updateShiftTemplate={titoForm.updateShiftTemplate}
               updateRequirement={titoForm.updateRequirement}
+              updateMaxRequirement={titoForm.updateMaxRequirement}
+              maximizeStaffing={titoForm.maximizeStaffing}
+              setMaximizeStaffing={titoForm.setMaximizeStaffing}
               scheduleName={titoForm.scheduleName}
               setScheduleName={titoForm.setScheduleName}
               startDate={titoForm.startDate}

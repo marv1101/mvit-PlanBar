@@ -14,3 +14,7 @@ export function getWeekType(date: Date): WeekType {
   );
   return weeksDiff % 2 === 0 ? 'A' : 'B';
 }
+
+export function weekTypeOfDateStr(dateStr: string): WeekType {
+  return getWeekType(new Date(`${dateStr}T00:00:00Z`));
+}

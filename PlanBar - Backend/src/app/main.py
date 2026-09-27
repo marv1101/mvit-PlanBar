@@ -91,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(api_router, prefix="/api/v1")
     run_database_setup()
     _repair_one_sided_user_employee_links()
+    _backfill_week_from_date_parity()
     seed_initial_users()
     app.add_exception_handler(StarletteHTTPException, http_error_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -98,6 +99,11 @@ def create_app() -> FastAPI:
 
 
 def run_database_setup() -> None:
+    if "sqlite" in settings.database_url:
+        # SQLite (development/test) has no working migration chain (0002 uses
+        # constraint ALTER); the schema is managed exclusively via create_all.
+        Base.metadata.create_all(bind=engine)
+        return
     try:
         alembic_cfg = Config("alembic.ini")
         command.upgrade(alembic_cfg, "head")
@@ -126,6 +132,43 @@ def _repair_one_sided_user_employee_links() -> None:
         db.close()
     except Exception:
         logger.warning("Failed to backfill one-sided user/employee links", exc_info=True)
+
+
+def _backfill_week_from_date_parity() -> None:
+    """Reset shiftplans.week / shift_wishes.week to the parity of their date (idempotent).
+
+    The week flag is derived data (calendar parity of the date). Legacy rows may
+    carry values contradicting their date. Runs only in development/test
+    environments; production relies on migration 0015.
+    """
+    if settings.environment not in ("development", "test"):
+        return
+    try:
+        db = SessionLocal()
+        try:
+            from app.db.models.schedule import Shiftplan
+            from app.db.models.shift_wish import ShiftWish
+            from app.services.schedule_service import _get_week_type, wish_week_for_date
+
+            fixed_shifts = 0
+            for sp in db.query(Shiftplan).all():
+                derived = _get_week_type(sp.date)
+                if sp.week != derived:
+                    sp.week = derived
+                    fixed_shifts += 1
+            fixed_wishes = 0
+            for wish in db.query(ShiftWish).all():
+                derived = wish_week_for_date(wish.date)
+                if wish.week != derived:
+                    wish.week = derived
+                    fixed_wishes += 1
+            db.commit()
+            if fixed_shifts or fixed_wishes:
+                logger.info("Backfilled week parity: %s shiftplan(s), %s wish(es)", fixed_shifts, fixed_wishes)
+        finally:
+            db.close()
+    except Exception:
+        logger.warning("Failed to backfill week parity", exc_info=True)
 
 
 def _generate_complex_password() -> str:

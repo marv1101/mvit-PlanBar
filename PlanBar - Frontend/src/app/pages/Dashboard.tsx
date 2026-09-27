@@ -8,97 +8,54 @@ import { Users, ClipboardList, Calendar, Clock, TrendingUp, Briefcase, Loader2, 
 import { Button } from '../components/ui/button';
 import { useNavigate } from 'react-router';
 import { TIMEZONE } from '../lib/timezone';
+import { normalizeList, computeDashboardStats } from '../lib/dashboardStats';
+import type { Schedule, Employee, Role, Request as WishRequest } from '../types';
 
 export function Dashboard() {
-  const { data: employees = [], isLoading: loadingEmployees, error: errorEmployees, refetch: refetchEmployees } = useEmployees();
-  const { data: schedules = [], isLoading: loadingSchedules, error: errorSchedules, refetch: refetchSchedules } = useSchedules();
-  const { data: roles = [], isLoading: loadingRoles, error: errorRoles, refetch: refetchRoles } = useRoles();
-  const { data: requests = [], isLoading: loadingRequests, error: errorRequests, refetch: refetchRequests } = useShiftWishes();
+  const employeesRaw = useEmployees();
+  const schedulesRaw = useSchedules();
+  const rolesRaw = useRoles();
+  const requestsRaw = useShiftWishes();
   const navigate = useNavigate();
 
-  const loading = loadingEmployees || loadingSchedules || loadingRoles || loadingRequests;
-  const error = errorEmployees || errorSchedules || errorRoles || errorRequests;
-  const errorMessage = error ? 'Fehler beim Laden der Daten. Bitte versuchen Sie es erneut.' : null;
+  const employees = useMemo(() => normalizeList<Employee>(employeesRaw.data), [employeesRaw.data]);
+  const schedules = useMemo(() => normalizeList<Schedule>(schedulesRaw.data), [schedulesRaw.data]);
+  const roles = useMemo(() => normalizeList<Role>(rolesRaw.data), [rolesRaw.data]);
+  const requests = useMemo(() => normalizeList<WishRequest>(requestsRaw.data), [requestsRaw.data]);
+
+  const loading =
+    employeesRaw.isLoading || schedulesRaw.isLoading || rolesRaw.isLoading || requestsRaw.isLoading;
+  const firstError =
+    employeesRaw.error || schedulesRaw.error || rolesRaw.error || requestsRaw.error;
+
+  const errorMessage = firstError
+    ? 'Fehler beim Laden der Daten. Bitte versuchen Sie es erneut.'
+    : null;
 
   const refresh = async () => {
     await Promise.all([
-      refetchEmployees(),
-      refetchSchedules(),
-      refetchRoles(),
-      refetchRequests(),
+      employeesRaw.refetch(),
+      schedulesRaw.refetch(),
+      rolesRaw.refetch(),
+      requestsRaw.refetch(),
     ]);
   };
 
   // Get the most recent schedule
   const latestSchedule = useMemo(() => {
-    return schedules.length > 0 
-      ? schedules.reduce((latest, schedule) => 
-          new Date(schedule.endDate) > new Date(latest.endDate) ? schedule : latest
+    return schedules.length > 0
+      ? schedules.reduce((latest, schedule) =>
+          schedule?.endDate && (!latest || new Date(schedule.endDate) > new Date(latest.endDate))
+            ? schedule
+            : latest
         )
       : null;
   }, [schedules]);
 
-  // Calculate statistics
-  const stats = useMemo(() => {
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    
-    let totalShifts = 0;
-    let todayShifts = 0;
-    let upcomingShifts = 0;
-    const employeeShiftCounts: Record<string, number> = {};
-    const roleShiftCounts: Record<string, number> = {};
-
-    schedules.forEach(schedule => {
-      totalShifts += schedule.shifts.length;
-      
-      schedule.shifts.forEach(shift => {
-        // Count per employee
-        employeeShiftCounts[shift.employeeId] = (employeeShiftCounts[shift.employeeId] || 0) + 1;
-        
-        // Count per role
-        const employee = employees.find(e => e.id === shift.employeeId);
-        if (employee) {
-          employee.roles.forEach(roleId => {
-            roleShiftCounts[roleId] = (roleShiftCounts[roleId] || 0) + 1;
-          });
-        }
-
-        // Today's shifts
-        if (shift.date === todayStr) {
-          todayShifts++;
-        }
-
-        // Upcoming shifts (next 7 days)
-        const shiftDate = new Date(shift.date);
-        const daysUntilShift = Math.ceil((shiftDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        if (daysUntilShift >= 0 && daysUntilShift <= 7) {
-          upcomingShifts++;
-        }
-      });
-    });
-
-    // Calculate average shifts per employee
-    const avgShiftsPerEmployee = employees.length > 0 
-      ? (totalShifts / employees.length).toFixed(1) 
-      : '0';
-
-    // Request types breakdown
-    const requestsByType = requests.reduce((acc, req) => {
-      acc[req.type] = (acc[req.type] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    return {
-      totalShifts,
-      todayShifts,
-      upcomingShifts,
-      avgShiftsPerEmployee,
-      employeeShiftCounts,
-      roleShiftCounts,
-      requestsByType,
-    };
-  }, [schedules, employees, requests, roles]);
+  const stats = useMemo(
+    () => computeDashboardStats(schedules, employees, roles, requests),
+    [schedules, employees, roles, requests],
+  );
 
   const mainStats = [
     {

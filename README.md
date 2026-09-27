@@ -303,6 +303,7 @@ export CUSTOMER=kunde1 \
   TITO_DB_PASSWORD="${TITO_DB_PASSWORD}" \
   SECRET_KEY=$(openssl rand -hex 32) \
   TITO_API_KEY=$(openssl rand -hex 16) \
+  TITO_WORKER_API_KEY=$(openssl rand -hex 16) \
   TITO_JWT_SECRET=$(openssl rand -hex 32)
 
 docker compose -f docker-compose.customer.yaml -p "planbar-${CUSTOMER}" up -d
@@ -389,10 +390,23 @@ Jeder Kunde wird durch eine Kombination aus **eigenen Datenbanken** und **eigene
 
 ### Warum Database-per-Tenant?
 
-- **Keine Code-Änderungen** an Models oder Queries nötig (kein `tenant_id`-Refactoring)
 - **Volle Isolation**: Ein Kunde kann keine Daten eines anderen Kunden sehen
 - **Einfaches Backup/Restore**: `pg_dump` pro Kundendatenbank
 - **Getrennte Ressourcen-Limits**: Jeder Stack hat eigene Docker-Resource-Limits
+
+### Logische Tenant-Isolation in TiTO (Defense-in-Depth)
+
+Zusätzlich zur physischen Isolation implementiert TiTO eine logische Mandantentrennung auf Code-Ebene, um auch im Shared-Instance-Betrieb (eine TiTO-Instanz, mehrere Mandanten) sicher zu sein:
+
+| Mechanismus | Beschreibung |
+|------------|-------------|
+| **`tenantId` Pflichtfeld** | Schema-Validierung beim Enqueue (`POST /jobs`) lehnt Jobs ohne `tenantId` mit `400` ab |
+| **IDOR-Schutz** | Mandanten-scoped Tokens dürfen nur für den eigenen Tenant einreichen (`403` bei Mismatch) |
+| **Tenant-scoped Lesezugriffe** | `/jobs`, `/jobs/{id}`, `/dlq`, `/callbacks/pending` filtern nach authentifiziertem Tenant |
+| **Mandanten-isolierte Metrics** | `/metrics`, `/metrics/robustness`, `/metrics/prometheus` zählen nur Jobs des eigenen Tenants |
+| **Mandanten-scoped Idempotenz** | Composite-Unique-Index `(tenant_id, idempotency_key)` — gleicher Key darf pro Tenant existieren |
+| **Rollen-Modell** | Token-Rollen `admin`, `worker`, `metrics`, `jobs` mit ressourcenspezifischen Berechtigungen |
+| **Worker-Token** | Dediziertes `WORKER_API_TOKEN` (Rolle `worker`) mit Zugriff nur auf `/workers/*` |
 
 ### Tenant-Lebenszyklus
 
@@ -465,7 +479,8 @@ Siehe `TiTO/.env.example` für alle TiTO-spezifischen Variablen (Datenbank, Queu
 | `PLANBAR_DB_PASSWORD` | DB-Passwort für diese Kundendatenbank |
 | `TITO_DB_PASSWORD` | TiTO-DB-Passwort |
 | `SECRET_KEY` | JWT-Secret für dieses Backend |
-| `TITO_API_KEY` | TiTO-API-Key |
+| `TITO_API_KEY` | TiTO-API-Key (Rolle `admin`) |
+| `TITO_WORKER_API_KEY` | TiTO-Worker-API-Key (Rolle `worker`, nur `/workers/*`) |
 | `TITO_JWT_SECRET` | TiTO-JWT-Secret |
 
 ---
@@ -510,7 +525,7 @@ Siehe `TiTO/.env.example` für alle TiTO-spezifischen Variablen (Datenbank, Queu
 
 ## Tests
 
-### Backend (171 Tests)
+### Backend (636 Tests)
 
 ```bash
 cd "PlanBar - Backend"
@@ -518,7 +533,7 @@ pip install -e ".[testing]"
 pytest
 ```
 
-### TiTO (40 Tests)
+### TiTO (82 Tests)
 
 ```bash
 cd TiTO
@@ -601,7 +616,7 @@ mvit PlanBar/
 │   │   ├── services/         # Business-Logik + TiTO-Integration
 │   │   ├── core/             # Auth, Rate-Limiting, Logging
 │   │   └── middleware/       # Error-Handler, Request-Logging
-│   ├── tests/                # Pytest (171 Tests)
+│   ├── tests/                # Pytest (636 Tests)
 │   └── migrations/           # Alembic-Migrationen
 ├── PlanBar - Frontend/       # React + Vite + Tailwind
 │   ├── src/app/pages/        # Dashboard, Employees, Schedule, …
@@ -613,7 +628,7 @@ mvit PlanBar/
 │   │   ├── solver.py         # OR-Tools-Modell
 │   │   ├── worker.py         # Queue-Consumer
 │   │   └── db.py             # Queue-Operationen
-│   └── tests/                # Pytest (40 Tests)
+│   └── tests/                # Pytest (82 Tests)
 ├── Docs/
 │   ├── production-deployment-plan.md
 │   └── go-live-readiness-plan.md

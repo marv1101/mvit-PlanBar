@@ -69,24 +69,23 @@ describe('EditableScheduleCalendar - Swimlane-Ansicht', () => {
 });
 
 describe('EditableScheduleCalendar - Week-Filter', () => {
-  it('zeigt alle Tage in der Swimlane-Ansicht auch wenn currentWeek nicht passt', () => {
+  it('filtert Tage in der Swimlane-Ansicht nach Parität (currentWeek=B, A-Termine)', () => {
     renderCalendar({ currentWeek: 'B' });
-    // Tage müssen sichtbar sein – kein Day-Filter nach getWeekType mehr
-    expect(screen.getByText(/15\.?\s*Juni/)).toBeInTheDocument();
-    expect(screen.getByText(/16\.?\s*Juni/)).toBeInTheDocument();
+    // Der Zeitraum (15.-21.06.2026) liegt komplett in Woche A -> keine Tage
+    expect(screen.queryByText(/15\.?\s*Juni/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/16\.?\s*Juni/)).not.toBeInTheDocument();
   });
 
-  it('zeigt alle Tage in der Timeline-Ansicht auch wenn currentWeek nicht passt', async () => {
+  it('filtert Tage in der Timeline-Ansicht nach Parität (currentWeek=B, A-Termine)', async () => {
     const user = userEvent.setup();
     renderCalendar({ currentWeek: 'B' });
 
     const toggleButton = screen.getAllByRole('button', { name: /Timeline-Ansicht/i })[0];
     await user.click(toggleButton);
 
-    // Tage müssen sichtbar sein – kein Week-Filter mehr
     // In der Timeline-Ansicht wird Datum als "15.06." formatiert
-    expect(screen.getByText(/15\.\s*06\./)).toBeInTheDocument();
-    expect(screen.getByText(/16\.\s*06\./)).toBeInTheDocument();
+    expect(screen.queryByText(/15\.\s*06\./)).not.toBeInTheDocument();
+    expect(screen.queryByText(/16\.\s*06\./)).not.toBeInTheDocument();
   });
 });
 

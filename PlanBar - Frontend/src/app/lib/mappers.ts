@@ -1,8 +1,9 @@
 import { AppUser, Employee, Request, Role, Schedule, Shift, TiTODiagnostics, TiTOMetrics, WeekType, WishStatus } from '../types';
-import type { EmployeeResponseDTO, EmployeeCreateDTO } from '../services/employeeService';
+import type { EmployeeResponseDTO, EmployeeCreateDTO, EmployeeUpdateDTO } from '../services/employeeService';
 import type { RoleResponseDTO, RoleCreateDTO } from '../services/roleService';
 import type { ShiftWishResponseDTO, ShiftWishCreateDTO, ShiftWishType } from '../services/requestService';
 import type { ScheduleResponseDTO, ScheduleCreateDTO, ShiftplanResponseDTO, ShiftplanCreateDTO, ShiftTemplateEntryDTO } from '../services/scheduleService';
+import { weekTypeOfDateStr } from './week';
 
 const FRONTEND_TYPE_TO_API: Record<string, ShiftWishType> = {
   urlaubswunsch: 'vacation',
@@ -92,6 +93,22 @@ export function employeeToCreate(emp: Employee): EmployeeCreateDTO {
   };
 }
 
+export function employeeToUpdate(emp: Employee): EmployeeUpdateDTO {
+  const { first_name, last_name } = splitName(emp.name);
+  return {
+    first_name,
+    last_name,
+    email: emp.email,
+    color: emp.color,
+    working_hours_json: JSON.stringify(emp.workingHours),
+    break_start: emp.breakTime.start,
+    break_end: emp.breakTime.end,
+    max_work_hours: emp.maxWorkHours,
+    role_ids: emp.roles.length > 0 ? emp.roles.map(Number) : undefined,
+    team_ids: emp.teamIds,
+  };
+}
+
 export function roleFromResponse(dto: RoleResponseDTO): Role {
   return {
     id: String(dto.id),
@@ -112,7 +129,7 @@ export function requestFromResponse(dto: ShiftWishResponseDTO): Request {
     id: String(dto.id),
     employeeId: String(dto.employee_id),
     date: dto.date,
-    week: dto.week === 2 ? 'B' : 'A' as WeekType,
+    week: weekTypeOfDateStr(dto.date),
     type: (API_TYPE_TO_FRONTEND[dto.type] || dto.type) as Request['type'],
     notes: dto.note || undefined,
     status: dto.status as WishStatus | undefined,
@@ -126,7 +143,7 @@ export function requestToCreate(req: Request): ShiftWishCreateDTO {
   return {
     employee_id: Number(req.employeeId),
     date: req.date,
-    week: req.week === 'B' ? 2 : 1,
+    week: weekTypeOfDateStr(req.date) === 'B' ? 2 : 1,
     type: FRONTEND_TYPE_TO_API[req.type] || (req.type as ShiftWishType),
     note: req.notes,
   };
@@ -137,7 +154,7 @@ export function shiftplanToShift(sp: ShiftplanResponseDTO): Shift {
     id: String(sp.id),
     employeeId: String(sp.employee_id),
     date: sp.date,
-    week: (sp.week || 'A') as WeekType,
+    week: weekTypeOfDateStr(sp.date),
     startTime: sp.start_time,
     endTime: sp.end_time,
     breakStart: sp.break_start || undefined,
@@ -153,7 +170,7 @@ export function shiftToShiftplanCreate(scheduleId: number, shift: Shift): Shiftp
     shift_id: shift.id,
     start_time: shift.startTime,
     end_time: shift.endTime,
-    week: shift.week,
+    week: weekTypeOfDateStr(shift.date),
     break_start: shift.breakStart,
     break_end: shift.breakEnd,
     label: shift.label,
