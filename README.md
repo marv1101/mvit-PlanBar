@@ -200,10 +200,9 @@ VPS (8 GB RAM, 4+ Cores)
 ─────────────────────────
 
 Caddy (Port 80 → 443, Let's Encrypt)
-├── kunde1.app.planbar.de → localhost:8081
-├── kunde2.app.planbar.de → localhost:8082
-├── demo.app.planbar.de   → localhost:8090
-└── app.planbar.de        → redirect demo
+├── planbar-kunde1.mphion.de → localhost:8081
+├── planbar-kunde2.mphion.de → localhost:8082
+├── planbar-demo.mphion.de   → localhost:8090
 
 Shared PostgreSQL (Infra-Stack)
 ├── db_planbar (Port 5432)
@@ -264,15 +263,15 @@ cat > /etc/caddy/Caddyfile << 'EOF'
     email admin@mphion.de
 }
 
-app.planbar.de {
-    redir https://demo.app.planbar.de{uri}
+planbar-kunde1.mphion.de {
+    redir https://planbar-kunde1.mphion.de{uri}
 }
 
-demo.app.planbar.de {
+planbar-demo.mphion.de {
     reverse_proxy localhost:8090
 }
 
-kunde1.app.planbar.de {
+planbar-kunde1.mphion.de {
     reverse_proxy localhost:8081
 }
 EOF
@@ -296,7 +295,7 @@ export CUSTOMER=kunde1 \
   FRONTEND_PORT=8081 \
   TITO_PORT=5001 \
   BACKEND_PORT=8001 \
-  DOMAIN=kunde1.app.planbar.de \
+  DOMAIN=kunde1.planbar-kunde.mphion.de \
   PLANBAR_DB_NAME=kunde1_planbar \
   TITO_DB_NAME=kunde1_tito \
   PLANBAR_DB_PASSWORD="${PLANBAR_DB_PASSWORD}" \
@@ -348,12 +347,12 @@ Siehe `.github/workflows/deploy.yml`.
 
 ## Demo-Instanz
 
-Die Demo-Instanz läuft parallel auf dem Produktions-VPS unter `demo.app.planbar.de` und verwendet denselben Mechanismus wie ein normaler Kunden-Stack.
+Die Demo-Instanz läuft parallel auf dem Produktions-VPS unter `demo.planbar-kunde.mphion.de` und verwendet denselben Mechanismus wie ein normaler Kunden-Stack.
 
 ### Besonderheiten
 
 - **Port**: 8090 (separat von Production-Kunden)
-- **Domain**: `demo.app.planbar.de`
+- **Domain**: `planbar-demo.mphion.de`
 - **Demo-Credentials** werden auf der Login-Seite angezeigt:
   - Administrator: `admin@mphion.de`
   - Mitarbeiter: `demo@mphion.de`
@@ -473,7 +472,7 @@ Siehe `TiTO/.env.example` für alle TiTO-spezifischen Variablen (Datenbank, Queu
 | `FRONTEND_PORT` | Host-Port für Frontend (z. B. `8081`) |
 | `TITO_PORT` | Host-Port für TiTO-API (z. B. `5001`) |
 | `BACKEND_PORT` | Host-Port für Backend (z. B. `8001`) |
-| `DOMAIN` | Kundendomäne (z. B. `kunde1.app.planbar.de`) |
+| `DOMAIN` | Kundendomäne (z. B. `kunde1.planbar-kunde.mphion.de`) |
 | `PLANBAR_DB_NAME` | Kundendatenbank-Name (z. B. `kunde1_planbar`) |
 | `TITO_DB_NAME` | TiTO-Datenbank-Name (z. B. `kunde1_tito`) |
 | `PLANBAR_DB_PASSWORD` | DB-Passwort für diese Kundendatenbank |
