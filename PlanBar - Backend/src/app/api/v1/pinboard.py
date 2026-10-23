@@ -3,7 +3,7 @@ import logging
 import os
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import (
     APIRouter,
@@ -326,7 +326,7 @@ def create_message(
         content=data.content,
     )
     db.add(message)
-    thread.updated_at = datetime.now(timezone.utc)
+    thread.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(message)
     _notify_clients(thread_id, _message_to_response(message))

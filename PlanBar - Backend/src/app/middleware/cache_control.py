@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -55,6 +55,6 @@ class CacheControlMiddleware(BaseHTTPMiddleware):
             return response
 
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
-        response.headers["Last-Modified"] = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
+        response.headers["Last-Modified"] = datetime.now(UTC).strftime("%a, %d %b %Y %H:%M:%S GMT")
 
         return response

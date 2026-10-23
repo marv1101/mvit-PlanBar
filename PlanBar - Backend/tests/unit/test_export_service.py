@@ -1,7 +1,7 @@
 """Tests for export_service: iCal and PDF generation."""
 
 import io
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 
 import pytest
 from app.db.base import Base
@@ -356,7 +356,7 @@ def test_export_pdf_footer_berlin_timezone(db_session, monkeypatch):
         def now(cls, tz=None):
             if tz is not None and str(tz) == "Europe/Berlin":
                 return datetime(2026, 6, 1, 14, 30, tzinfo=tz)
-            return datetime(2026, 6, 1, 12, 30, tzinfo=timezone.utc)
+            return datetime(2026, 6, 1, 12, 30, tzinfo=UTC)
 
     monkeypatch.setattr("app.services.export_service.datetime", FakeDateTime)
     schedule = _create_rich_schedule(db_session)

@@ -4,7 +4,7 @@ import hmac
 import json
 import logging
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def _validate_jwt(
         if not hmac.compare_digest(expected, signature):
             return None
 
-        now = datetime.now(timezone.utc).timestamp()
+        now = datetime.now(UTC).timestamp()
         exp = payload.get("exp")
         if exp is not None and now > int(exp):
             return None

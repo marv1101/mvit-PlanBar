@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "uv"
+    directory: "/PlanBar - Backend"
+    schedule:
+      interval: "weekly"
+    groups:
+      all:
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/TiTO"
+    schedule:
+      interval: "weekly"
+    groups:
+      all:
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directory: "/PlanBar - Frontend"
+    schedule:
+      interval: "weekly"
+    groups:
+      all:
+        patterns: ["*"]

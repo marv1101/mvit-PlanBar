@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from app.db.base import Base
@@ -133,7 +133,7 @@ class TestQuery:
 
     def test_query_with_date_range(self, db_session):
         audit_service.log(db_session, user_id=None, action="TEST", resource_type="test")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         items, _ = audit_service.query(
             db_session,
             start_date=now - timedelta(hours=1),

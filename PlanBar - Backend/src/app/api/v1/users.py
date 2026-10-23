@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -127,7 +127,7 @@ def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db))
     # Reset lockout counter on successful login
     lockout_service.record_successful_login(user_data.email)
 
-    user.last_login = datetime.now(timezone.utc)
+    user.last_login = datetime.now(UTC)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -176,7 +176,7 @@ def refresh_token(request: Request, token_data: TokenRefreshRequest, db: Session
     if jti and user_id:
         exp = payload.get("exp")
         if exp:
-            expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+            expires_at = datetime.fromtimestamp(exp, tz=UTC)
             revoke_token(jti, "refresh", int(user_id), expires_at, db)
 
     access_token = create_access_token(subject=str(user.id))
@@ -205,7 +205,7 @@ def logout(request: Request, db: Session = Depends(get_db)):
             user_id = payload.get("sub")
             exp = payload.get("exp")
             if jti and user_id and exp:
-                expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+                expires_at = datetime.fromtimestamp(exp, tz=UTC)
                 revoke_token(jti, token_type, int(user_id), expires_at, db)
         except ValueError:
             pass

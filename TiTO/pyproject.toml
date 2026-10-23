@@ -19,7 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 testing = ["pytest", "pytest-cov"]
-optimization = ["or-tools"]
+optimization = ["ortools>=9.15"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

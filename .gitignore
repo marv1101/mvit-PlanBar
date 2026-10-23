@@ -49,10 +49,14 @@ PlanBar - Backend/*.db
 !.env.example
 __pycache__/
 *.pyc
+*.db-journal
 dist/
 
 # Uploads
 uploads/
 PlanBar - Backend/src/planbar_backend.egg-info/
+TiTO/src/tito.egg-info/
+*.egg-info/
+.npmrc
 vapid_keys.json
 Docs/text
