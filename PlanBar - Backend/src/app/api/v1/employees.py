@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy.orm import Session
@@ -414,7 +414,7 @@ def adjust_employee_time_account(
                 f"{existing_reason}; {data.reason}".strip("; ") if existing_reason else data.reason
             )
     else:
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
         tc = Timecard(
             employee_id=employee_id,
             week=now_utc.isocalendar()[1],

@@ -4,7 +4,7 @@ import hmac
 import json
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from tito.api import cleanup_worker_thread, create_app
@@ -530,7 +530,7 @@ def test_cleanup_pass_reclaims_stuck_processing_jobs(tmp_path: Path):
     payload = _valid_job_payload(metadata={"jobId": "job-stuck", "tenantId": 1})
     job_id = enqueue_job(conn, payload, settings.queue_table, tenant_id="1")
 
-    stale = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
+    stale = (datetime.now(UTC) - timedelta(seconds=120)).isoformat()
     conn.execute(
         "UPDATE job_queue SET status = 'processing', attempts = 1, timeout_at = ? WHERE job_id = ?",
         (stale, job_id),

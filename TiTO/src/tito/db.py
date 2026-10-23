@@ -1,6 +1,6 @@
 import json
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -272,7 +272,7 @@ def enqueue_job(
     Returns:
         Job ID if successful, None if duplicate (idempotency)
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     priority = int(payload.get("metadata", {}).get("priority", 0))
 
     # B10/B6: tenant_id Fallback aus Payload-Metadata, falls nicht explizit übergeben.
@@ -507,7 +507,7 @@ def claim_next_job(
     bei rowcount 0 wird der nächste Kandidat versucht (Loop).
 
     Gibt das Payload (mit '_db_job_id') zurück oder None, wenn kein Job verfügbar ist."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     timeout_at = now + timedelta(seconds=lease_seconds)
 
     if isinstance(connection, psycopg2.extensions.connection):
@@ -568,7 +568,7 @@ def mark_job_processing(
     Returns:
         True, wenn der Claim erfolgreich war (Job war 'queued'); False sonst.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     timeout_at = now + timedelta(seconds=lease_seconds)
 
     if isinstance(connection, psycopg2.extensions.connection):
@@ -602,7 +602,7 @@ def update_job(
     error: str | None = None,
 ) -> None:
     """Update job status, result and error information."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -633,7 +633,7 @@ def store_result(
     result: dict,
 ) -> None:
     """Store job result and mark as completed."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -703,7 +703,7 @@ def register_worker(
     cpu_usage: float,
     ram_usage: float,
 ) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
         cursor.execute(
@@ -736,7 +736,7 @@ def update_worker_heartbeat(
     ram_usage: float,
     active_jobs: int,
 ) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
         cursor.execute(
@@ -799,7 +799,7 @@ def cleanup_inactive_workers(
     timeout_seconds: int = 300,
 ) -> int:
     """Remove workers that haven't sent a heartbeat within the timeout period."""
-    cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=timeout_seconds)
+    cutoff_time = datetime.now(UTC) - timedelta(seconds=timeout_seconds)
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
         cursor.execute("DELETE FROM workers WHERE last_heartbeat < %s", (cutoff_time,))
@@ -827,7 +827,7 @@ def mark_job_failed_with_retry(
 
     Backoff calculation: base_delay * (2 ^ attempts) seconds
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -857,7 +857,7 @@ def mark_job_failed_with_retry(
 
         # Schedule retry with exponential backoff
         backoff_seconds = base_delay * (2**attempts)
-        scheduled_for = datetime.fromtimestamp(now.timestamp() + backoff_seconds, tz=timezone.utc)
+        scheduled_for = datetime.fromtimestamp(now.timestamp() + backoff_seconds, tz=UTC)
 
         cursor = connection.cursor()
         cursor.execute(
@@ -888,7 +888,7 @@ def mark_job_failed_with_retry(
             return False
 
         backoff_seconds = base_delay * (2**attempts)
-        scheduled_for = datetime.fromtimestamp(now.timestamp() + backoff_seconds, tz=timezone.utc)
+        scheduled_for = datetime.fromtimestamp(now.timestamp() + backoff_seconds, tz=UTC)
 
         connection.execute(
             "UPDATE job_queue SET status = ?, scheduled_for = ?, last_error = ?, updated_at = ? WHERE job_id = ?",
@@ -907,7 +907,7 @@ def move_job_to_dlq(
     tenant_id: str | None = None,
 ) -> int | None:
     """Move permanently failed job to Dead Letter Queue. Returns DLQ ID."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -968,7 +968,7 @@ def check_job_timeout(
 
     Returns True, wenn der Job im Status 'processing' ist und sein timeout_at in der
     Vergangenheit liegt (z.B. nach einem Worker-Crash)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -1003,7 +1003,7 @@ def reclaim_timed_out_jobs(
       mit FAILED-Payload enqueueen (F3), sofern eine callback_url hinterlegt ist.
 
     Returns Liste der behandelten Jobs als {"job_id": ..., "action": "requeued"|"dead_lettered"}."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -1113,7 +1113,7 @@ def retry_job(
     Setzt attempts=0, last_error=NULL, timeout_at=NULL und scheduled_for=NULL, damit der
     Job nach dem Retry wieder den vollen Retry-Rahmen hat (statt sofort wieder in die DLQ
     zu wandern). Gibt True zurück, wenn der Job re-queued wurde."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -1148,7 +1148,7 @@ def enqueue_callback(
     tenant_id: str | None = None,
 ) -> int | None:
     """Enqueue callback for job completion. Returns callback ID."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -1369,7 +1369,7 @@ def claim_callback(
 
     Returns:
         True, wenn der Claim erfolgreich war; False, wenn der Callback nicht (mehr) pending ist."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -1402,7 +1402,7 @@ def requeue_stale_sending_callbacks(
     zurück auf 'pending' setzen, damit sie erneut versendet werden.
 
     Returns Anzahl der re-queued Callbacks."""
-    cutoff = datetime.now(timezone.utc) - timedelta(seconds=stale_seconds)
+    cutoff = datetime.now(UTC) - timedelta(seconds=stale_seconds)
 
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()
@@ -1437,7 +1437,7 @@ def store_callback_result(
 
     Hinweis (F5): attempts wird bereits beim atomaren Claim (claim_callback) inkrementiert
     und hier bewusst NICHT nochmals erhöht."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if isinstance(connection, psycopg2.extensions.connection):
         cursor = connection.cursor()

@@ -1,6 +1,6 @@
 import json
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from tito.config import Settings
@@ -132,7 +132,7 @@ def test_mark_job_processing_is_guarded_claim_with_lease(tmp_path: Path):
     settings, connection = _make_settings_and_connection(tmp_path, "claim_guard.db")
     job_id = _enqueue_simple_job(connection, settings.queue_table)
 
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     assert mark_job_processing(connection, job_id, lease_seconds=600) is True
 
     row = connection.execute(
@@ -197,7 +197,7 @@ def test_reclaim_timed_out_jobs_requeues_stuck_job(tmp_path: Path):
     mark_job_processing(connection, job_id, lease_seconds=600)
 
     # Lease in die Vergangenheit manipulieren (simulierter Worker-Crash)
-    stale = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat()
+    stale = (datetime.now(UTC) - timedelta(seconds=60)).isoformat()
     connection.execute("UPDATE job_queue SET timeout_at = ? WHERE job_id = ?", (stale, job_id))
     connection.commit()
 
@@ -223,7 +223,7 @@ def test_reclaim_timed_out_jobs_exhausted_moves_to_dlq_with_error_callback(tmp_p
     settings, connection = _make_settings_and_connection(tmp_path, "reclaim_dlq.db")
     job_id = _enqueue_simple_job(connection, settings.queue_table, callback_url="http://example.com/cb")
 
-    stale = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat()
+    stale = (datetime.now(UTC) - timedelta(seconds=60)).isoformat()
     connection.execute(
         "UPDATE job_queue SET status = 'processing', attempts = 3, timeout_at = ? WHERE job_id = ?",
         (stale, job_id),
@@ -336,7 +336,7 @@ def test_requeue_stale_sending_callbacks(tmp_path: Path):
     assert claim_callback(connection, fresh_id) is True
 
     # Stale: attempted_at in die Vergangenheit verschieben
-    stale_time = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
+    stale_time = (datetime.now(UTC) - timedelta(seconds=120)).isoformat()
     connection.execute("UPDATE callback_queue SET attempted_at = ? WHERE callback_id = ?", (stale_time, stale_id))
     connection.commit()
 

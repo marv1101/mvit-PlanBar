@@ -1,6 +1,6 @@
 """Unit tests for JWT token blacklist functionality."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.core.auth import (
     clean_expired_revoked_tokens,
@@ -29,7 +29,7 @@ class TestTokenBlacklist:
         token = create_access_token(subject="1")
         payload = verify_token(token)
         jti = payload["jti"]
-        exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+        exp = datetime.fromtimestamp(payload["exp"], tz=UTC)
 
         revoke_token(jti, "access", 1, exp, db_session)
 
@@ -43,7 +43,7 @@ class TestTokenBlacklist:
         token = create_access_token(subject="1")
         payload = verify_token(token)
         jti = payload["jti"]
-        exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+        exp = datetime.fromtimestamp(payload["exp"], tz=UTC)
 
         assert not is_token_revoked(jti, db_session)
         revoke_token(jti, "access", 1, exp, db_session)
@@ -53,8 +53,8 @@ class TestTokenBlacklist:
         db_session.query(RevokedToken).delete()
         db_session.commit()
 
-        past = datetime.now(timezone.utc) - timedelta(hours=1)
-        future = datetime.now(timezone.utc) + timedelta(hours=1)
+        past = datetime.now(UTC) - timedelta(hours=1)
+        future = datetime.now(UTC) + timedelta(hours=1)
 
         revoke_token("expired-jti-1", "access", 1, past, db_session)
         revoke_token("expired-jti-2", "refresh", 1, past, db_session)

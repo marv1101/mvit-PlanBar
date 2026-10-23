@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -386,8 +386,8 @@ class JobPayload(BaseModel):
     def validate_date_range(self) -> "JobPayload":
         """Validate that startDate is before endDate and all requirement dates lie within the planning period."""
 
-        start = datetime.strptime(self.config.startDate, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-        end = datetime.strptime(self.config.endDate, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        start = datetime.strptime(self.config.startDate, "%Y-%m-%d").replace(tzinfo=UTC)
+        end = datetime.strptime(self.config.endDate, "%Y-%m-%d").replace(tzinfo=UTC)
 
         if start >= end:
             raise ValueError("startDate must be before endDate")
@@ -395,7 +395,7 @@ class JobPayload(BaseModel):
         # Requirements außerhalb des Planungszeitraums verfälschen Wochen-Fairness,
         # Sonntagsquoten und Kalenderketten-Fenster und werden abgewiesen (C7)
         for req in self.requirements:
-            req_date = datetime.strptime(req.date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            req_date = datetime.strptime(req.date, "%Y-%m-%d").replace(tzinfo=UTC)
             if req_date < start or req_date > end:
                 raise ValueError(
                     f"Requirement date {req.date} is outside the planning period "

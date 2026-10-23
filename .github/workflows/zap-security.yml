@@ -7,6 +7,9 @@
 
 name: ZAP Security Scan
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [dev]
@@ -27,6 +30,14 @@ jobs:
     name: ZAP Baseline Scan (dev)
     steps:
       - uses: actions/checkout@v4
+
+      # ZAP container runs as uid 1000; a Docker-created (root-owned) mount
+      # target would deny it write access — the scan then crashes when writing
+      # reports and the policy step fails with "report not found".
+      - name: Prepare ZAP report directory
+        run: |
+          mkdir -p zap-reports
+          chmod 777 zap-reports
 
       - name: Start application stack
         run: |
@@ -94,6 +105,14 @@ jobs:
     name: ZAP Full Scan (PR → main)
     steps:
       - uses: actions/checkout@v4
+
+      # ZAP container runs as uid 1000; a Docker-created (root-owned) mount
+      # target would deny it write access — the scan then crashes when writing
+      # reports and the policy step fails with "report not found".
+      - name: Prepare ZAP report directory
+        run: |
+          mkdir -p zap-reports
+          chmod 777 zap-reports
 
       - name: Start application stack
         run: |

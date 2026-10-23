@@ -4,7 +4,7 @@ Diese Tests bilden das KORREKTE Verhalten ab (ArbZG/JArbSchG/MuSchG-Regeln
 sowie behobene Solver-Bugs B1-B19 / C1-C10 / D1-D7 aus dem Code-Review).
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from tito.solver import build_model, solve_model
@@ -244,7 +244,7 @@ def test_timeout_without_solution_reports_no_phantom_assignments():
     """Bei TIMEOUT ohne Lösung müssen assignments/metris leer sein (B6)."""
     employees = [_emp(f"emp_{i:03d}", skills=["Apotheker"]) for i in range(1, 26)]
     requirements = []
-    day = datetime(2026, 3, 2, tzinfo=timezone.utc)
+    day = datetime(2026, 3, 2, tzinfo=UTC)
     for d in range(12):
         for _ in range(5):
             requirements.append(

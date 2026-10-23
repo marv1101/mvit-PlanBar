@@ -1,6 +1,6 @@
 """Export service for schedule PDF and iCal generation."""
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fpdf import FPDF
@@ -85,7 +85,7 @@ def export_schedule_ical(db: Session, schedule_id: int) -> bytes | None:
         emp_name = _employee_name(db, shift.employee_id)
 
         # Build event datetime (date + time)
-        start_dt = datetime.combine(shift.date, shift.start_time, tzinfo=timezone.utc)
+        start_dt = datetime.combine(shift.date, shift.start_time, tzinfo=UTC)
         # Handle overnight shifts: if end_time <= start_time, assume next day
         if shift.end_time <= shift.start_time:
             from datetime import timedelta
@@ -93,7 +93,7 @@ def export_schedule_ical(db: Session, schedule_id: int) -> bytes | None:
             end_date = shift.date + timedelta(days=1)
         else:
             end_date = shift.date
-        end_dt = datetime.combine(end_date, shift.end_time, tzinfo=timezone.utc)
+        end_dt = datetime.combine(end_date, shift.end_time, tzinfo=UTC)
 
         event = Event()
         event.add("summary", f"{shift.label or shift.shift_id} - {emp_name}")

@@ -1,6 +1,6 @@
 """Time-Tracking Models (Issue #29 - Digitale Zeiterfassung)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Text
 from sqlalchemy.orm import relationship
@@ -17,6 +17,6 @@ class TimeEntry(Base):
     clock_out = Column(DateTime(timezone=True), nullable=True)
     duration_minutes = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
 
     employee = relationship("Employee", backref="time_entries")

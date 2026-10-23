@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -599,7 +599,7 @@ def _protected_days_worked_ytd(db: Session | None, employee_id: int, holiday_dat
     """
     if db is None:
         return 0
-    today = datetime.now(tz=timezone.utc).date()
+    today = datetime.now(tz=UTC).date()
     year_start = date(today.year, 1, 1)
     if year_start > today:
         return 0
@@ -691,7 +691,7 @@ def _build_tito_payload(
     employee_list = []
     ytd_holidays: set[str] = set()
     if db is not None:
-        today = datetime.now(tz=timezone.utc).date()
+        today = datetime.now(tz=UTC).date()
         ytd_holidays = set(get_german_holidays(date(today.year, 1, 1), today, subdivision=settings.german_state))
     for emp in employees:
         contract_hours = 40.0
