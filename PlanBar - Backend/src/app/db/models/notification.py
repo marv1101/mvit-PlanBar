@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.sqlite import JSON
@@ -17,6 +17,6 @@ class Notification(Base):
     message = Column(Text, nullable=False)
     read = Column(Boolean, nullable=False, default=False)
     data = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     user = relationship("User", backref="notifications")

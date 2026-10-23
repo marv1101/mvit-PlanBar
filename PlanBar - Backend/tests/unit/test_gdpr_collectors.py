@@ -5,7 +5,7 @@ collector should be independently testable without the full export pipeline.
 """
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from app.db.models.audit_log import AuditLog
 from app.db.models.employee import Contract, Employee, Timecard
@@ -63,7 +63,7 @@ def _unique_employee(db_session, user: User, tag: str | None = None) -> Employee
 
 class TestSerializers:
     def test_serialize_datetime_with_value(self):
-        dt = datetime(2026, 7, 21, 12, 30, 0, tzinfo=timezone.utc)
+        dt = datetime(2026, 7, 21, 12, 30, 0, tzinfo=UTC)
         assert serialize_datetime(dt) == "2026-07-21T12:30:00+00:00"
 
     def test_serialize_datetime_none(self):

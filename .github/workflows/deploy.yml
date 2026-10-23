@@ -1,10 +1,11 @@
 name: Deploy
 
+# Runs after CI completes on the default branch. Deploys only when CI truly
+# succeeded (not cancelled/failed). Manual dispatch via workflow_dispatch.
 on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    branches: []
   workflow_dispatch:
     inputs:
       customers:
@@ -17,6 +18,9 @@ on:
         default: "main"
         type: string
 
+# Deploy requires no repository GITHUB_TOKEN permissions.
+permissions: {}
+
 env:
   VPS_HOST: ${{ secrets.VPS1_HOST }}
   VPS_USER: ${{ secrets.VPS1_USER }}
@@ -26,7 +30,7 @@ env:
 
 jobs:
   deploy-infrastructure:
-    if: ${{ github.event.workflow_run.conclusion != 'failure' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Deploy shared infrastructure
@@ -41,7 +45,7 @@ jobs:
             docker compose -f "${{ env.INFRA_COMPOSE_FILE }}" up -d
 
   deploy-customers:
-    if: ${{ github.event.workflow_run.conclusion != 'failure' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     needs: [deploy-infrastructure]
     runs-on: ubuntu-latest
     strategy:
@@ -73,7 +77,7 @@ jobs:
               up -d
 
   deploy-demo:
-    if: ${{ github.event.workflow_run.conclusion != 'failure' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     needs: [deploy-infrastructure]
     runs-on: ubuntu-latest
     steps:

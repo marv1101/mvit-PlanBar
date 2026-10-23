@@ -4,7 +4,7 @@ BSI IT-Grundschutz recommends account lockout after 5-10 failed attempts.
 This implementation locks accounts after 5 failed attempts for 15 minutes.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 
 class LockoutService:
@@ -25,7 +25,7 @@ class LockoutService:
 
         Returns True if the account is now locked, False otherwise.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Check if account is already locked
         if self.is_locked(email):
@@ -49,7 +49,7 @@ class LockoutService:
             return False
 
         lockout_time = self._lockouts[email]
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         lockout_duration = timedelta(minutes=self.LOCKOUT_DURATION_MINUTES)
 
         if now - lockout_time >= lockout_duration:
@@ -84,7 +84,7 @@ class LockoutService:
             return 0
 
         lockout_time = self._lockouts[email]
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         lockout_duration = timedelta(minutes=self.LOCKOUT_DURATION_MINUTES)
         elapsed = now - lockout_time
         remaining = lockout_duration - elapsed

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from tito.schema import Employee, JobPayload, validate_job_payload
@@ -6,7 +6,7 @@ from tito.schema import Employee, JobPayload, validate_job_payload
 
 def test_schema_accepts_valid_payload():
     """Test with a complete valid payload."""
-    today = datetime.now(tz=timezone.utc).date()
+    today = datetime.now(tz=UTC).date()
     start_date = today.strftime("%Y-%m-%d")
     end_date = (today + timedelta(days=7)).strftime("%Y-%m-%d")
 

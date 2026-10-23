@@ -21,7 +21,7 @@ Enthält das Arbeitsrecht-Regelwerk als harte Constraints:
 import logging
 import math
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from ortools.sat.python.cp_model import CpModel, CpSolver, LinearExpr
 
@@ -78,7 +78,7 @@ def _time_to_minutes(time_str: str) -> int:
 
 
 def _parse_date(date_str: str) -> datetime:
-    return datetime.strptime(str(date_str), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    return datetime.strptime(str(date_str), "%Y-%m-%d").replace(tzinfo=UTC)
 
 
 def _date_to_week_key(date_str: str) -> tuple[int, int]:
@@ -1041,7 +1041,7 @@ def _empty_result(ctx: dict, status: str, info: str, solve_time: float, is_optim
         "metadata": {
             "status": status,
             "solveTimeSeconds": round(solve_time, 2),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         },
         "solution": {
             "assignments": [],
@@ -1074,17 +1074,17 @@ def _empty_result(ctx: dict, status: str, info: str, solve_time: float, is_optim
 
 def solve_model(model: dict, timeout_seconds: float = 300) -> dict:
     """Löst das Modell mit CP-SAT unter Beachtung des Arbeitsrecht-Regelwerks."""
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.now(UTC)
     ctx = _prepare(model)
     slots: list[dict] = ctx["slots"]
 
     if not slots:
-        solve_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+        solve_time = (datetime.now(UTC) - start_time).total_seconds()
         return _empty_result(ctx, "SUCCESS", "Keine Anforderungen zu planen.", solve_time, True)
 
     artifacts = _build_cp_model(ctx, frozenset())
     solver, status = _solve_cp(artifacts["cp_model"], timeout_seconds, ctx["num_search_workers"], ctx["random_seed"])
-    solve_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+    solve_time = (datetime.now(UTC) - start_time).total_seconds()
     status_name = _status_name(solver, status)
 
     if status_name == "MODEL_INVALID":
@@ -1278,7 +1278,7 @@ def solve_model(model: dict, timeout_seconds: float = 300) -> dict:
         "metadata": {
             "status": solver_status,
             "solveTimeSeconds": round(solve_time, 2),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         },
         "solution": {
             "assignments": assignments_solution,

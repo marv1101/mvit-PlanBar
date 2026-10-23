@@ -19,7 +19,7 @@ import os
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import Mock, patch
 
 import requests
@@ -48,7 +48,7 @@ def create_test_payload(job_id: str = "test-job", priority: int = 0) -> dict:
             "jobId": job_id,
             "tenantId": 1,
             "priority": priority,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         },
         "config": {
             "startDate": "2026-05-13",

@@ -1,6 +1,6 @@
 """Time-tracking service (Issue #29 - Digitale Zeiterfassung)."""
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -36,7 +36,7 @@ def clock_in(db: Session, employee_id: int, notes: str | None = None) -> TimeEnt
         raise ValueError(f"Employee {employee_id} is already clocked in")
     entry = TimeEntry(
         employee_id=employee_id,
-        clock_in=datetime.now(timezone.utc),
+        clock_in=datetime.now(UTC),
         notes=notes,
     )
     db.add(entry)
@@ -50,12 +50,12 @@ def clock_out(db: Session, employee_id: int) -> TimeEntry:
     entry = _get_open_entry(db, employee_id)
     if entry is None:
         raise ValueError(f"No open time entry for employee {employee_id}")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     entry.clock_out = now
     # SQLAlchemy/SQLite may strip tzinfo on roundtrip — re-attach if needed
     clock_in_ts = entry.clock_in
     if clock_in_ts.tzinfo is None:
-        clock_in_ts = clock_in_ts.replace(tzinfo=timezone.utc)
+        clock_in_ts = clock_in_ts.replace(tzinfo=UTC)
     delta = (now - clock_in_ts).total_seconds() / 60.0
     entry.duration_minutes = round(delta)
     db.commit()

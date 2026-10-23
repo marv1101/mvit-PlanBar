@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import WebSocket
 from sqlalchemy.orm import Session
@@ -138,7 +138,7 @@ async def persist_chat_message(db: Session, thread_id: int, user_id: int, conten
     db.add(message)
     thread = db.query(PinboardThread).filter(PinboardThread.id == thread_id).first()
     if thread:
-        thread.updated_at = datetime.now(timezone.utc)
+        thread.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(message)
 
