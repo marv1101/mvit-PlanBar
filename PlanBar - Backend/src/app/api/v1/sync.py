@@ -19,8 +19,15 @@ from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
 from app.dependencies import get_current_user, get_db
+from app.services.sync_scope import (
+    scoped_employees,
+    scoped_roles,
+    scoped_schedules,
+    scoped_shifts,
+    scoped_wishes,
+)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 class ActionPayload(BaseModel):
@@ -138,12 +145,16 @@ def initial_sync(
     current_user: User = Depends(get_current_user),
     request: Request = None,
 ):
-    """Bulk endpoint returning all reference data for initial client sync."""
-    employees = db.query(Employee).all()
-    roles = db.query(Role).all()
-    schedules = db.query(Schedule).all()
-    shifts = db.query(Shiftplan).all()
-    wishes = db.query(ShiftWish).all()
+    """Bulk endpoint returning reference data for initial client sync.
+
+    Data is scoped by the caller's role (see ``app.services.sync_scope``);
+    ETag/If-None-Match are computed on the scoped payload.
+    """
+    employees = scoped_employees(db, current_user)
+    roles = scoped_roles(db, current_user)
+    schedules = scoped_schedules(db, current_user)
+    shifts = scoped_shifts(db, current_user)
+    wishes = scoped_wishes(db, current_user)
 
     response_data = SyncResponse(
         employees=[_serialize_employee(e) for e in employees],
@@ -156,7 +167,11 @@ def initial_sync(
 
     all_items = employees + roles + schedules + shifts + wishes
     last_modified = _get_last_updated(all_items)
-    etag = compute_etag(response_data.model_dump())
+    # synced_at changes on every request and must not be part of the ETag,
+    # otherwise If-None-Match/304 can never match.
+    etag_payload = response_data.model_dump()
+    etag_payload.pop("synced_at", None)
+    etag = compute_etag(etag_payload)
 
     if request:
         if_none_match = request.headers.get("if-none-match")
@@ -184,22 +199,25 @@ def delta_sync(
     if_none_match: str | None = Header(None),
     if_modified_since: str | None = Header(None),
 ):
-    """Delta sync for individual resource types."""
+    """Delta sync for individual resource types.
+
+    Data is scoped by the caller's role (see ``app.services.sync_scope``).
+    """
     resource_type = resource_type.lower()
 
-    serializers = {
-        "employees": (Employee, _serialize_employee),
-        "roles": (Role, _serialize_role),
-        "schedules": (Schedule, _serialize_schedule),
-        "shifts": (Shiftplan, _serialize_shift),
-        "requests": (ShiftWish, _serialize_wish),
+    scope_by_resource = {
+        "employees": (scoped_employees, _serialize_employee),
+        "roles": (scoped_roles, _serialize_role),
+        "schedules": (scoped_schedules, _serialize_schedule),
+        "shifts": (scoped_shifts, _serialize_shift),
+        "requests": (scoped_wishes, _serialize_wish),
     }
 
-    if resource_type not in serializers:
+    if resource_type not in scope_by_resource:
         raise HTTPException(status_code=404, detail=f"Unknown resource type: {resource_type}")
 
-    model_class, serializer = serializers[resource_type]
-    items = db.query(model_class).all()
+    scope, serializer = scope_by_resource[resource_type]
+    items = scope(db, current_user)
 
     last_modified = _get_last_updated(items)
     serialized = [serializer(item) for item in items]
@@ -218,7 +236,10 @@ def delta_sync(
         "synced_at": datetime.now(UTC).isoformat(),
     }
 
-    response = Response(content=json.dumps(result), media_type="application/json")
+    response = Response(
+        content=json.dumps(result, default=str),  # time/date fields are not JSON-native
+        media_type="application/json",
+    )
     add_cache_headers(response, etag=etag, last_modified=last_modified)
     return response
 
