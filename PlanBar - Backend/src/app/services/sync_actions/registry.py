@@ -22,7 +22,7 @@ class SyncActionRegistry:
     @classmethod
     def dispatch(cls, payload: Any, db: Session, user: User) -> dict[str, Any]:
         handler = cls.get(payload.resource, payload.action)
-        handler.role.check(user)
+        handler.role.check(user, db, payload.data)
         return handler.execute(db, payload.data, user)
 
     @classmethod

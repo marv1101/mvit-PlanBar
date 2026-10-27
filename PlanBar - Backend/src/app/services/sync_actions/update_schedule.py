@@ -12,7 +12,7 @@ from app.services.sync_actions.serializers import serialize_schedule as _seriali
 
 
 class AdminRoleCheck(RoleRequired):
-    def check(self, user: User) -> None:
+    def check(self, user: User, db: Session, data: dict[str, Any]) -> None:
         if user.role != "admin":
             raise HTTPException(status_code=403, detail="Admin access required")
 

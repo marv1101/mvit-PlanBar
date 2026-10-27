@@ -6,14 +6,20 @@ from sqlalchemy.orm import Session
 from app.db.models.shift_wish import ShiftWish
 from app.db.models.user import User
 from app.services.schedule_service import wish_week_for_date
-from app.services.sync_actions.base import RoleRequired
+from app.services.sync_actions.base import RoleRequired, assert_access_to_employee
 from app.services.sync_actions.serializers import serialize_wish as _serialize_wish
 
 
 class EmployeeRoleCheck(RoleRequired):
-    def check(self, user: User) -> None:
+    """User must be an employee and may only create wishes for employees
+    they can access (own record / planer team scope / admin).
+    """
+
+    def check(self, user: User, db: Session, data: dict[str, Any]) -> None:
         if not hasattr(user, "employee_id") or user.employee_id is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User must be an employee")
+        employee_id = data.get("employee_id") or user.employee_id
+        assert_access_to_employee(db, user, employee_id)
 
 
 class CreateShiftWish(RoleRequired):

@@ -141,9 +141,20 @@ class TestUpdateSchedule:
 
 
 class TestUpdateShift:
+    @staticmethod
+    def _own_schedule(db_session, name="ShiftSched"):
+        """Own week_type=None schedule (no parity restriction) instead of the
+        hard-coded schedule_id=1, which is order-dependent in the shared test DB.
+        """
+        s = Schedule(name=_u(name), status="draft", week_type=None)
+        db_session.add(s)
+        db_session.commit()
+        return s
+
     def test_update_shift_success(self, db_session, admin_user):
+        s = self._own_schedule(db_session)
         sp = Shiftplan(
-            schedule_id=1,
+            schedule_id=s.id,
             employee_id=1,
             date=_date(2026, 6, 1),
             shift_id="morning",
@@ -182,8 +193,9 @@ class TestUpdateShift:
         assert r["notes"] == "Important tasks"
 
     def test_update_shift_derives_week_on_date_change(self, db_session, admin_user):
+        s = self._own_schedule(db_session)
         sp = Shiftplan(
-            schedule_id=1,
+            schedule_id=s.id,
             employee_id=2,
             date=_date(2026, 6, 2),
             shift_id="evening",
@@ -216,7 +228,7 @@ class TestUpdateShift:
 
 
 class TestSyncActionRegistry:
-    def test_register_and_get_action(self):
+    def test_register_and_get_action(self, clean_registry):
         m = Mock(spec=CreateShiftWish)
         m.resource = "requests"
         m.action = "create"
@@ -232,7 +244,7 @@ class TestSyncActionRegistry:
         assert e.value.status_code == 400
         assert "Unsupported action" in str(e.value)
 
-    def test_dispatch_calls_auth_and_execute(self, db_session, admin_user):
+    def test_dispatch_calls_auth_and_execute(self, db_session, admin_user, clean_registry):
         m = Mock(spec=CreateShiftWish)
         m.resource = "requests"
         m.action = "create"
@@ -244,6 +256,203 @@ class TestSyncActionRegistry:
         p.action = "create"
         p.data = {"test": "data"}
         r = SyncActionRegistry.dispatch(p, db_session, admin_user)
-        m.role.check.assert_called_once_with(admin_user)
+        m.role.check.assert_called_once_with(admin_user, db_session, {"test": "data"})
         m.execute.assert_called_once_with(db_session, {"test": "data"}, admin_user)
         assert r == {"id": 1}
+
+
+@pytest.fixture
+def clean_registry():
+    """Restore the real action registrations after a test mutated the registry."""
+    yield
+    SyncActionRegistry.reset()
+    from app.services import sync_actions
+
+    for action in (
+        sync_actions.CreateShiftWish,
+        sync_actions.UpdateShiftWish,
+        sync_actions.DeleteShiftWish,
+        sync_actions.UpdateSchedule,
+        sync_actions.UpdateShift,
+    ):
+        SyncActionRegistry.register(action)
+
+
+def _make_wish(db_session, employee_id, note="w"):
+    wish = ShiftWish(employee_id=employee_id, date=_date(2026, 6, 1), week=23, type="preferred", note=note)
+    db_session.add(wish)
+    db_session.commit()
+    return wish
+
+
+def _make_planer(db_session):
+    """Planer user (role=planer) with an employee linked to a new team.
+
+    Returns (user, planer_employee, team).
+    """
+    from app.db.models.team import Team
+
+    team = Team(name=_u("team"))
+    db_session.add(team)
+    db_session.commit()
+
+    emp = Employee(first_name="P", last_name="L", email=f"{_u('planer')}@x.com")
+    emp.teams.append(team)
+    db_session.add(emp)
+    db_session.commit()
+
+    user = User(username=_u("pl"), email=f"{_u('pl')}@x.com", password_hash="x", role="planer", employee_id=emp.id)
+    db_session.add(user)
+    db_session.commit()
+    return user, emp, team
+
+
+def _team_member_with_wish(db_session, team, note="member-wish"):
+    """Employee in *team* plus a wish owned by that employee."""
+    emp = Employee(first_name="T", last_name="M", email=f"{_u('member')}@x.com")
+    emp.teams.append(team)
+    db_session.add(emp)
+    db_session.commit()
+    return emp, _make_wish(db_session, emp.id, note=note)
+
+
+def _foreign_employee_user(db_session):
+    """Role-'user' account linked to its OWN employee — distinct from the
+    ``employee_user`` fixture (which doubles as ``regular_user``).
+    """
+    emp = Employee(first_name="F", last_name="U", email=f"{_u('foreignuser')}@x.com")
+    db_session.add(emp)
+    db_session.commit()
+    user = User(username=_u("fu"), email=f"{_u('fu')}@x.com", password_hash="x", role="user", employee_id=emp.id)
+    db_session.add(user)
+    db_session.commit()
+    return user, emp
+
+
+class TestCreateShiftWishOwnership:
+    def test_create_for_foreign_employee_denied(self, db_session, employee_user):
+        foreign = Employee(first_name="F", last_name="X", email=f"{_u('foreign')}@x.com")
+        db_session.add(foreign)
+        db_session.commit()
+        with pytest.raises(HTTPException) as e:
+            CreateShiftWish.role.check(employee_user, db_session, {"employee_id": foreign.id})
+        assert e.value.status_code == 403
+
+    def test_create_for_own_employee_allowed(self, db_session, employee_user):
+        CreateShiftWish.role.check(employee_user, db_session, {"employee_id": employee_user.employee_id})
+
+
+class TestUpdateShiftWishRoleCheck:
+    def test_owner_can_update_own_wish(self, db_session, employee_user):
+        wish = _make_wish(db_session, employee_user.employee_id)
+        UpdateShiftWish.role.check(employee_user, db_session, {"id": wish.id})
+
+    def test_regular_user_cannot_update_foreign_wish(self, db_session, employee_user):
+        foreign_user, _foreign_emp = _foreign_employee_user(db_session)
+        wish = _make_wish(db_session, employee_user.employee_id)
+        with pytest.raises(HTTPException) as e:
+            UpdateShiftWish.role.check(foreign_user, db_session, {"id": wish.id})
+        assert e.value.status_code == 403
+
+    def test_team_planer_can_update_team_wish(self, db_session):
+        planer, _planer_emp, team = _make_planer(db_session)
+        member, wish = _team_member_with_wish(db_session, team)
+        UpdateShiftWish.role.check(planer, db_session, {"id": wish.id})
+        assert member.id
+
+    def test_planer_cannot_update_foreign_wish(self, db_session, employee_user):
+        planer, _planer_emp, _team = _make_planer(db_session)
+        wish = _make_wish(db_session, employee_user.employee_id)
+        with pytest.raises(HTTPException) as e:
+            UpdateShiftWish.role.check(planer, db_session, {"id": wish.id})
+        assert e.value.status_code == 403
+
+    def test_user_cannot_change_status(self, db_session, employee_user):
+        wish = _make_wish(db_session, employee_user.employee_id)
+        with pytest.raises(HTTPException) as e:
+            UpdateShiftWish.role.check(employee_user, db_session, {"id": wish.id, "status": "approved"})
+        assert e.value.status_code == 403
+        assert "Only admins or planners" in str(e.value)
+
+    def test_planer_can_change_status(self, db_session):
+        planer, _planer_emp, team = _make_planer(db_session)
+        _member, wish = _team_member_with_wish(db_session, team)
+        UpdateShiftWish.role.check(planer, db_session, {"id": wish.id, "status": "approved"})
+
+    def test_owner_cannot_reassign_wish_to_foreign_employee(self, db_session, employee_user):
+        foreign = Employee(first_name="F", last_name="Y", email=f"{_u('foreign')}@x.com")
+        db_session.add(foreign)
+        db_session.commit()
+        wish = _make_wish(db_session, employee_user.employee_id)
+        with pytest.raises(HTTPException) as e:
+            UpdateShiftWish.role.check(employee_user, db_session, {"id": wish.id, "employee_id": foreign.id})
+        assert e.value.status_code == 403
+
+
+class TestDeleteShiftWishRoleCheck:
+    def test_owner_can_delete_own_wish(self, db_session, employee_user):
+        wish = _make_wish(db_session, employee_user.employee_id)
+        DeleteShiftWish.role.check(employee_user, db_session, {"id": wish.id})
+
+    def test_regular_user_cannot_delete_foreign_wish(self, db_session, employee_user):
+        foreign_user, _foreign_emp = _foreign_employee_user(db_session)
+        wish = _make_wish(db_session, employee_user.employee_id)
+        with pytest.raises(HTTPException) as e:
+            DeleteShiftWish.role.check(foreign_user, db_session, {"id": wish.id})
+        assert e.value.status_code == 403
+
+    def test_team_planer_can_delete_team_wish(self, db_session):
+        planer, _planer_emp, team = _make_planer(db_session)
+        _member, wish = _team_member_with_wish(db_session, team)
+        DeleteShiftWish.role.check(planer, db_session, {"id": wish.id})
+
+
+class TestUpdateShiftRoleCheck:
+    def _shift_for(self, db_session, employee_id, name="ShiftSched"):
+        s = Schedule(name=_u(name), status="draft", week_type="both")
+        db_session.add(s)
+        db_session.commit()
+        sp = Shiftplan(
+            schedule_id=s.id,
+            employee_id=employee_id,
+            date=_date(2026, 6, 1),
+            shift_id="morning",
+            start_time=_time(8, 0),
+            end_time=_time(16, 0),
+        )
+        db_session.add(sp)
+        db_session.commit()
+        return sp
+
+    def test_regular_user_denied(self, db_session, regular_user):
+        sp = self._shift_for(db_session, 1)
+        with pytest.raises(HTTPException) as e:
+            UpdateShift.role.check(regular_user, db_session, {"id": sp.id})
+        assert e.value.status_code == 403
+
+    def test_employee_user_denied(self, db_session, employee_user):
+        sp = self._shift_for(db_session, employee_user.employee_id)
+        with pytest.raises(HTTPException) as e:
+            UpdateShift.role.check(employee_user, db_session, {"id": sp.id})
+        assert e.value.status_code == 403
+
+    def test_planer_team_schedule_allowed(self, db_session):
+        planer, _planer_emp, team = _make_planer(db_session)
+        member, _wish = _team_member_with_wish(db_session, team)
+        sp = self._shift_for(db_session, member.id)
+        UpdateShift.role.check(planer, db_session, {"id": sp.id})
+
+    def test_planer_foreign_schedule_denied(self, db_session, employee_user):
+        planer, _planer_emp, _team = _make_planer(db_session)
+        sp = self._shift_for(db_session, employee_user.employee_id, name="ForeignSched")
+        with pytest.raises(HTTPException) as e:
+            UpdateShift.role.check(planer, db_session, {"id": sp.id})
+        assert e.value.status_code == 403
+
+    def test_planer_cannot_reassign_to_foreign_employee(self, db_session, employee_user):
+        planer, _planer_emp, team = _make_planer(db_session)
+        member, _wish = _team_member_with_wish(db_session, team)
+        sp = self._shift_for(db_session, member.id)
+        with pytest.raises(HTTPException) as e:
+            UpdateShift.role.check(planer, db_session, {"id": sp.id, "employee_id": employee_user.employee_id})
+        assert e.value.status_code == 403

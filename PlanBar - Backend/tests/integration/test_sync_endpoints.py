@@ -348,3 +348,155 @@ def _create_schedule(client, auth_headers, name):
     resp = client.post("/api/v1/schedules", json={"name": name}, headers=auth_headers)
     assert resp.status_code == 201, resp.text
     return resp.json()
+
+
+# ── /sync/actions: ownership & team-scope checks ─────────────────────────────
+
+
+def _action(resource, action, data):
+    return {"resource": resource, "action": action, "data": data, "client_timestamp": "2026-06-01T00:00:00Z"}
+
+
+def _post_actions(client, headers, actions):
+    return client.post("/api/v1/sync/actions", headers=headers, json={"actions": actions})
+
+
+def test_sync_actions_user_cannot_create_wish_for_foreign_employee(client, auth_headers, employee_auth_headers):
+    headers, _emp_id = employee_auth_headers
+    foreign = _create_employee(client, auth_headers, "Foreign", "SyncCreate")
+
+    response = _post_actions(
+        client, headers, [_action("requests", "create", {"employee_id": foreign, "date": "2026-06-01"})]
+    )
+    assert response.status_code == 403
+
+
+def test_sync_actions_user_cannot_update_foreign_wish(client, auth_headers, employee_auth_headers):
+    headers, _emp_id = employee_auth_headers
+    foreign = _create_employee(client, auth_headers, "Foreign", "SyncUpdate")
+    wish = _create_wish(client, auth_headers, foreign)
+
+    response = _post_actions(client, headers, [_action("requests", "update", {"id": wish["id"], "note": "hijacked"})])
+    assert response.status_code == 403
+
+
+def test_sync_actions_user_can_update_own_wish_but_not_status(client, auth_headers, employee_auth_headers):
+    headers, emp_id = employee_auth_headers
+    wish = _create_wish(client, auth_headers, emp_id)
+
+    update = _post_actions(client, headers, [_action("requests", "update", {"id": wish["id"], "note": "updated"})])
+    assert update.status_code == 200
+    assert update.json()["results"][0]["success"] is True
+
+    status_change = _post_actions(
+        client, headers, [_action("requests", "update", {"id": wish["id"], "status": "approved"})]
+    )
+    assert status_change.status_code == 403
+
+
+def test_sync_actions_planer_can_review_team_wish(
+    client, auth_headers, planner_team, planer_auth_headers, planer_employee_id
+):
+    emp_a = _create_employee(client, auth_headers, "Team", "WishReview")
+    client.post(
+        f"/api/v1/teams/{planner_team}/employees",
+        json={"employee_ids": [planer_employee_id, emp_a]},
+        headers=auth_headers,
+    )
+    wish = _create_wish(client, auth_headers, emp_a)
+
+    response = _post_actions(
+        client, planer_auth_headers, [_action("requests", "update", {"id": wish["id"], "status": "approved"})]
+    )
+    assert response.status_code == 200
+    assert response.json()["results"][0]["data"]["status"] == "approved"
+
+
+def test_sync_actions_planer_cannot_review_foreign_wish(
+    client, auth_headers, planner_team, planer_auth_headers, planer_employee_id
+):
+    foreign = _create_employee(client, auth_headers, "Foreign", "WishReview")
+    wish = _create_wish(client, auth_headers, foreign)
+
+    response = _post_actions(
+        client, planer_auth_headers, [_action("requests", "update", {"id": wish["id"], "status": "approved"})]
+    )
+    assert response.status_code == 403
+
+
+def test_sync_actions_user_can_delete_own_wish(client, auth_headers, employee_auth_headers):
+    headers, emp_id = employee_auth_headers
+    wish = _create_wish(client, auth_headers, emp_id)
+
+    response = _post_actions(client, headers, [_action("requests", "delete", {"id": wish["id"]})])
+    assert response.status_code == 200
+    assert response.json()["results"][0]["data"]["deleted"] is True
+
+
+def test_sync_actions_user_cannot_delete_foreign_wish(client, auth_headers, employee_auth_headers):
+    headers, _emp_id = employee_auth_headers
+    foreign = _create_employee(client, auth_headers, "Foreign", "SyncDelete")
+    wish = _create_wish(client, auth_headers, foreign)
+
+    response = _post_actions(client, headers, [_action("requests", "delete", {"id": wish["id"]})])
+    assert response.status_code == 403
+
+
+def test_sync_actions_shift_update_denied_for_employee(client, auth_headers, employee_auth_headers):
+    headers, emp_id = employee_auth_headers
+    schedule = _create_schedule_with_shift(client, auth_headers, "Shift Deny Sched", emp_id)
+    shift_id = schedule["shiftplans"][0]["id"]
+
+    response = _post_actions(client, headers, [_action("shifts", "update", {"id": shift_id, "label": "Hacked"})])
+    assert response.status_code == 403
+
+
+def test_sync_actions_planer_can_update_team_shift(
+    client, auth_headers, planner_team, planer_auth_headers, planer_employee_id
+):
+    emp_a = _create_employee(client, auth_headers, "Team", "ShiftEdit")
+    client.post(
+        f"/api/v1/teams/{planner_team}/employees",
+        json={"employee_ids": [planer_employee_id, emp_a]},
+        headers=auth_headers,
+    )
+    schedule = _create_schedule_with_shift(client, auth_headers, "Planer Team Shift Sched", emp_a)
+    shift_id = schedule["shiftplans"][0]["id"]
+
+    response = _post_actions(
+        client, planer_auth_headers, [_action("shifts", "update", {"id": shift_id, "label": "Planned"})]
+    )
+    assert response.status_code == 200
+    assert response.json()["results"][0]["data"]["label"] == "Planned"
+
+
+def test_sync_actions_planer_cannot_update_foreign_shift(
+    client, auth_headers, planner_team, planer_auth_headers, planer_employee_id
+):
+    foreign = _create_employee(client, auth_headers, "Foreign", "ShiftEdit")
+    schedule = _create_schedule_with_shift(client, auth_headers, "Planer Foreign Shift Sched", foreign)
+    shift_id = schedule["shiftplans"][0]["id"]
+
+    response = _post_actions(
+        client, planer_auth_headers, [_action("shifts", "update", {"id": shift_id, "label": "Hacked"})]
+    )
+    assert response.status_code == 403
+
+
+def test_sync_actions_planer_cannot_reassign_shift_to_foreign_employee(
+    client, auth_headers, planner_team, planer_auth_headers, planer_employee_id
+):
+    emp_a = _create_employee(client, auth_headers, "Team", "ShiftReassign")
+    client.post(
+        f"/api/v1/teams/{planner_team}/employees",
+        json={"employee_ids": [planer_employee_id, emp_a]},
+        headers=auth_headers,
+    )
+    foreign = _create_employee(client, auth_headers, "Foreign", "ShiftReassign")
+    schedule = _create_schedule_with_shift(client, auth_headers, "Planer Reassign Sched", emp_a)
+    shift_id = schedule["shiftplans"][0]["id"]
+
+    response = _post_actions(
+        client, planer_auth_headers, [_action("shifts", "update", {"id": shift_id, "employee_id": foreign})]
+    )
+    assert response.status_code == 403

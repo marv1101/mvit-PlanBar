@@ -5,15 +5,44 @@ from sqlalchemy.orm import Session
 
 from app.db.models.schedule import Schedule, Shiftplan
 from app.db.models.user import User
-from app.services.schedule_service import _assert_date_in_scope, _get_week_type
-from app.services.sync_actions.base import RoleRequired
+from app.services.schedule_service import (
+    _assert_date_in_scope,
+    _assert_team_restriction_for_employee_ids,
+    _get_week_type,
+    assert_team_read_access,
+)
+from app.services.sync_actions.base import RoleRequired, assert_roles
 from app.services.sync_actions.serializers import serialize_shift as _serialize_shift
+
+
+class ShiftUpdateRoleCheck(RoleRequired):
+    """Mirror of PUT /schedules/{id}/shifts/{shiftplan_id}: admin/planer only,
+    the shift's schedule must be within the user's read scope and an employee
+    reassignment must stay within the planer's team scope.
+    """
+
+    def check(self, user: User, db: Session, data: dict[str, Any]) -> None:
+        assert_roles(user, ("admin", "planer"), "Admin or planer access required")
+        shift = db.query(Shiftplan).filter(Shiftplan.id == data.get("id")).first()
+        if not shift:
+            return  # execute raises the canonical 404
+        schedule = db.query(Schedule).filter(Schedule.id == shift.schedule_id).first()
+        if schedule:
+            try:
+                assert_team_read_access(db, schedule, user)
+            except PermissionError:
+                raise HTTPException(status_code=403, detail="Schedule is not in your team scope")
+        new_employee_id = data.get("employee_id") or shift.employee_id
+        try:
+            _assert_team_restriction_for_employee_ids(db, {new_employee_id}, user)
+        except PermissionError:
+            raise HTTPException(status_code=403, detail="Planer may only assign employees from their own teams")
 
 
 class UpdateShift(RoleRequired):
     resource = "shifts"
     action = "update"
-    role = RoleRequired()
+    role = ShiftUpdateRoleCheck()
     _EDITABLE_FIELDS = (
         "employee_id",
         "date",
